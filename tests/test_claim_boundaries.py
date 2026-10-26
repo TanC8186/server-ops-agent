@@ -164,3 +164,73 @@ def test_target_mentioning_the_bound_target_is_not_a_conflict():
     checked, problems = verify_claims([_observation("svc-a 网络延迟 12ms")], EVIDENCE)
 
     assert checked[0]["status"] == "supported", problems
+
+
+@pytest.mark.parametrize(
+    "claim",
+    [
+        "CPU 使用率 12%，上游 api-gateway 出现超时",
+        "CPU 使用率 12%，参考 www.example.com 文档",
+        "CPU 使用率 12%，pod checkout-service-7d9 正常",
+        "CPU 使用率 12%，日志里 redis-cache 连接失败",
+    ],
+)
+def test_common_component_names_are_not_mistaken_for_other_targets(claim):
+    """保守性回归：通用组件/域名/副本号不能被当成“换了个目标”。
+
+    证据目标是 checkout-service；上面这些文本里的 token 与目标同族无一致性，
+    也不构成“同族但不同的服务”，所以必须保持 supported，否则大量正常报告会被
+    无谓降级。
+    """
+    evidence = {
+        "id": "E1",
+        "tool": "query_cpu_metrics",
+        "ok": True,
+        "status": "ok",
+        "live": True,
+        "source": "tencent_cloud",
+        "target": "checkout-service",
+        "data": {"metric": "cpu_usage", "statistics": {"avg": 12.0}, "unit": "percent"},
+    }
+    checked, problems = verify_claims(
+        [{"claim": claim, "status": "supported", "evidence_ids": ["E1"]}],
+        {"E1": evidence},
+    )
+
+    assert checked[0]["status"] == "supported", problems
+
+
+def test_same_family_different_service_is_still_rejected():
+    """与目标同族的另一个服务（svc-a 证据 vs svc-b 声明）仍必须拒绝。"""
+    evidence = dict(
+        LATENCY_EVIDENCE,
+        target="svc-a",
+    )
+    checked, problems = verify_claims(
+        [{"claim": "svc-b 的网络延迟 12ms", "status": "supported", "evidence_ids": ["E1"]}],
+        {"E1": evidence},
+    )
+
+    assert checked[0]["status"] == "hypothesis"
+    assert any("svc-b" in problem or "目标" in problem for problem in problems)
+
+
+def test_identifier_digits_are_not_treated_as_observed_values():
+    """``checkout-service-7d9`` 里的 7 是副本号，不是被测到的指标数值。"""
+    evidence = {
+        "id": "E1",
+        "tool": "query_cpu_metrics",
+        "ok": True,
+        "status": "ok",
+        "live": True,
+        "source": "tencent_cloud",
+        "target": "checkout-service",
+        "data": {"metric": "cpu_usage", "statistics": {"avg": 12.0}, "unit": "percent"},
+    }
+    checked, problems = verify_claims(
+        [{"claim": "CPU 12%，pod checkout-service-7d9 正常",
+          "status": "supported", "evidence_ids": ["E1"]}],
+        {"E1": evidence},
+    )
+
+    assert checked[0]["status"] == "supported", problems

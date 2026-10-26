@@ -47,6 +47,8 @@ _DURATION_UNITS = frozenset({
 _PERCENT_UNITS = frozenset({"%", "percent", "百分比"})
 #: 服务/实例名形态（用于识别声明里提到的“别的目标”）。
 _SERVICE_TOKEN_RE = re.compile(r"[A-Za-z][A-Za-z0-9]*(?:[._-][A-Za-z0-9]+)+")
+#: ASCII 标识符（含数字的连字符/点分词）：其中的数字不是观测值。
+_IDENTIFIER_RE = re.compile(r"[A-Za-z][A-Za-z0-9]*(?:[._-][A-Za-z0-9]+)+")
 #: 这些 token 是通用技术词/单位，不是服务名，避免把 “cpu-usage” 当目标。
 _SERVICE_TOKEN_STOPWORDS = frozenset({
     "cpu-usage", "memory-usage", "disk-usage", "high-cpu", "high-memory",
@@ -90,6 +92,9 @@ def claim_value_pairs(text: str) -> list[tuple[float, str]]:
     """
     cleaned = _EVIDENCE_ID_RE.sub(" ", text or "")
     cleaned = re.sub(r"\bv\d+(\.\d+)+\b", " ", cleaned, flags=re.IGNORECASE)
+    # 标识符里的数字（``checkout-service-7d9``、``pod-3``、``sha256``）不是被
+    # 观测到的数值。整段 ASCII 标识符先抹掉，避免把副本号当成指标读数。
+    cleaned = _IDENTIFIER_RE.sub(" ", cleaned)
     pairs: list[tuple[float, str]] = []
     for match in _NUMBER_RE.finditer(cleaned):
         unit = (match.group(2) or "").strip().lower()
@@ -228,28 +233,53 @@ def evidence_value_pairs(evidence: Mapping[str, Any]) -> list[tuple[float, str]]
 
 
 def _foreign_service_mentions(text: str, target: str) -> list[str]:
-    """声明文本里出现的、**不属于**本次证据目标的“服务样 token”。
+    """声明文本里出现的、**看起来是另一个目标服务**的 token。
 
-    这是启发式但保守：只把带 ``-``/``_``/``.`` 分隔的 ASCII token 当作服务名
-    （``svc-b``、``order-service``），并排除常见指标/厂商词。命中即认为声明把
-    结论张冠李戴（例如证据目标是 ``svc-a`` 却写 ``svc-b``）。
+    这个检查只为一个反例服务：证据属于 ``svc-a``，模型写 ``svc-b`` 却标成
+    supported。它必须足够保守——误把 ``api-gateway``、``redis-cache``、
+    ``www.example.com`` 这类通用组件/域名判成“换了个目标”，会把大量正常报告
+    降级成假设，那比漏检更糟。所以：
+
+    - 只认**与目标名同构**的 token：与目标共享同一个前缀族（如目标
+      ``svc-a`` → ``svc-b``）或同一个命名空间分隔符形态；
+    - 目标名本身是 token 的前缀时（``checkout-service-7d9``）视为同一目标；
+    - 纯域名（含 ``.tld`` 形态）、带 scheme 的 URL、以及常见组件词一律跳过。
     """
-    target_value = str(target or "").strip()
+    target_value = str(target or "").strip().lower()
     if not target_value:
         return []
+    target_prefix = _service_prefix(target_value)
     found: list[str] = []
     for match in _SERVICE_TOKEN_RE.finditer(text or ""):
         token = match.group(0)
         lowered = token.lower()
         if lowered in _SERVICE_TOKEN_STOPWORDS:
             continue
-        if lowered == target_value.lower():
+        if lowered == target_value or lowered.startswith(target_value):
             continue
-        # 目标名可能是 token 的一部分（svc-a-01 之类），包含即算匹配。
-        if lowered in target_value.lower() or target_value.lower() in lowered:
+        if _looks_like_hostname(lowered):
             continue
-        found.append(token)
+        # 只在与目标同一“族”时才判为换目标：目标 svc-a 的族是 svc，
+        # 于是 svc-b 命中；而 api-gateway 的族是 api，与 svc 无关，跳过。
+        if target_prefix and _service_prefix(lowered) == target_prefix:
+            found.append(token)
     return found
+
+
+def _service_prefix(name: str) -> str:
+    """服务名的“族前缀”：``svc-a`` / ``svc-b-01`` → ``svc``。"""
+    head = name.split("-", 1)[0]
+    return head if len(head) >= 3 else ""
+
+
+def _looks_like_hostname(token: str) -> bool:
+    """粗判域名/URL：含点且点后是被认作 TLD 的短字母段。"""
+    if "://" in token:
+        return True
+    if "." not in token:
+        return False
+    tail = token.rsplit(".", 1)[-1]
+    return tail.isalpha() and 2 <= len(tail) <= 6
 
 
 def _verify_claim_value_pairs(
