@@ -318,3 +318,50 @@ def test_paging_walks_all_events_without_gaps_or_duplicates(tmp_path, monkeypatc
 
     assert [item["seq"] for item in collected] == [item["seq"] for item in events]
     assert collected[-1]["event"] == "run_complete"
+
+
+def test_log_limit_is_clamped_even_without_a_budget_object():
+    """没有接入 RequestBudget 时，limit 仍然必须收敛（A07 不依赖预算接线）。"""
+    observed: list = []
+    tool = _log_tool(observed)
+
+    async def run() -> tuple[dict, list[str]]:
+        runtime = runtime_tools.RunTools([tool], "run-1", "local", lambda _: None)
+        runtime.bind(Target(service="svc-a"))
+        evidence = await runtime.call("search_service_logs",
+                                     {"service_name": "svc-a", "limit": 999_999})
+        return evidence, list(runtime.budget_notes)
+
+    evidence, notes = asyncio.run(run())
+
+    assert evidence["ok"] is True
+    assert observed[-1] == 100, f"limit 必须收敛到上限，实际 {observed[-1]}"
+    assert any("limit" in note for note in notes), f"必须说明收敛了什么: {notes}"
+
+
+def test_budget_notes_reach_local_quality_gaps():
+    """参数收敛/证据截断说明必须出现在本地报告的证据缺口里。"""
+    from app.agent.aiops import local_runtime
+
+    observed: list = []
+    tool = _log_tool(observed)
+    budget = RequestBudget(
+        tool_calls=10, llm_calls=12, subprocess_calls=10,
+        prompt_chars=20_000, evidence_chars=50,
+    )
+
+    async def collect() -> runtime_tools.RunTools:
+        runtime = runtime_tools.RunTools([tool], "run-1", "local", lambda _: None,
+                                         budget=budget)
+        runtime.bind(Target(service="svc-a"))
+        await runtime.call("search_service_logs", {"service_name": "svc-a", "limit": 999_999})
+        return runtime
+
+    runtime = asyncio.run(collect())
+    quality = local_runtime.assess_local_quality(
+        runtime.evidence, target_bound=True, extra_gaps=list(runtime.budget_notes)
+    )
+
+    joined = " ".join(quality["gaps"])
+    assert "limit" in joined
+    assert any("截断" in gap or "超过" in gap for gap in quality["gaps"])

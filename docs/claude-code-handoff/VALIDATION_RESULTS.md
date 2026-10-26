@@ -435,7 +435,7 @@ bash -n docker-entrypoint.sh
 
 | 检查 | 命令 | 结果 |
 |---|---|---|
-| 后端全量 pytest | `./.venv/Scripts/python.exe -m pytest tests -p no:cacheprovider -q -o addopts= --tb=line --disable-warnings -rs` | **583 passed, 1 skipped, 2 warnings，96.63s**（exit 0） |
+| 后端全量 pytest | `./.venv/Scripts/python.exe -m pytest tests -p no:cacheprovider -q -o addopts= --tb=line --disable-warnings -rs` | **585 passed, 1 skipped, 2 warnings，79.26s**（exit 0） |
 | 前端单测 | `cd web && npm test` | **48 passed, 0 fail** |
 | 前端构建 | `cd web && npm run build` | 通过，产物 `assets/index-vsa-hn5h.js` 320.57 kB / `index-Zmx7MErZ.css` 28.86 kB |
 | 前端 lint | `cd web && npm run lint` | 通过（oxlint 无输出） |
@@ -444,7 +444,7 @@ bash -n docker-entrypoint.sh
 | Docker daemon | `docker info --format '{{.ServerVersion}}'` | 29.8.2（可用） |
 | skip | `tests/test_p0_run_paths.py:134` | 环境不允许创建符号链接，仍是 **未执行**，不是通过 |
 
-收集总数从 528 → 583（+55），新增测试文件：
+收集总数从 528 → 585（+57），新增测试文件：
 `test_acceptance_boundaries.py`(12)、`test_acceptance_targets_budget_paging.py`(12)、
 `test_claim_boundaries.py`(17)、`test_parent_backfill.py`(5)、`test_runs_api.py` +5（abandoned/retention）；前端 +4。
 
