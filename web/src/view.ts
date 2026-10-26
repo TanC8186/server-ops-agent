@@ -28,9 +28,17 @@ export interface CitationCard {
 }
 
 export interface TargetCandidate {
+  /**
+   * 服务端签发的稳定候选 ID（`tgt-<hex>`）。同名多实例必须用它绑定具体实例，
+   * 只发服务名会丢掉 instance/region，后端只能再次回答 `target_required`。
+   * 旧服务端不发 `target_id` 时为空串，此时退化为 service+instance+region 身份。
+   */
+  targetId: string;
   service: string;
   instanceId: string;
   region: string;
+  topics: string[];
+  sshHost: string;
 }
 
 function record(value: unknown): Record<string, unknown> | null {
@@ -49,7 +57,27 @@ function numberOr(value: unknown, fallback = 0): number {
   return Number.isFinite(parsed) ? parsed : fallback;
 }
 
-/** `target_required` 候选：只保留有服务名的条目，按服务名去重并保持服务端顺序。 */
+function stringList(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value.map(text).filter((item) => item.length > 0);
+}
+
+/**
+ * `target_required` 候选的**完整身份**。
+ *
+ * A04：只按服务名去重会让 `orders/i-a/r-a` 与 `orders/i-b/r-b` 塌成一张卡，
+ * 点击后无法表达“是哪一个实例”。因此身份优先用服务端签发的 `target_id`，
+ * 旧服务端没有 `target_id` 时退化为 service+instance+region。
+ */
+function candidateIdentity(candidate: TargetCandidate): string {
+  if (candidate.targetId) return candidate.targetId;
+  return [candidate.service, candidate.instanceId, candidate.region].join("\u001f");
+}
+
+/**
+ * `target_required` 候选：只保留有服务名的条目，按**完整身份**去重并保持服务端顺序。
+ * 同一服务名的不同实例/地域是不同的目标，必须各自保留。
+ */
 export function targetCandidates(value: unknown): TargetCandidate[] {
   if (!Array.isArray(value)) return [];
   const seen = new Set<string>();
@@ -58,32 +86,46 @@ export function targetCandidates(value: unknown): TargetCandidate[] {
     const row = record(item);
     if (!row) continue;
     const service = text(row.service) || text(row.service_name);
-    if (!service || seen.has(service)) continue;
-    seen.add(service);
-    candidates.push({
+    if (!service) continue;
+    const candidate: TargetCandidate = {
+      targetId: text(row.target_id) || text(row.targetId),
       service,
       instanceId: text(row.instance_id) || text(row.instance),
       region: text(row.region) || text(row.region_code),
-    });
+      topics: stringList(row.topics),
+      sshHost: text(row.ssh_host) || text(row.sshHost),
+    };
+    const identity = candidateIdentity(candidate);
+    if (seen.has(identity)) continue;
+    seen.add(identity);
+    candidates.push(candidate);
   }
   return candidates;
 }
 
+/** 卡片身份即完整身份：同名不同实例的两张卡必须有不同 React key。 */
 export function candidateKey(candidate: TargetCandidate): string {
-  return candidate.service;
+  return candidateIdentity(candidate);
 }
 
 /**
  * 用户点击候选卡片后重新发起诊断的请求体。
- * 只有显式传入非空选择时才带 `target_choice`——没有选择就等价于原请求，
- * 避免把“空串”当成一次目标绑定。
+ *
+ * - 有服务端候选 ID 时只带 `target_candidate_id`（完整目标），服务端据此绑定
+ *   具体实例；`target_choice` 仍在传入时保留，供旧服务端回退使用。
+ * - 没有显式选择就等价于原请求，绝不把“空串”当成一次目标绑定。
  */
 export function targetRequestBody(
   base: Record<string, unknown>,
   targetChoice?: string | null,
+  candidateId?: string | null,
 ): Record<string, unknown> {
   const choice = (targetChoice ?? "").trim();
-  return choice ? { ...base, target_choice: choice } : { ...base };
+  const candidate = (candidateId ?? "").trim();
+  const body: Record<string, unknown> = { ...base };
+  if (choice) body.target_choice = choice;
+  if (candidate) body.target_candidate_id = candidate;
+  return body;
 }
 
 /** done 事件 / retrieval.chunks 里的引用列表；缺失字段用空串，不编造来源。 */
@@ -160,6 +202,71 @@ export function knowledgeStatusLabel(status: unknown): StatusLabel {
     default:
       return { text: "未知", tone: "muted", detail: "" };
   }
+}
+
+export interface EvalManifestSummary {
+  /** true = 结果文件带 manifest（新格式）；false = 只有 rows 的旧格式。 */
+  present: boolean;
+  /** 面板直接渲染的一行文本，只包含 manifest 里真实存在的字段。 */
+  text: string;
+  /** 缺失或无法读取的字段，用于提示“未知”，绝不填占位数值。 */
+  missing: string[];
+}
+
+function str(value: unknown): string {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+/**
+ * 评测结果的运行条件摘要（A10）。
+ *
+ * 两份 eval JSON 只有在记录了模型/embedding/场景/代码版本时才能比较，
+ * 所以面板要把 manifest 摆出来。这里**只读取服务端写入的字段**：
+ * 缺什么就在 `missing` 里列出，不用默认值或猜测补全。
+ */
+export function evalManifestSummary(manifest: Record<string, unknown> | null | undefined): EvalManifestSummary {
+  const row = record(manifest);
+  if (!row) {
+    return { present: false, text: "旧格式（无 manifest）", missing: [] };
+  }
+  const llm = record(row.llm);
+  const embedding = record(row.embedding);
+  const git = record(row.git);
+  const scenarios = Array.isArray(row.scenarios) ? row.scenarios : [];
+
+  const parts: string[] = [];
+  const missing: string[] = [];
+
+  const executionMode = str(row.execution_mode);
+  if (executionMode) parts.push(`模式 ${executionMode}`);
+  else missing.push("execution_mode");
+
+  const provider = str(llm?.provider);
+  const model = str(llm?.model);
+  const localModel = str(llm?.local_llm_model);
+  if (model) parts.push(`模型 ${provider ? `${provider}/` : ""}${model}`);
+  else missing.push("llm.model");
+  if (localModel) parts.push(`本地模型 ${localModel}`);
+
+  const embeddingModel = str(embedding?.model);
+  if (embeddingModel) parts.push(`embedding ${embeddingModel}`);
+  else missing.push("embedding.model");
+
+  if (scenarios.length) parts.push(`场景 ${scenarios.length} 个`);
+  else missing.push("scenarios");
+
+  const commit = str(git?.commit);
+  const dirty = git?.dirty_worktree;
+  if (commit) {
+    const dirtyText =
+      typeof dirty === "boolean" ? (dirty ? " · 工作区有未提交改动" : " · 工作区干净") : "";
+    parts.push(`commit ${commit}${dirtyText}`);
+  } else {
+    missing.push("git.commit");
+  }
+  if (typeof dirty !== "boolean") missing.push("git.dirty_worktree");
+
+  return { present: true, text: parts.length ? parts.join(" · ") : "manifest 为空", missing };
 }
 
 /** 索引作业状态（202 + job_id 的轮询展示）。 */

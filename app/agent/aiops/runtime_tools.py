@@ -452,6 +452,16 @@ def _accepts_keyword(func: Any, name: str) -> bool:
     return name in parameters
 
 
+async def discover_service_compat(runtime: Any, requested: str | None, user_input: str,
+                                  *, candidate: str | None = None):
+    """调用 ``runtime.discover_service``；旧版/替身没有 ``candidate`` 时退回原签名。"""
+    func = getattr(runtime, "discover_service")
+    kwargs: dict[str, Any] = {}
+    if candidate and _accepts_keyword(func, "candidate"):
+        kwargs["candidate"] = candidate
+    return await func(requested, user_input, **kwargs)
+
+
 async def create_tools_compat(create: Callable, run_id: str, execution_mode: str,
                               emit: Callable[[dict], None], *,
                               deadline: float | None = None, budget=None):

@@ -15,6 +15,7 @@ import {
   candidateKey,
   chatOutcomeLabel,
   citationCards,
+  evalManifestSummary,
   jobStatusLabel,
   knowledgeStatusLabel,
   removedCitationsText,
@@ -25,17 +26,77 @@ import {
 
 test("target_required 候选规范化并保留 service/instance/region", () => {
   const candidates = targetCandidates([
-    { service: "svc-a", instance_id: "ins-1", region: "ap-guangzhou" },
+    { target_id: "tgt-aaaaaaaaaaaa1111", service: "svc-a", instance_id: "ins-1", region: "ap-guangzhou" },
     { service_name: "svc-b", region_code: "ap-shanghai" },
   ]);
   assert.deepEqual(candidates, [
-    { service: "svc-a", instanceId: "ins-1", region: "ap-guangzhou" },
-    { service: "svc-b", instanceId: "", region: "ap-shanghai" },
+    {
+      targetId: "tgt-aaaaaaaaaaaa1111",
+      service: "svc-a",
+      instanceId: "ins-1",
+      region: "ap-guangzhou",
+      topics: [],
+      sshHost: "",
+    },
+    {
+      targetId: "",
+      service: "svc-b",
+      instanceId: "",
+      region: "ap-shanghai",
+      topics: [],
+      sshHost: "",
+    },
   ]);
-  assert.equal(candidateKey(candidates[0]), "svc-a");
+  // 身份优先用服务端候选 ID；没有 ID 时退化为 service+instance+region。
+  assert.equal(candidateKey(candidates[0]), "tgt-aaaaaaaaaaaa1111");
+  assert.equal(candidateKey(candidates[1]), "svc-b\u001f\u001fap-shanghai");
+  assert.notEqual(candidateKey(candidates[0]), candidateKey(candidates[1]));
 });
 
-test("候选缺少服务名或重复时被丢弃，不允许默认取第一项", () => {
+test("A04：同名不同实例是两张卡，各自有唯一 targetId 与 key", () => {
+  const candidates = targetCandidates([
+    { target_id: "tgt-00000000000000aa", service: "orders", instance_id: "i-a", region: "r-a" },
+    { target_id: "tgt-00000000000000bb", service: "orders", instance_id: "i-b", region: "r-b" },
+  ]);
+  assert.equal(candidates.length, 2);
+  assert.deepEqual(candidates.map((item) => item.service), ["orders", "orders"]);
+  assert.deepEqual(candidates.map((item) => item.instanceId), ["i-a", "i-b"]);
+  assert.deepEqual(candidates.map((item) => item.region), ["r-a", "r-b"]);
+  assert.deepEqual(
+    candidates.map((item) => item.targetId),
+    ["tgt-00000000000000aa", "tgt-00000000000000bb"],
+  );
+  assert.notEqual(candidateKey(candidates[0]), candidateKey(candidates[1]));
+  // 服务端顺序保持
+  assert.equal(candidates[0].instanceId, "i-a");
+});
+
+test("A04：按完整身份去重——完全相同才合并，实例/地域不同则保留", () => {
+  const candidates = targetCandidates([
+    { target_id: "tgt-1111111111111111", service: "orders", instance_id: "i-a", region: "r-a" },
+    { target_id: "tgt-1111111111111111", service: "orders", instance_id: "i-a", region: "r-a" },
+    { target_id: "tgt-2222222222222222", service: "orders", instance_id: "i-b", region: "r-a" },
+    { target_id: "tgt-3333333333333333", service: "orders", instance_id: "i-a", region: "r-b" },
+  ]);
+  assert.equal(candidates.length, 3);
+  assert.deepEqual(
+    candidates.map((item) => item.targetId),
+    ["tgt-1111111111111111", "tgt-2222222222222222", "tgt-3333333333333333"],
+  );
+
+  // 无 target_id 的旧候选：身份退化为 service+instance+region
+  const legacy = targetCandidates([
+    { service: "orders", instance_id: "i-a", region: "r-a" },
+    { service: "orders", instance_id: "i-a", region: "r-a" },
+    { service: "orders", instance_id: "i-b", region: "r-b" },
+  ]);
+  assert.equal(legacy.length, 2);
+  assert.deepEqual(legacy.map((item) => item.instanceId), ["i-a", "i-b"]);
+  assert.equal(legacy[0].targetId, "");
+  assert.notEqual(candidateKey(legacy[0]), candidateKey(legacy[1]));
+});
+
+test("候选缺少服务名或不合法时被丢弃，不允许默认取第一项（同名不同实例保留）", () => {
   const candidates = targetCandidates([
     { instance_id: "ins-0" },
     { service: "" },
@@ -44,7 +105,8 @@ test("候选缺少服务名或重复时被丢弃，不允许默认取第一项",
     "svc-b",
     null,
   ]);
-  assert.deepEqual(candidates.map((item) => item.service), ["svc-a"]);
+  assert.deepEqual(candidates.map((item) => item.service), ["svc-a", "svc-a"]);
+  assert.deepEqual(candidates.map((item) => item.region), ["", "other"]);
   assert.deepEqual(targetCandidates(undefined), []);
 });
 
@@ -56,6 +118,60 @@ test("显式选择才带 target_choice，空选择不改变原请求", () => {
   assert.deepEqual(targetRequestBody(base), base);
   assert.equal("target_choice" in targetRequestBody(base, ""), false);
 });
+
+test("A04：有候选 ID 时带 target_candidate_id，缺失/空白时不带", () => {
+  const base = { session_id: "s", execution_mode: "local", symptom: "慢" };
+  const withCandidate = targetRequestBody(base, "orders", "tgt-abcdef0123456789");
+  assert.equal(withCandidate.target_candidate_id, "tgt-abcdef0123456789");
+  assert.equal(withCandidate.target_choice, "orders");
+  assert.deepEqual(base, { session_id: "s", execution_mode: "local", symptom: "慢" });
+
+  // 只给候选 ID 也可以
+  assert.deepEqual(targetRequestBody(base, null, " tgt-abcdef0123456789 "), {
+    ...base,
+    target_candidate_id: "tgt-abcdef0123456789",
+  });
+
+  for (const blank of ["", "   ", null, undefined]) {
+    const body = targetRequestBody(base, "orders", blank);
+    assert.equal("target_candidate_id" in body, false);
+    assert.equal(body.target_choice, "orders");
+  }
+  // 两个都没给：原请求原样返回，不制造一次“绑定空目标”
+  assert.deepEqual(targetRequestBody(base), base);
+  assert.equal("target_candidate_id" in targetRequestBody(base), false);
+});
+
+test("A10：manifest 摘要只读取真实字段，旧格式明确说明", () => {
+  const legacy = evalManifestSummary(null);
+  assert.equal(legacy.present, false);
+  assert.match(legacy.text, /旧格式（无 manifest）/);
+
+  const summary = evalManifestSummary({
+    execution_mode: "local",
+    llm: { provider: "local", model: "qwen3-4b", local_llm_model: "Qwen3-4B-Instruct" },
+    embedding: { provider: "local", model: "bge-small-zh" },
+    scenarios: ["s1", "s2", "s3"],
+    git: { commit: "abc1234", dirty_worktree: true },
+  });
+  assert.equal(summary.present, true);
+  assert.match(summary.text, /qwen3-4b/);
+  assert.match(summary.text, /Qwen3-4B-Instruct/);
+  assert.match(summary.text, /bge-small-zh/);
+  assert.match(summary.text, /3 个/);
+  assert.match(summary.text, /abc1234/);
+  assert.match(summary.text, /未提交/);
+  assert.deepEqual(summary.missing, []);
+
+  // 字段缺失时只报告缺失，不编造值
+  const partial = evalManifestSummary({ execution_mode: "cloud_multi" });
+  assert.equal(partial.present, true);
+  assert.doesNotMatch(partial.text, /qwen|bge|abc1234/);
+  assert.ok(partial.missing.includes("llm.model"));
+  assert.ok(partial.missing.includes("git.commit"));
+  assert.ok(partial.missing.includes("embedding.model"));
+});
+
 
 test("引用卡片只读取服务端字段", () => {
   const cards = citationCards([

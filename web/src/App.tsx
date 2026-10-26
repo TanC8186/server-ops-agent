@@ -17,9 +17,16 @@ import {
   type LiveState,
   type RunEvent,
   type StepStatus,
+  type StepSummary,
 } from "./state";
 import { diagnose as diagnoseStream, type DiagnoseOutcome } from "./sse";
-import { targetCandidates, targetRequestBody, type TargetCandidate } from "./view";
+import {
+  candidateKey,
+  evalManifestSummary,
+  targetCandidates,
+  targetRequestBody,
+  type TargetCandidate,
+} from "./view";
 import { renderMarkdown } from "./markdown";
 import ChatPanel from "./ChatPanel";
 import KnowledgePanel from "./KnowledgePanel";
@@ -29,6 +36,12 @@ const modeChoices: ExecutionModeInfo[] = [
   { id: "local", label: "本地端侧小模型", description: "使用本地模型执行诊断，模型不可用时直接提示，不会自动切换至在线 API。", configured: false, model: "" },
   { id: "cloud_multi", label: "在线 API 多智能体", description: "由在线模型协作分析症状、收集证据并审查结论，需要连接配置的在线 API。", configured: false, model: "" },
 ];
+
+/** 用户点选的诊断目标：服务名用于展示/回退，服务端候选 ID 用于精确绑定。 */
+interface ChosenTarget {
+  service: string;
+  targetId: string;
+}
 
 function modeLabel(mode: ExecutionMode | null | undefined) {
   return mode === "local" ? "本地端侧小模型" : mode === "cloud_multi" ? "在线 API 多智能体" : "历史运行（模式未记录）";
@@ -122,6 +135,8 @@ export default function App() {
   const [modeInfos, setModeInfos] = useState<ExecutionModeInfo[]>(modeChoices);
   const [modesState, setModesState] = useState<"loading" | "loaded" | "error">("loading");
   const [modeError, setModeError] = useState("");
+  // ≤1180px：右侧栏被隐藏，用这个开关把同样的内容展开在主区下方。
+  const [inspectorOpen, setInspectorOpen] = useState(false);
   const [symptom, setSymptom] = useState("");
   const [serviceName, setServiceName] = useState("");
   const abortRef = useRef<AbortController | null>(null);
@@ -132,6 +147,8 @@ export default function App() {
   const running = live.lifecycle === "running";
   const selectedModeInfo = modeInfos.find((item) => item.id === executionMode);
   const canStart = !!executionMode && modesState === "loaded" && !!selectedModeInfo?.configured && !!symptom.trim() && !running;
+  // A12：配置读完但存在未配置模式时，仍然要能重新读取（不需要先制造一次错误）。
+  const canReloadModes = modesState === "loaded" && modeInfos.some((item) => !item.configured);
 
   const loadModes = useCallback(async () => {
     try {
@@ -144,6 +161,16 @@ export default function App() {
       setModeError(`无法读取执行模式配置：${(error as Error).message}`);
     }
   }, []);
+
+  /**
+   * 重新读取模式配置：只重置读取状态并重发 GET，绝不顺带发起诊断。
+   * 无论当前是“读取失败”还是“读到了但没配置”都走这一个入口。
+   */
+  const reloadModes = useCallback(() => {
+    setModesState("loading");
+    setModeError("");
+    void loadModes();
+  }, [loadModes]);
 
   // 运行历史与评测各自独立加载：一个失败不能阻断另一个。
   const loadRuns = useCallback(async () => {
@@ -245,13 +272,16 @@ export default function App() {
   }, [backfill, refresh]);
 
   /**
-   * 发起一次诊断。`targetChoice` 只在用户点击候选卡片时传入，
+   * 发起一次诊断。`choice` 只在用户点击候选卡片时传入，
    * 这是显式的第二次请求，不是自动重试。
+   *
+   * A04：同一个服务名可能对应多个实例，所以选择必须带上服务端签发的
+   * `targetId`（请求里的 `target_candidate_id`）；只发服务名会丢掉实例/地域。
    */
-  const start = useCallback(async (targetChoice?: string) => {
+  const start = useCallback(async (choice?: ChosenTarget) => {
     if (!executionMode) return;
     const text = symptom.trim();
-    if (!text && !targetChoice) return;
+    if (!text && !choice) return;
     const version = ++requestVersion.current;
     const id = sessionId || newSessionId();
     latestRunId.current = null;
@@ -269,7 +299,7 @@ export default function App() {
 
     // 候选选择与手填服务名冲突时，以用户刚点的选择为准：后端在两种字段都
     // 存在时优先 service_name，若只发旧值会让选择失效。
-    const chosenService = targetChoice?.trim() || serviceName.trim();
+    const chosenService = choice?.service.trim() || serviceName.trim();
     const body = targetRequestBody(
       {
         session_id: id,
@@ -277,7 +307,8 @@ export default function App() {
         ...(text ? { symptom: text } : {}),
         ...(chosenService ? { service_name: chosenService } : {}),
       },
-      targetChoice,
+      choice?.service,
+      choice?.targetId,
     );
 
     // 事件 -> 状态只有 state.ts 一份实现。
@@ -353,6 +384,16 @@ export default function App() {
   const backend = useMemo(() => deriveBackend(current), [current]);
   const candidates = useMemo(() => targetCandidates(current.candidates), [current.candidates]);
 
+  /**
+   * A12：屏幕阅读器播报的唯一来源——当前生命周期 + 最新提示。
+   * 刻意不拼事件日志：日志每追加一条都会重播，等于刷屏。
+   */
+  const announcement = useMemo(() => {
+    const parts = [mode === "knowledge" ? "知识库管理" : lifecycleLabel(current.lifecycle)];
+    if (notice) parts.push(notice);
+    return `${parts.join("。")}。`;
+  }, [mode, current.lifecycle, notice]);
+
   const newSession = () => {
     requestVersion.current++;
     latestRunId.current = null;
@@ -387,6 +428,13 @@ export default function App() {
 
   return (
     <div className="shell">
+      {/*
+        A12：唯一的 polite live region。只播报“当前生命周期 + 最新提示”这两条
+        摘要，不朗读事件日志（那会每次追加都刷屏），也不重复其他可见文本。
+      */}
+      <div role="status" aria-live="polite" aria-atomic="true" className="sr-only">
+        {announcement}
+      </div>
       <aside className="rail">
         <div className="brand">
           <h1>On-Call Agent</h1>
@@ -462,6 +510,16 @@ export default function App() {
           <span className="sub">
             {mode === "knowledge" ? "管理视图" : lifecycleLabel(current.lifecycle)}
           </span>
+          {/* A12：≤1180px 时右侧 inspector 被媒体查询隐藏，这个按钮是可达的替代入口。 */}
+          <button
+            type="button"
+            className="btn ghost inspector-toggle"
+            aria-expanded={inspectorOpen}
+            aria-controls="run-inspector-inline"
+            onClick={() => setInspectorOpen((open) => !open)}
+          >
+            {inspectorOpen ? "收起本次运行与评测信息" : "本次运行与评测信息"}
+          </button>
         </header>
 
         {mode === "knowledge" ? (
@@ -497,8 +555,19 @@ export default function App() {
                     </button>
                   ))}
                 </div>
-                <p className="note configuration-note">“已配置”仅表示已填写模型配置，不代表服务已通过连接或健康检查。</p>
-                {modeError && <div className="mode-load-error"><p className="note error">{modeError}</p><button className="btn ghost" disabled={running} onClick={() => { setModesState("loading"); setModeError(""); void loadModes(); }}>重新读取配置</button></div>}
+                <p className="note configuration-note">“已配置”仅表示已填写模型配置，不代表服务已通过连接、可用性或健康检查（服务端 readiness 也主要按配置形态推断）。</p>
+                {modeError && (
+                  <div className="mode-load-error">
+                    <p className="note error">{modeError}</p>
+                    <button className="btn ghost" disabled={running} onClick={reloadModes}>重新读取配置</button>
+                  </div>
+                )}
+                {!modeError && canReloadModes && (
+                  <div className="mode-load-error">
+                    <p className="note">有模式尚未配置。完成服务端配置后可直接重新读取，不会自动开始诊断。</p>
+                    <button className="btn ghost" disabled={running} onClick={reloadModes}>重新读取配置</button>
+                  </div>
+                )}
                 {executionMode && modesState === "loaded" && !selectedModeInfo?.configured && <p className="note error">所选模式尚未配置，请完成服务端模型配置后重新读取。</p>}
               </section>
               {selected && <div className="replay-banner"><span>正在回放 {modeLabel(current.executionMode)} · run {shortId(selected)}</span><button className="btn ghost" onClick={() => { selectedRunRef.current = null; setSelected(null); setSelectedEvents([]); setRunParam(null); }}>返回当前会话</button></div>}
@@ -515,9 +584,9 @@ export default function App() {
                   reason={current.error}
                   disabled={running || !executionMode}
                   onChoose={(candidate) => {
-                    // 把选择同步到输入框，用户能看到本次目标；请求同时带 target_choice。
+                    // 把选择同步到输入框，用户能看到本次目标；请求带服务端候选 ID。
                     setServiceName(candidate.service);
-                    void start(candidate.service);
+                    void start({ service: candidate.service, targetId: candidate.targetId });
                   }}
                 />
               )}
@@ -592,48 +661,107 @@ export default function App() {
             </div>
           </>
         )}
+
+        {/*
+          A12：≤1180px 时 aside.inspector 被隐藏，这里给出同样的内容作为可展开区块，
+          不依赖 hover，键盘可聚焦；>1180px 由 CSS 整体隐藏，右侧栏行为不变。
+        */}
+        <section
+          id="run-inspector-inline"
+          className="inspector-inline"
+          hidden={!inspectorOpen}
+          aria-label="本次运行与评测信息"
+        >
+          <RunInspector
+            current={current}
+            summary={summary}
+            backend={backend}
+            evals={evals}
+            evalsError={evalsError}
+          />
+        </section>
       </main>
 
-      <aside className="inspector">
-        <section>
-          <h3>本次运行</h3>
-          <dl className="kv">
-            <dt>执行模式</dt><dd>{modeLabel(current.executionMode)}</dd>
-            <dt>run ID</dt><dd>{current.runId ?? "—"}</dd>
-            <dt>模型路径</dt>
-            <dd>
-              {backend ? (
-                <span className={`badge ${backend}`}>
-                  {backend === "local" ? "本地模型" : "在线 API"}
-                </span>
-              ) : (
-                "—"
-              )}
-            </dd>
-            <dt>状态</dt><dd>{lifecycleLabel(current.lifecycle)}</dd>
-            <dt>证据质量</dt><dd>{current.quality ?? "—"}</dd>
-            <dt>步骤</dt>
-            <dd>{summary.completed}/{summary.total}</dd>
-            <dt>工具调用</dt><dd>{summary.toolCalls}</dd>
-            <dt>发现调用</dt><dd>{summary.discovery}</dd>
-            <dt>事件</dt>
-            <dd>{current.events.length}</dd>
-            <dt>tokens</dt>
-            <dd>{sumTokens(current.events)}</dd>
-          </dl>
-        </section>
+      <aside className="inspector" id="run-inspector">
+        <RunInspector
+          current={current}
+          summary={summary}
+          backend={backend}
+          evals={evals}
+          evalsError={evalsError}
+        />
+      </aside>
+    </div>
+  );
+}
 
-        <section>
-          <h3>评测结果</h3>
-          {evalsError && <p className="note error">{evalsError}</p>}
-          {!evalsError && evals.length === 0 ? (
-            <p className="empty">还没有评测输出。运行 `python scripts/run_eval.py --live`。</p>
-          ) : (
-            evals.slice(0, 4).map((result) => (
+/**
+ * 右侧栏内容。宽屏是固定的 `aside.inspector`；≤1180px 时同一个组件也渲染在
+ * 主区下方的可展开区块里（A12），所以内容只有这一份实现。
+ */
+function RunInspector({
+  current,
+  summary,
+  backend,
+  evals,
+  evalsError,
+}: {
+  current: LiveState;
+  summary: StepSummary;
+  backend: "local" | "cloud" | null;
+  evals: EvalResult[];
+  evalsError: string;
+}) {
+  return (
+    <>
+      <section>
+        <h3>本次运行</h3>
+        <dl className="kv">
+          <dt>执行模式</dt><dd>{modeLabel(current.executionMode)}</dd>
+          <dt>run ID</dt><dd>{current.runId ?? "—"}</dd>
+          <dt>模型路径</dt>
+          <dd>
+            {backend ? (
+              <span className={`badge ${backend}`}>
+                {backend === "local" ? "本地模型" : "在线 API"}
+              </span>
+            ) : (
+              "—"
+            )}
+          </dd>
+          <dt>状态</dt><dd>{lifecycleLabel(current.lifecycle)}</dd>
+          <dt>证据质量</dt><dd>{current.quality ?? "—"}</dd>
+          <dt>步骤</dt>
+          <dd>{summary.completed}/{summary.total}</dd>
+          <dt>工具调用</dt><dd>{summary.toolCalls}</dd>
+          <dt>发现调用</dt><dd>{summary.discovery}</dd>
+          <dt>事件</dt>
+          <dd>{current.events.length}</dd>
+          <dt>tokens</dt>
+          <dd>{sumTokens(current.events)}</dd>
+        </dl>
+      </section>
+
+      <section>
+        <h3>评测结果</h3>
+        {evalsError && <p className="note error">{evalsError}</p>}
+        {!evalsError && evals.length === 0 ? (
+          <p className="empty">还没有评测输出。运行 `python scripts/run_eval.py --live`。</p>
+        ) : (
+          evals.slice(0, 4).map((result) => {
+            const manifest = evalManifestSummary(result.manifest);
+            return (
               <div key={result.name} style={{ marginBottom: 14 }}>
                 <div className="sub" style={{ fontFamily: "var(--mono)", fontSize: 11, color: "var(--muted)" }}>
-                  {result.name} · {result.rows.length} cases
+                  {result.name} · {result.rows?.length ?? 0} cases
                 </div>
+                {/* 运行条件：没有 manifest 的旧文件如实说明，不补默认值。 */}
+                <p className={`eval-manifest${manifest.present ? "" : " legacy"}`}>
+                  {manifest.text}
+                  {manifest.present && manifest.missing.length > 0 && (
+                    <span className="eval-manifest-missing">（缺少：{manifest.missing.join("、")}）</span>
+                  )}
+                </p>
                 <table className="eval-table">
                   <thead>
                     <tr>
@@ -657,18 +785,18 @@ export default function App() {
                   </tbody>
                 </table>
               </div>
-            ))
-          )}
-        </section>
+            );
+          })
+        )}
+      </section>
 
-        <section>
-          <h3>这套系统在做什么</h3>
-          <p className="note" style={{ fontSize: 12.5 }}>
-            本地模式使用端侧模型完成排查，模型或工具失败会直接显示错误。在线模式通过多个智能体协作收集、分析和审查证据。运行记录保留每一步的工具结果，供后续复核。
-          </p>
-        </section>
-      </aside>
-    </div>
+      <section>
+        <h3>这套系统在做什么</h3>
+        <p className="note" style={{ fontSize: 12.5 }}>
+          本地模式使用端侧模型完成排查，模型或工具失败会直接显示错误。在线模式通过多个智能体协作收集、分析和审查证据。运行记录保留每一步的工具结果，供后续复核。
+        </p>
+      </section>
+    </>
   );
 }
 
@@ -698,15 +826,17 @@ function TargetChoice({
       <div className="target-cards" role="group" aria-label="候选服务">
         {candidates.map((candidate) => (
           <button
-            key={candidate.service}
+            key={candidateKey(candidate)}
             type="button"
             className="target-card"
             disabled={disabled}
+            aria-label={`选择目标 ${candidate.service} · 实例 ${candidate.instanceId || "未声明"} · 地域 ${candidate.region || "未声明"}`}
             onClick={() => onChoose(candidate)}
           >
             <strong>{candidate.service}</strong>
-            <span>实例：{candidate.instanceId || "未声明"}</span>
+            <span className="target-instance">实例：{candidate.instanceId || "未声明"}</span>
             <span>地域：{candidate.region || "未声明"}</span>
+            {candidate.topics.length > 0 && <span>日志主题：{candidate.topics.join("、")}</span>}
             <span className="target-choose">选择并重新诊断 →</span>
           </button>
         ))}

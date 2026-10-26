@@ -430,9 +430,52 @@ a { color: var(--agent); }
 .eval-table th { color: var(--muted); font-weight: 500; font-size: 11px; }
 .eval-table td.num { font-family: var(--mono); font-size: 11.5px; }
 
+/* 评测运行条件（manifest）：一行紧凑的等宽文本，旧格式明确标注。 */
+.eval-manifest {
+  margin: 2px 0 6px;
+  font-family: var(--mono);
+  font-size: 10.5px;
+  line-height: 1.6;
+  color: var(--ink-soft);
+  overflow-wrap: anywhere;
+}
+
+.eval-manifest.legacy { color: var(--muted); font-style: italic; }
+.eval-manifest-missing { color: var(--muted); font-style: normal; }
+
+/* 只给读屏器：视觉隐藏，但仍参与可访问性树（A12 的 aria-live 播报区）。 */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* 窄屏 inspector 替代入口：宽屏不显示（右侧栏本身就在）。 */
+.inspector-toggle { display: none; }
+.inspector-inline { display: none; }
+
 @media (max-width: 1180px) {
   .shell { grid-template-columns: 232px minmax(0, 1fr); }
   .inspector { display: none; }
+  .inspector-toggle { display: inline-flex; align-items: center; height: 30px; padding: 0 12px; }
+  .inspector-inline {
+    display: block;
+    border-top: 1px solid var(--rule);
+    background: var(--paper-raised);
+    flex: none;
+    max-height: 46vh;
+    overflow-y: auto;
+  }
+  .inspector-inline[hidden] { display: none; }
+  .inspector-inline section { padding: 14px 26px; border-bottom: 1px solid var(--rule-soft); }
+  .inspector-inline h3 { margin: 0 0 10px; font-size: 11.5px; font-weight: 500; color: var(--muted); letter-spacing: .02em; }
 }
 
 @media (max-width: 760px) {

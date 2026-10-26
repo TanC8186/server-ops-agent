@@ -12,7 +12,12 @@ from app.observability import trace_event
 from app.services.diagnostic_runtime import target_required_outcome
 
 from .local_planner import try_local_plan
-from .runtime_tools import TargetRequiredError, create_run_tools, create_tools_compat
+from .runtime_tools import (
+    TargetRequiredError,
+    create_run_tools,
+    create_tools_compat,
+    discover_service_compat,
+)
 
 _LOCAL_SLOT = asyncio.Semaphore(1)
 
@@ -132,9 +137,10 @@ async def run_local(user_input: str, session_id: str, run_id: str, *,
                 )
                 holder["tools"] = tools
                 try:
-                    target = await tools.discover_service(
-                        _chosen_target(service_name, target_choice), user_input,
-                        candidate=target_candidate_id)
+                    target = await discover_service_compat(
+                        tools, _chosen_target(service_name, target_choice), user_input,
+                        candidate=target_candidate_id,
+                    )
                 except TargetRequiredError as exc:
                     # 目标歧义不是失败：不调用 planner、不查询任何目标数据，
                     # 只发一条选择事件与唯一终态。

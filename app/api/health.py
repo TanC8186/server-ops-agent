@@ -127,6 +127,37 @@ def _rag_capability(milvus_status: str, milvus_message: str) -> dict[str, Any]:
     return _capability("degraded", f"向量存储状态异常（{error_name}）：{reason}")
 
 
+def _mcp_capability() -> dict[str, Any]:
+    """MCP 工具能力：只报告**进程内已缓存**的真实结果，不主动连接。
+
+    「配置里写了三个 MCP 服务」不等于「工具已经连上」。这里区分三件事：
+    - ``unconfigured``：没有任何 MCP 服务配置；
+    - ``degraded``：已配置但本进程还没成功加载过工具（首次诊断才会连接）；
+    - ``ready``：本进程确实拿到过工具列表（``mcp_client._tools_cache`` 非空）。
+
+    ``ready`` 只代表“加载过一次工具列表”，不代表那一刻之后服务仍健康——这一点
+    写进 ``reason``，避免把缓存当成实时探活。不触发任何网络/子进程调用。
+    """
+    servers = getattr(config, "mcp_servers", None) or {}
+    if not servers:
+        return _capability("unconfigured", "未配置任何 MCP 服务")
+    try:
+        from app.agent import mcp_client
+    except Exception as exc:  # noqa: BLE001 - 可选依赖导入失败只能降级
+        return _capability("degraded", f"MCP 客户端不可用（{type(exc).__name__}）")
+    tools = getattr(mcp_client, "_tools_cache", None)
+    count = len(tools) if isinstance(tools, list) else 0
+    if count:
+        return _capability(
+            "ready",
+            f"本进程已加载 {count} 个 MCP 工具（缓存结果；不代表之后仍健康）",
+        )
+    return _capability(
+        "degraded",
+        f"已配置 {len(servers)} 个 MCP 服务，但本进程尚未成功加载工具（首次诊断时才连接）",
+    )
+
+
 def _tracing_capability() -> dict[str, Any]:
     """trace 写入健康：只暴露计数，不暴露 last_error / 事件载荷。
 
@@ -156,6 +187,7 @@ async def health_check():
     可用性。能力探测失败只影响对应字段，响应始终是 HTTP 200：
 
     - ``diagnosis_local`` / ``diagnosis_cloud``：配置是否完整，不探测端点；
+    - ``mcp``：本进程是否真的加载过 MCP 工具（缓存事实，不是实时探活）；
     - ``rag``：Milvus 连通性与已记录的索引校验结果；
     - ``tracing``：进程内写入/失败计数。
 
@@ -194,6 +226,7 @@ async def health_check():
     capabilities = {
         "diagnosis_local": _diagnosis_local_capability(),
         "diagnosis_cloud": _diagnosis_cloud_capability(),
+        "mcp": _mcp_capability(),
         "rag": _rag_capability(milvus_status, milvus_message),
         "tracing": _tracing_capability(),
     }

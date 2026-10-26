@@ -496,7 +496,9 @@ class KnowledgeStore:
                 for start in range(0, len(chunks), INDEX_BATCH_SIZE):
                     batch = chunks[start:start + INDEX_BATCH_SIZE]
                     ids = chunk_ids[start:start + INDEX_BATCH_SIZE]
-                    returned = vector_store_manager.add_documents(batch, ids=ids) or ids
+                    # 成功返回的列表不再用于回滚：回滚按全部预生成候选 ID 进行
+                    # （A02），这样即使本批写了一半就抛错也能清理干净。
+                    vector_store_manager.add_documents(batch, ids=ids) or ids
                     with self._lock:
                         job = self._data["jobs"].get(job_id)
                         if job is None or job.get("status") == "cancelled":
@@ -527,7 +529,11 @@ class KnowledgeStore:
         with self._lock:
             job = self._data["jobs"].get(job_id)
             if job is not None:
-                job.setdefault("pending_cleanup", list(chunk_ids))
+                # 作业开始时会把 pending_cleanup 置为空列表；这里必须**并入**候选
+                # ID，而不是 setdefault（否则空列表会被当成“已有值”而跳过）。
+                existing = list(job.get("pending_cleanup") or [])
+                pending = list(dict.fromkeys(existing + list(chunk_ids)))
+                job["pending_cleanup"] = pending
                 self._save_locked()
 
     def _document_revision_exists(self, document_id: str, revision: str) -> bool:

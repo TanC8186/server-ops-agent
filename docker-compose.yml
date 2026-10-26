@@ -180,8 +180,14 @@ services:
       # 描述符丢失会让已有 collection 被判为 invalid_index，必须持久化。
       - oncall-data:/app/data
     depends_on:
+      # 冷启动策略：**软依赖**，只保证启动顺序，不以 Milvus healthy 作硬门槛。
+      # 与 docker-entrypoint.sh 的降级策略一致：Milvus 慢或暂不可用时，诊断主
+      # 链路（不依赖向量库）先起来，RAG 在 /health 里如实显示 unavailable，依赖
+      # 恢复后由 VectorStoreManager 的 transient 重试自行恢复，无需重启容器。
+      # 旧配置用 service_healthy，与 entrypoint 的矛盾策略会让 app 在 Milvus 冷
+      # 启动慢时直接起不来，把“RAG 暂时不可用”伪装成“app 启动失败”。
       milvus:
-        condition: service_healthy
+        condition: service_started
     # 容器健康状态以 /health 为准：该接口在 Milvus/RAG 故障时仍返回 200，
     # 表示"进程可用、能力可能降级"；只有进程本身不可用时才 unhealthy。
     healthcheck:

@@ -88,6 +88,12 @@ export interface EvalRow {
 export interface EvalResult {
   name: string;
   rows: EvalRow[];
+  /**
+   * 这次评测的运行条件（模型/embedding/场景/代码版本）。
+   * 旧格式结果文件只有裸列表，服务端补 `null`——此时面板显示“旧格式”，
+   * 不得拿默认值冒充条件。
+   */
+  manifest?: Record<string, unknown> | null;
   mean_tool_f1: number;
   success_rate: number;
   total_tokens: number;

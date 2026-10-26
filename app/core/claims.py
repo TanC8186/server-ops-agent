@@ -35,12 +35,69 @@ CAUSAL_PATTERNS = (
 # 前缀断言只排除 ASCII 字母/数字/下划线/点。用 ``(?<![\w.])`` 会把中文也算作
 # 词字符，于是“CPU 使用率99%”里的 99 被整段跳过——这正是审查里的漏检反例。
 _NUMBER_RE = re.compile(
-    r"(?<![A-Za-z0-9_.])(\d+(?:\.\d+)?)\s*(%|percent|ms|毫秒|秒|分钟|小时|min\b)?",
+    r"(?<![A-Za-z0-9_.])(\d+(?:\.\d+)?)\s*"
+    r"(%|percent|ms|msec|millisecond|毫秒|秒|s\b|分钟|min\b|小时|h\b|"
+    r"gb|g\b|mb|m\b|kb|k\b|count|次|个)?",
     re.IGNORECASE,
 )
 _EVIDENCE_ID_RE = re.compile(r"(?<![A-Za-z0-9])E\d+(?![A-Za-z0-9])")
-_DURATION_UNITS = frozenset({"ms", "毫秒", "秒", "分钟", "小时", "s", "min", "h"})
-# 单位本身（% 等）应当保留为事实数值的一部分。
+_DURATION_UNITS = frozenset({
+    "ms", "msec", "millisecond", "毫秒", "秒", "s", "分钟", "min", "小时", "h",
+})
+_PERCENT_UNITS = frozenset({"%", "percent", "百分比"})
+#: 服务/实例名形态（用于识别声明里提到的“别的目标”）。
+_SERVICE_TOKEN_RE = re.compile(r"[A-Za-z][A-Za-z0-9]*(?:[._-][A-Za-z0-9]+)+")
+#: 这些 token 是通用技术词/单位，不是服务名，避免把 “cpu-usage” 当目标。
+_SERVICE_TOKEN_STOPWORDS = frozenset({
+    "cpu-usage", "memory-usage", "disk-usage", "high-cpu", "high-memory",
+    "tencent-cloud", "tencentcloud", "http-status", "p95-latency",
+})
+
+
+#: 时长单位的规范族：毫秒 / 秒 / 分钟 / 小时。``12 秒`` 不能支撑 ``12ms``。
+_DURATION_FAMILIES = {
+    "ms": "ms", "msec": "ms", "millisecond": "ms", "毫秒": "ms",
+    "s": "s", "秒": "s",
+    "min": "min", "分钟": "min",
+    "h": "h", "小时": "h",
+}
+
+
+def _unit_category(unit: str) -> str:
+    """单位归类：``duration`` / ``percent`` / ``plain`` / ``other``。"""
+    value = (unit or "").strip().lower()
+    if not value:
+        return "plain"
+    if value in _PERCENT_UNITS:
+        return "percent"
+    if value in _DURATION_UNITS:
+        return "duration"
+    return "other"
+
+
+def _duration_family(unit: str) -> str:
+    """时长单位的规范族（ms/s/min/h）；非时长返回空串。"""
+    return _DURATION_FAMILIES.get((unit or "").strip().lower(), "")
+
+
+def claim_value_pairs(text: str) -> list[tuple[float, str]]:
+    """抽取声明中的 ``(数值, 单位)`` 对（A06）。
+
+    与旧的 :func:`claim_numbers` 不同，这里**保留单位**：同一个 12 在“12%”和
+    “12ms”里含义完全不同。是否把某个数值当作观测值，由调用方结合被引用证据的
+    单位决定（例如 CPU 证据里的“10 分钟”是查询窗口，而延迟证据里的“999ms”
+    是被观测到的数值）。
+    """
+    cleaned = _EVIDENCE_ID_RE.sub(" ", text or "")
+    cleaned = re.sub(r"\bv\d+(\.\d+)+\b", " ", cleaned, flags=re.IGNORECASE)
+    pairs: list[tuple[float, str]] = []
+    for match in _NUMBER_RE.finditer(cleaned):
+        unit = (match.group(2) or "").strip().lower()
+        try:
+            pairs.append((float(match.group(1)), unit))
+        except ValueError:
+            continue
+    return pairs
 
 #: 浮点比较容差：0.05 或相对 0.1%。
 _ABS_TOL = 0.05
@@ -130,23 +187,133 @@ def _has_number(numbers: Iterable[float], target: float) -> bool:
 
 
 def claim_numbers(text: str) -> list[float]:
-    """抽取声明中的事实性数值。
+    """抽取声明中的数值（不做单位取舍；保留给旧调用方）。
 
-    忽略：证据 ID（E1）、版本号（v1.2）、以及紧跟时间单位的时长（查询窗口而非观测值）。
+    注意：只拿到裸数值无法区分“12%”与“12ms”。需要按单位核对的地方请用
+    :func:`claim_value_pairs`。这里仍然保留，是因为 ``run_eval`` 等旧代码依赖
+    它的形状。
     """
-    cleaned = _EVIDENCE_ID_RE.sub(" ", text or "")
-    cleaned = re.sub(r"\bv\d+(\.\d+)+\b", " ", cleaned, flags=re.IGNORECASE)
-    numbers: list[float] = []
-    for match in _NUMBER_RE.finditer(cleaned):
-        unit = (match.group(2) or "").lower()
-        if unit in _DURATION_UNITS:
-            # 时长是查询范围的一部分，不作为“被观测到的数值”校验。
+    return [value for value, _unit in claim_value_pairs(text)]
+
+
+def evidence_value_pairs(evidence: Mapping[str, Any]) -> list[tuple[float, str]]:
+    """从一条证据里抽取 ``(数值, 单位)`` 观测对。
+
+    只认**结构化字段**：``data.statistics`` 的统计值、``data.data_points[].value``、
+    ``data.value``；单位取 ``data.unit``。不从日志正文里猜数字（那会把
+    "timeout after 3000ms" 当成被观测到的延迟值）。
+    """
+    data = _observed_value(evidence)
+    if not isinstance(data, Mapping):
+        return []
+    unit = str(data.get("unit") or "").strip().lower()
+    values: list[float] = []
+    statistics = data.get("statistics")
+    if isinstance(statistics, Mapping):
+        for value in statistics.values():
+            if isinstance(value, (int, float)) and not isinstance(value, bool):
+                values.append(float(value))
+    points = data.get("data_points")
+    if isinstance(points, list):
+        for point in points:
+            if not isinstance(point, Mapping):
+                continue
+            value = point.get("value")
+            if isinstance(value, (int, float)) and not isinstance(value, bool):
+                values.append(float(value))
+    raw = data.get("value")
+    if isinstance(raw, (int, float)) and not isinstance(raw, bool):
+        values.append(float(raw))
+    return [(value, unit) for value in values]
+
+
+def _foreign_service_mentions(text: str, target: str) -> list[str]:
+    """声明文本里出现的、**不属于**本次证据目标的“服务样 token”。
+
+    这是启发式但保守：只把带 ``-``/``_``/``.`` 分隔的 ASCII token 当作服务名
+    （``svc-b``、``order-service``），并排除常见指标/厂商词。命中即认为声明把
+    结论张冠李戴（例如证据目标是 ``svc-a`` 却写 ``svc-b``）。
+    """
+    target_value = str(target or "").strip()
+    if not target_value:
+        return []
+    found: list[str] = []
+    for match in _SERVICE_TOKEN_RE.finditer(text or ""):
+        token = match.group(0)
+        lowered = token.lower()
+        if lowered in _SERVICE_TOKEN_STOPWORDS:
             continue
-        try:
-            numbers.append(float(match.group(1)))
-        except ValueError:
+        if lowered == target_value.lower():
             continue
-    return numbers
+        # 目标名可能是 token 的一部分（svc-a-01 之类），包含即算匹配。
+        if lowered in target_value.lower() or target_value.lower() in lowered:
+            continue
+        found.append(token)
+    return found
+
+
+def _verify_claim_value_pairs(
+    text: str,
+    evidence_with_pairs: list[tuple[str, list[tuple[float, str]]]],
+) -> list[str]:
+    """按 value/unit 逐对核对声明；返回问题描述列表（空表示通过）。
+
+    规则（与 A06 验收一致）：
+
+    - **duration 数值**：证据单位也是 duration → 必须是证据里存在的观测值；
+      证据单位不是 duration → 视为查询窗口（如“最近 10 分钟”），跳过。
+    - **percent 数值**：证据单位是 duration → 单位冲突（“12%”不能支撑 12ms）；
+      其余情况按数值匹配。
+    - **plain/other 数值**：按数值匹配（单位信息不足，只核对数值）。
+    """
+    issues: list[str] = []
+    evidence_units = {unit for _id, pairs in evidence_with_pairs for _v, unit in pairs}
+    has_duration_evidence = any(_unit_category(unit) == "duration" for unit in evidence_units)
+    all_values = [value for _id, pairs in evidence_with_pairs for value, _unit in pairs]
+
+    for value, unit in claim_value_pairs(text):
+        category = _unit_category(unit)
+        if category == "duration":
+            if not has_duration_evidence:
+                # 查询窗口（“最近 10 分钟”），不是被观测到的数值。
+                continue
+            claim_family = _duration_family(unit)
+            matching = [
+                (candidate, evidence_unit)
+                for _id, pairs in evidence_with_pairs
+                for candidate, evidence_unit in pairs
+                if _unit_category(evidence_unit) == "duration"
+                and _duration_family(evidence_unit) == claim_family
+                and _close(candidate, value)
+            ]
+            if matching:
+                continue
+            same_family_values = [
+                candidate
+                for _id, pairs in evidence_with_pairs
+                for candidate, evidence_unit in pairs
+                if _duration_family(evidence_unit) == claim_family
+            ]
+            if same_family_values and not _has_number(same_family_values, value):
+                issues.append(
+                    f"声明中的数值 {value:g}{unit or ''} 无法在引用证据中找到"
+                )
+            elif not same_family_values:
+                # 证据时长单位与声明时长单位不在同一族（如证据 ms、声明 12 秒）。
+                issues.append(
+                    f"声明中的数值 {value:g}{unit or ''} 的单位与被引用证据的时长单位"
+                    "不一致，无法在引用证据中找到同单位观测"
+                )
+            continue
+        if category == "percent" and has_duration_evidence:
+            issues.append(
+                f"声明中的数值 {value:g}{unit} 的单位与被引用证据的单位不一致"
+                f"（证据为 duration），无法在引用证据中找到同单位观测"
+            )
+            continue
+        if not _has_number(all_values, value):
+            issues.append(f"声明中的数值 {value:g}{unit or ''} 无法在引用证据中找到")
+    return issues
 
 
 def is_causal(text: str) -> bool:
@@ -324,9 +491,13 @@ def verify_claims(claims: Iterable[Mapping[str, Any]],
                 problems.append("因果解释不能标记为已证实，已保留为假设: " + text)
                 item["status"] = "hypothesis"
             else:
-                numbers = claim_numbers(text)
-                known = _numbers([_observed_value(evidence) for evidence in live])
-                missing = [number for number in numbers if not _has_number(known, number)]
+                # A06：按 (数值, 单位) 逐个核对，并把声明里提到的“别的目标”视为
+                # 张冠李戴。旧的裸数值比较会漏掉“12% vs 12ms”“999ms”“svc-b”。
+                pairs = [
+                    (str(evidence.get("id") or ""), evidence_value_pairs(evidence))
+                    for evidence in live
+                ]
+                pair_issues = _verify_claim_value_pairs(text, pairs)
                 claimed_families = claim_metric_families(text)
                 evidence_families = {
                     metric_family(_metric_of(evidence)) for evidence in live
@@ -335,10 +506,23 @@ def verify_claims(claims: Iterable[Mapping[str, Any]],
                     bool(claimed_families) and bool(evidence_families)
                     and not (claimed_families & evidence_families)
                 )
-                if missing:
+                live_targets = {
+                    str(evidence.get("target") or "").strip() for evidence in live
+                } - {""}
+                foreign = sorted({
+                    token
+                    for target in live_targets
+                    for token in _foreign_service_mentions(text, target)
+                })
+                if pair_issues:
+                    problems.extend(f"{issue} — {text}" for issue in pair_issues)
+                    item["status"] = "hypothesis"
+                elif foreign:
                     problems.append(
-                        "声明中的数值无法在引用证据中找到: "
-                        + ", ".join(f"{number:g}" for number in missing) + " — " + text
+                        "声明提到的目标与被引用证据的目标不一致（声明出现: "
+                        + ", ".join(foreign)
+                        + "；证据目标: " + ", ".join(sorted(live_targets) or ["未绑定"])
+                        + "）: " + text
                     )
                     item["status"] = "hypothesis"
                 elif wrong_metric:

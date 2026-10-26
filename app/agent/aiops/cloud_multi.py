@@ -24,7 +24,12 @@ from app.observability import trace_event
 from app.services.diagnostic_runtime import target_required_outcome
 
 from . import quality
-from .runtime_tools import TargetRequiredError, create_run_tools, create_tools_compat
+from .runtime_tools import (
+    TargetRequiredError,
+    create_run_tools,
+    create_tools_compat,
+    discover_service_compat,
+)
 
 LLM_TIMEOUT_SECONDS = 60
 SPECIALIST_TOOLS = {
@@ -314,9 +319,11 @@ async def _supervisor_node(state: CloudMultiState) -> dict:
         holder["runtime"] = runtime
     try:
         # 目标歧义时这里直接抛出，绝不调用模型或任何目标数据工具。
-        service = await runtime.discover_service(
-            _chosen_target(state.get("service_name"), state.get("target_choice")), user_input,
-            candidate=state.get("target_candidate_id"))
+        service = await discover_service_compat(
+            runtime,
+            _chosen_target(state.get("service_name"), state.get("target_choice")),
+            user_input, candidate=state.get("target_candidate_id"),
+        )
     except TargetRequiredError as exc:
         emit({"type": "agent_status", "agent": "supervisor", "status": "target_required",
               "message": "目标不唯一，等待用户选择诊断目标"})
@@ -564,6 +571,8 @@ async def run_cloud_multi(user_input: str, session_id: str, run_id: str, *,
     runtime_holder: dict[str, Any] = {}
     #: 自然消费到 ``None`` 才算“正常结束”；被 aclose 打断的是取消。
     consumed = False
+    #: 已经交付过唯一终态：消费者在终态后立刻 break 属于正常结束，不是取消。
+    terminal_sent = False
 
     def emit(event: dict) -> None:
         # 保留字段由服务端覆盖，不能由模型/工具载荷伪造。
@@ -595,10 +604,14 @@ async def run_cloud_multi(user_input: str, session_id: str, run_id: str, *,
             if event is None:
                 consumed = True
                 break
+            if event.get("type") in {"complete", "error"}:
+                terminal_sent = True
             yield event
     finally:
         # 先标记取消再取消协程：等待中的工具调用返回后不会再被发起新的调用。
-        if not consumed:
+        # 只有“既没走到 None、也没交付过终态”的提前关闭才算取消——收到 complete
+        # 后消费者立刻 break 是正常结束，不能写成 run_cancelled 覆盖终态语义。
+        if not consumed and not terminal_sent:
             _record_cancel(run_id, runtime_holder.get("runtime"), consumed=False)
         producer.cancel()
         with suppress(asyncio.CancelledError):
