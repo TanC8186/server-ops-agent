@@ -14,6 +14,8 @@ from fastapi.testclient import TestClient
 
 from app.api import aiops, runs
 
+aiops_api = aiops
+
 VALID_RUN = "abcdef0123456789abcdef0123456789"
 
 
@@ -300,3 +302,56 @@ def test_unknown_run_still_404(runs_client):
     client, _root = runs_client
 
     assert client.get(f"/api/runs/{VALID_RUN}").status_code == 404
+
+
+def test_target_candidate_id_flows_http_to_service_and_binds_exact_instance():
+    """A04 端到端：同名多实例的候选 ID 必须从 HTTP 传到服务并绑定到具体实例。"""
+    from unittest.mock import patch
+
+    from app.core.targets import candidate_id, catalog_targets, resolve_target
+
+    catalog = [
+        {"service_name": "orders", "instance_id": "i-a", "region": "r-a"},
+        {"service_name": "orders", "instance_id": "i-b", "region": "r-b"},
+    ]
+    resolution = resolve_target(catalog, None, "慢")
+    assert resolution.status == "target_required"
+    wanted = resolution.candidates[1]
+    wanted_id = candidate_id(wanted)
+
+    captured: dict = {}
+
+    async def fake_diagnose(**kwargs):
+        captured.update(kwargs)
+        yield {"type": "complete", "response": "ok"}
+
+    app = FastAPI()
+    app.include_router(aiops_api.router, prefix="/api")
+    with patch.object(aiops_api.aiops_service, "diagnose", fake_diagnose):
+        with TestClient(app) as client:
+            response = client.post("/api/aiops", json={
+                "session_id": "s", "execution_mode": "local", "symptom": "慢",
+                "service_name": "orders", "target_choice": "orders",
+                "target_candidate_id": wanted_id,
+            })
+
+    assert response.status_code == 200
+    assert captured["target_candidate_id"] == wanted_id
+    bound = resolve_target(catalog, None, "慢",
+                           candidate=captured["target_candidate_id"])
+    assert bound.status == "bound"
+    assert bound.target.instance_id == wanted.instance_id
+    assert bound.target.region == wanted.region
+
+
+def test_malformed_target_candidate_id_is_rejected_before_running():
+    """候选 ID 形态非法时在请求校验阶段就拒绝，不会启动诊断。"""
+    app = FastAPI()
+    app.include_router(aiops_api.router, prefix="/api")
+    with TestClient(app) as client:
+        response = client.post("/api/aiops", json={
+            "session_id": "s", "execution_mode": "local",
+            "target_candidate_id": "not-a-server-issued-id",
+        })
+
+    assert response.status_code == 422

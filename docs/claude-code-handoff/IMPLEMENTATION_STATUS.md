@@ -17,7 +17,7 @@
 
 | 维度 | 状态 |
 |---|---|
-| 后端测试 | **585 passed, 1 skipped**（`-o addopts=""`，2026-10-27 本轮实测） |
+| 后端测试 | **587 passed, 1 skipped**（`-o addopts=""`，2026-10-27 本轮实测） |
 | 前端 | `npm run build` 通过 / `npm run lint` 0 warning / `npm test` **48 passed** |
 | 静态检查 | `ruff --select F821,F811,F841` 全通过；`docker compose config --quiet` 通过 |
 | 三个离线验收探针 | 全部 `bug_reproduced=false`（2026-10-27 修复后复跑，见 §6） |
