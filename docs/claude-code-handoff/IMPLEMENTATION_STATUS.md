@@ -1,8 +1,10 @@
 # 实施状态（逐项）
 
-日期：2026-10-26。对象：**当前工作区**（HEAD `fca7f1c` + 未提交改动），不是某个干净提交。
-原始问题定义见 [ENTERPRISE_REVIEW.md](ENTERPRISE_REVIEW.md)，上轮复核见
-[COMPLETION_AUDIT_2026-10-26.md](COMPLETION_AUDIT_2026-10-26.md)。
+日期：2026-10-27（第二轮整改）。对象：**当前工作区**，基线 `fca7f1c` + 两轮未提交实现
+（本轮已落两个本地提交 `de22339`、`ff81417`）。原始问题定义见
+[ENTERPRISE_REVIEW.md](ENTERPRISE_REVIEW.md)，上轮复核见
+[COMPLETION_AUDIT_2026-10-26.md](COMPLETION_AUDIT_2026-10-26.md)，本轮反例见
+[ACCEPTANCE_REVIEW_2026-10-27.md](ACCEPTANCE_REVIEW_2026-10-27.md)。
 
 三列含义严格区分，不允许互相替代：
 
@@ -15,13 +17,14 @@
 
 | 维度 | 状态 |
 |---|---|
-| 后端测试 | 528 passed, 1 skipped（`-o addopts=""`，本轮最后一次 2026-10-26） |
-| 前端 | `npm run build` / `npm run lint`（仅 0 warning）/ `npm test` 44 passed |
-| 静态检查 | `ruff --select F821,F811,F841` 全通过；`bash -n docker-entrypoint.sh` 通过 |
-| 真实浏览器 | 已跑（见 [BROWSER_CHECK.md](../BROWSER_CHECK.md)），只覆盖 Milvus 不可用场景 |
-| 真实 Milvus | **未验证**（本机 19530 未启动，全部用 fake store / 内存 cosine） |
+| 后端测试 | **572 passed, 1 skipped**（`-o addopts=""`，2026-10-27 本轮实测） |
+| 前端 | `npm run build` 通过 / `npm run lint` 0 warning / `npm test` **48 passed** |
+| 静态检查 | `ruff --select F821,F811,F841` 全通过；`docker compose config --quiet` 通过 |
+| 三个离线验收探针 | 全部 `bug_reproduced=false`（2026-10-27 修复后复跑，见 §6） |
+| 真实浏览器 | 旧记录见 [BROWSER_CHECK.md](../BROWSER_CHECK.md)；**当前构建的浏览器旅程未重跑**（A12 待办） |
+| 真实 Milvus | **未验证**（本机 19530 未启动，全部用 fake store / 内存向量） |
 | 真实云 API 诊断 | 部分（一次 cloud_multi 真实运行，模型返回非 JSON 导致角色失败，见 BROWSER_CHECK D12） |
-| Docker 镜像 | **未验证**（Docker Desktop 守护进程未运行，只有静态检查） |
+| Docker 镜像 | **未验证**：Docker daemon 可用（29.8.2），但本轮未 build/up，无镜像与恢复验证 |
 
 ## 2. 启动阻断（上轮 EDIT_GUARD 遗留项）
 
@@ -50,27 +53,27 @@
 |---|---|---|---|---|
 | FE-01 | 是 | `web/src/state.test.ts`（含本轮新增 step_complete 去重 4 条） | 浏览器（Milvus 不可用） | `web/src/App.tsx:20` 从 `./state` 导入 `applyEvent/replay/summarize`，App 内旧的 `applyEvent` 已删除；`runtime_tools.py` 的 `tool_step/step_complete` 都带 `step_id`+`tool_call_id` |
 | FE-02 | 是 | `state.test.ts` | 浏览器步骤 8 | 实时与回放共用同一 reducer；`agent_plan` 走 `planFromAssignments` |
-| FE-03 | 部分 | 无 | 浏览器步骤 1 | 模式卡片来自 `/api/execution-modes`，刷新按钮在 `modeError` 或未配置时出现；**仍没有**对模型端点的真实连通性探测 |
+| FE-03 | 部分（A12 补刷新入口） | `view.test.ts` | 否 | 模式卡片来自 `/api/execution-modes`；“重新读取配置”在 `modeError` **或**任一模式未配置时都出现；`/health` 新增 `mcp` 能力如实报告工具缓存，但**仍没有**对模型端点的主动连通性探测（只报配置形态） |
 | FE-04 | 是 | `web/src/sse.test.ts`、`chat.test.ts` | 浏览器步骤 5/7 | 诊断与聊天都走 `sse.ts` 的 `SseBuffer`+`applyBlock`+`diagnose`；EOF 无终态判 `truncated` |
 | FE-05 | 部分 | `chat.test.ts` | 浏览器步骤 9 | ChatPanel 有请求版本隔离、卸载 abort、服务端历史回填；**TAB 关闭后重开**的历史一致性未验证 |
 | FE-06 | 是（含本轮修复） | `test_knowledge_api.py`（14 项） | 浏览器步骤 2/3/11 | 文档/作业/版本/撤销面板；本轮修掉“失败 revision 可被 activate” |
 | FE-07 | 是 | `view.test.ts` + 浏览器 | 浏览器步骤 7 | 引用卡片渲染 citations（title/locator/source_uri/snippet/score）；检索状态五态独立标签 |
-| FE-08 | 是 | `test_runs_api.py` + `test_run_lifecycle_wiring.py` | 否 | 运行列表与评测分开加载；`?run=` 深链；`after_seq` 续读改为按位置（无 seq 的终态不再丢） |
-| FE-09 | **否** | — | 浏览器步骤 9/10 记录为失败 | IME 组合态本轮补了 `isComposing`/`keyCode===229` 判断（`ChatPanel.tsx`）；**仍缺**：`aria-live` 播报、≤1180px 证据 inspector 替代入口 |
-| target_required 候选选择 | 是 | `test_target_required_flow.py`、`view.test.ts` | 浏览器步骤 8 | 候选卡片点击后带 `target_choice` 重发一次；回放时卡片因未选模式而禁用（D5） |
+| FE-08 | 是 | `test_runs_api.py` + `test_run_lifecycle_wiring.py` | 否 | 运行列表与评测分开加载；`?run=` 深链；分页在无可信游标时不截断，任意小分页都能读到终态（A09） |
+| FE-09 | 部分（A12 收窄） | `view.test.ts`（新增 4 条） | **否** | 已补：`aria-live` 播报区（`role=status`+`.sr-only`）、≤1180px 证据 inspector 替代入口（`aria-expanded` 切换按钮）、IME 组合态判断。**仍缺**：真实 IME/读屏器与当前构建的浏览器旅程实测 |
+| target_required 候选选择 | 是（A04 修复） | `test_target_required_flow.py`、`view.test.ts`、`test_acceptance_targets_budget_paging.py` | 否 | 服务端签发稳定候选 `target_id`；前端按完整身份去重、点击后带 `target_candidate_id` 重发一次，服务端在当前目录重新校验并绑定到具体实例/地域 |
 
 ### 后端
 
 | ID | 已实现 | 已单测 | 已验证 | 说明与缺口 |
 |---|---|---|---|---|
-| BE-01 | 是（本轮接通渲染） | `test_claims.py`、`test_cloud_multi_quality.py` | 否 | `quality.render_report` 现在同时渲染 `claim` 与服务端 `rendered`；数值正则改为只排除 ASCII 前缀（中文紧邻数值可识别）；新增**指标族**校验（CPU 证据不能支撑“内存 12%”） |
+| BE-01 | 是（A06 加严） | `test_claims.py`、`test_cloud_multi_quality.py`、`test_claim_boundaries.py` | 否 | `quality.render_report` 同时渲染 `claim` 与服务端 `rendered`；A06 起按 **(数值, 单位)** 逐对核对被引用证据、并检测声明里的**别的目标**：`999ms`（同族数值不符）、`12%`（percent vs ms 单位冲突）、`12ms，svc-b…`（目标不一致）全部降为假设；查询窗口“最近 10 分钟”不误判 |
 | BE-02 | 是（本轮修复） | `test_cls_wrapper_status.py`（9 项） | 否 | CLS 包装层透传 ok/status/source/demo/partial，AccessDenied 不再变成“0 条成功” |
-| BE-03 | 是 | `test_target_resolution.py`（本轮新增 3 条同名多实例用例） | 浏览器步骤 8 | 目标目录按**完整目标**去重（服务+实例+地域+主题+SSH），同名多实例进入 `target_required` |
-| BE-04 | 是 | `test_runtime_target_binding.py` | 否 | `get_topic_info_by_name` 移出发现工具；`TOPIC_KEYS` 在目标未声明 topics 时一律拒绝 |
-| BE-05 | 是 | `test_cloud_multi_quality.py`、`test_run_lifecycle_wiring.py` | 浏览器步骤 6 | 本地模式 `complete` 现在带 lifecycle/quality/status/gaps/tools；云端 `agent_result` 落 observations/hypotheses/gaps（追问依赖它） |
-| BE-06 | 是（本轮接入运行链路） | `test_run_lifecycle_wiring.py::test_budget_is_shared_with_runtime` | 否 | `AdmissionController` 在 `run_diagnostic` 用 `async with` 包裹；`RequestBudget` 从 runtime 传到两个运行器，工具/LLM/prompt 都 `reserve`；超支记成失败证据 |
-| BE-07 | 是（本轮接地） | 同上 | 否 | `deadline` 从 `run_diagnostic` 传到 `RunTools`（每次工具调用取 `min(budget, remaining)`）；流提前关闭时 `RunTools.cancel()` 并落 `run_cancelled` trace |
-| BE-08 | 部分 | `test_runs_api.py` | 否 | `/api/runs` 增 `degraded` 布尔；续读游标用本页最大 seq。**未做**：持久卷、retention、abandoned 恢复、访问归属 |
+| BE-03 | 是（A04 收口） | `test_target_resolution.py`、`test_acceptance_targets_budget_paging.py` | 否 | 目标目录按**完整目标**去重；同名多实例进入 `target_required` 并各自带稳定 `target_id`；用候选 ID 重发可绑定到具体实例/地域，候选下线时明确 `not_found` 而不是悄悄改绑 |
+| BE-04 | 是（A05 修正） | `test_runtime_target_binding.py`、`test_acceptance_targets_budget_paging.py` | 否 | `get_topic_info_by_name` 移出发现工具；补全**只写工具 schema 接受的键**并在补全后再校验一次（曾把 `topic_id` 塞给只接受 `topic_name` 的工具）；越界 topic 与未声明 topics 仍拒绝 |
+| BE-05 | 是 | `test_cloud_multi_quality.py`、`test_run_lifecycle_wiring.py` | 浏览器步骤 6 | 本地模式 `complete` 带 lifecycle/quality/status/gaps/tools；云端 `agent_result` 落 observations/hypotheses/gaps（追问依赖它） |
+| BE-06 | 是（A07 补齐） | `test_run_lifecycle_wiring.py`、`test_acceptance_targets_budget_paging.py` | 否 | `AdmissionController` 包裹 `run_diagnostic`；A07 起日志类工具参数经 `BoundedLogParams` 收敛（`limit=999999` 被压到上限），`evidence_chars` 在并入证据前真实预占/消费，超额走有界摘要并写入证据缺口 |
+| BE-07 | 是（A11 统一） | 同上 + `test_cloud_multi.py` | 否 | `deadline` 下传；本地与云端在流提前关闭时都 `RunTools.cancel()` 并落 `run_cancelled` 审计，云端此前只传播协程取消、标记与审计不一致的问题已修 |
+| BE-08 | 部分 | `test_runs_api.py`（A09 新增分页用例） | 否 | `/api/runs` 有 `degraded` 布尔；A09 起混合 seq/无 seq 的分页必然能读到终态（无可信游标时整页返回而不截断）。**未做**：retention 调度、abandoned 恢复、真实访问归属/权限体系 |
 
 ### RAG
 
@@ -78,22 +81,23 @@
 |---|---|---|---|---|
 | RAG-01 | 是（本轮换入口） | `test_knowledge_pipeline.py`、`test_run_context_and_chat.py` | 否 | `/api/chat` 与 `/api/chat_stream` 走 `knowledge_service.answer_question`（retrieve→gate→answer），不再走旧 `RagAgentService` 的工具循环 |
 | RAG-02 | 是 | `test_retrieval_contract.py` | 否 | `retrieval`/`content`/`done` 事件；前端 `sse.ts`+`view.ts` 消费 |
-| RAG-03 | 是（本轮修复） | 单测覆盖 fake store | 否 | `VectorStoreManager` 只在成功后才置 `_initialized`；失败保留异常并继续抛；不再把查询异常吞成 `[]` |
-| RAG-04 | 是（本轮接通 I/O 边界） | `test_embedding_descriptor.py` | **否** | 建库 metric 取自 `current_descriptor().distance`；初始化时读 collection 真实 `metric_type` 并与描述符比对；缺描述符而 collection 非空 → `invalid_index`。真实 Milvus 未验证 |
+| RAG-03 | 是（A01/A02 收口） | `test_knowledge_api.py`、`test_acceptance_boundaries.py` | 否 | 初始化只在成功后置 `_initialized`；**A01** 检索只返回 active revision 分片（`KnowledgeStore.active_revisions()` 一致快照 + Milvus `_revision in [...]` 预过滤 + 后置核对）；**A02** 批量写入失败按全部预生成 chunk_ids 回滚，清理失败记 `cleanup_failed`/`pending_cleanup` 并可 retry |
+| RAG-04 | 是（A03 收紧） | `test_embedding_descriptor.py`、`test_acceptance_boundaries.py` | **否** | 建库 metric 取自描述符；初始化读真实 `metric_type` 比对；缺描述符而 collection 非空 → `invalid_index`。**A03**：`strict_local=True` 不再受远端 provider 影响，返回按需加载的本地 embedding，远端工厂调用为 0。真实 Milvus 未验证 |
 | RAG-05 | 是 | `test_chunking.py`、`test_token_chunking.py` | 实测语料 | 超长单行代码按 token 二分硬切（实测 951 个 chunk，**0 个超预算**） |
 | RAG-06 | 是（本轮修复） | 单测 | **否** | 删掉不存在的 `similarity_search_with_score` 回退；分数按 metric 解释（COSINE/IP 相似度、L2 转距离），metric 未知时全部记 0 |
-| RAG-07 | 是 | `test_knowledge_api.py` | 否 | 有界后台 worker（固定线程池）、job 状态机、retry、重启把残留 running 标 failed |
+| RAG-07 | 是（A08 补恢复） | `test_knowledge_api.py`、`test_acceptance_boundaries.py` | 否 | 有界后台 worker、job 状态机、retry、重启把残留 running 标 failed；**A08** 起 `VectorStoreManager` 区分 transient/permanent：transient 在锁内有限退避重试并随依赖恢复，`invalid_index` 永久拒绝 |
 | RAG-08 | 是 | `test_knowledge_api.py` | 否 | `document_id` 由规范化 source_uri 派生（`doc-<12hex>`），同名不同目录不复用 |
 | RAG-09 | 是（本轮重写） | `test_run_context_and_chat.py` | 否 | 新增 `app/services/chat_history.py`：JSON 原子写、TTL、条数与字符裁剪、session_id 清洗；不再读 checkpoint 内部结构 |
-| RAG-10 | 部分 | `test_run_context_and_chat.py`、`test_run_lifecycle_wiring.py` | 否 | 诊断白名单里加了 `retrieve_knowledge`（`kind=knowledge`，永不进“当前观测”）；追问 run_id 校验同会话归属。**缺**：知识片段未在报告里与观测交叉引用 |
+| RAG-10 | 部分 | `test_run_context_and_chat.py`、`test_run_lifecycle_wiring.py` | 否 | 诊断白名单里有 `retrieve_knowledge`（`kind=knowledge`，永不进“当前观测”）；追问 run_id 校验同会话归属。**缺**：知识片段未逐条挂到具体观测；多轮省略追问仍只靠受控运行摘要，未接入有界对话上下文 |
 
 ### OPS
 
 | ID | 已实现 | 已单测 | 已验证 | 说明与缺口 |
 |---|---|---|---|---|
-| OPS-01 | 是 | `test_health_capabilities.py` | **否** | entrypoint 不再 `sleep` 当就绪：`docker/mcp-healthcheck.py` 逐端口探测 + 监督循环；`/health` capabilities 四类（local/cloud/rag/tracing），Milvus 故障只降级 rag |
-| OPS-02 | 是 | — | **否** | 多阶段 Dockerfile：`npm ci` 不回退、`uv sync --frozen --no-dev`。**镜像从未构建过**（Docker Desktop 未运行） |
-| OPS-03 | 是（本轮加运行条件） | `test_eval_scoring.py` | **否** | `scripts/run_eval.py` 输出 manifest（模式/模型/adapter 形状/场景列表/commit/dirty）；`scripts/eval_retrieval.py` 给出离线 dense 基线（recall@3=1.0, MRR=1.0, 3 条无答案全拒答，阈值在 dev 集上拟合） |
+| OPS-01 | 是（A12 补 mcp 项） | `test_health_capabilities.py` | **否** | entrypoint 不再 `sleep` 当就绪：`docker/mcp-healthcheck.py` 逐端口探测 + 监督循环；`/health` capabilities **五类**（local/cloud/**mcp**/rag/tracing），Milvus 故障只降级 rag；`mcp` 只报本进程真实加载过的工具缓存，不假装实时探活 |
+| OPS-02 | 是 | — | **否** | 多阶段 Dockerfile：`npm ci` 不回退、`uv sync --frozen --no-dev`。Docker daemon 本轮可用（29.8.2）但**未 build/up**，镜像与恢复仍无实测 |
+| OPS-03 | 是（A10 贯通面板） | `test_eval_scoring.py`、`test_runs_api.py` | **否** | `scripts/run_eval.py` 输出 `{manifest, rows}`；A10 起 `/api/eval/results` 兼容旧裸列表与新对象并返回 `manifest`，前端面板展示运行条件与缺失字段。`scripts/eval_retrieval.py` 的离线 dense 基线（阈值在 14 条 dev 上拟合，**不是盲测结论**） |
+| A13 冷启动策略 | 是（本轮统一） | — | **否** | `docker-compose.yml` 的 app 依赖 Milvus 改为 `service_started`（软依赖），与 entrypoint “诊断先起、RAG 后恢复”一致；`docker compose config --quiet` 通过。**未验证**：镜像构建、信号传播、卷重建恢复、真实 Milvus 入库 |
 
 ## 4. 本轮新增（不属于原始编号）
 
@@ -109,7 +113,31 @@
 | `scripts/eval_retrieval.py` + `eval/rag/dev.jsonl` | 离线检索基线 | `eval/rag/results/offline-*.json` |
 | `docker/mcp-healthcheck.py` | 端口就绪探针 | entrypoint 第 3 步 |
 
-## 5. 未完成清单与原因
+## 5. A01–A13 反例修复对照（2026-10-27）
+
+| 编号 | 期望行为 | 已实现 | 测试替身验证 | 真实依赖验证 |
+|---|---|---|---|---|
+| A01 | 检索只返回 active revision；staged/failed/superseded 不进候选 | 是 | `test_acceptance_boundaries.py`（4 条，含并发一致快照） | 否 |
+| A02 | 失败按全部预生成 ID 回滚；清理失败可记录/重试；旧 active 保留 | 是 | 同上（3 条；含“先写一行再抛错”fake） | 否 |
+| A03 | strict_local 真正约束 provider；远端 factory/HTTP 次数为 0 | 是 | 同上（2 条）+ RAG 探针 | 否 |
+| A04 | 服务端候选 ID、保留同名多实例、点击绑定具体实例 | 是 | `test_acceptance_targets_budget_paging.py`、`view.test.ts` | 否（未在真实浏览器点过） |
+| A05 | 补全只用 schema 接受字段；合法 topic 成功、越界拒绝 | 是 | 同上 | 否 |
+| A06 | 按 metric/value/unit/target/time 核对；三反例降级、正确对照保留 | 是 | `test_claim_boundaries.py`（11 条） | 否 |
+| A07 | 日志参数收敛 + 证据字节预算真实生效 | 是 | 同上 | 否 |
+| A08 | transient 锁内有限退避恢复；permanent 不重试；并发不重复初始化 | 是 | `test_acceptance_boundaries.py`（3 条） | 否 |
+| A09 | 混合 seq/无 seq 的分页必定读到终态 | 是 | `test_acceptance_targets_budget_paging.py` + `test_runs_api.py` | 否 |
+| A10 | 评测列表兼容旧 list 与 `{manifest, rows}`，返回 manifest 并贯通面板 | 是 | `test_runs_api.py`、`view.test.ts` | 否 |
+| A11 | 云端取消标记/清理/审计/后续工具禁止调用一致 | 是 | `test_cloud_multi.py`（34 项相关）+ RAG/运行时探针 | 否（真实远端任务是否终止未测） |
+| A12 | 未配置模式刷新、FE-09、MCP/模型可用性反馈 | 部分 | `view.test.ts`、`test_health_capabilities.py` | **否**：真实浏览器旅程/读屏器未重跑 |
+| A13 | 统一 Compose 冷启动依赖策略，补真实镜像/恢复验证 | 部分 | `docker compose config --quiet` | **否**：未 build/up，无镜像与恢复证据 |
+
+## 6. 三维度边界（已实现 / 测试替身验证 / 真实依赖验证）
+
+- **已实现**：代码在生产路径被调用（本表所有 `是/部分` 项）。
+- **测试替身验证**：用真实 service/store/runtime 代码 + 仅替换外部 SDK/网络/Milvus I/O 的自动化测试，本轮全部实测通过。
+- **真实依赖验证**：真实 Milvus、真实云 API、真实浏览器、真实镜像。**本轮仅修复前已有的有限记录**，A01–A13 的修复**没有一条**进入这一等级。
+
+## 7. 未完成清单与原因
 
 1. **真实 Milvus 入库与检索**：本机 19530 未启动。所有向量断言都建立在 fake store 或内存 cosine 上；
    collection 描述符、索引度量、`num_entities`、删除语义**都没有**真实端到端证据。
@@ -125,6 +153,9 @@
 6. **规范化产物的行尾一致性（已修）**：`scripts/normalize_corpus.py` 原先用默认 newline
    写文件，Windows 落成 CRLF，而 manifest 的 `normalized_sha256` 按 LF 计算，直接对磁盘
    字节校验会失败。现固定 LF，重新生成后 **11/11 条目 sha256 与磁盘字节一致**。
-7. **FE-09 剩余项**：`aria-live` 播报、窄屏 inspector 替代入口、真实 IME 测试（本轮只用合成事件）。
-8. **BE-08 剩余项**：应用持久卷已有 compose 卷，但 trace 的 retention/abandoned 恢复/访问归属未实现。
-9. **RAG-10 交叉引用**：知识片段目前只出现在报告“知识依据”一节，没有逐条挂到具体观测上。
+7. **FE-09 剩余项**：`aria-live` 播报与 ≤1180px inspector 替代入口**已实现**（`view.test.ts` 有覆盖）；**仍未做**：真实中文 IME 输入、读屏器播报、以及当前构建的浏览器任务旅程复跑。旧的 BROWSER_CHECK 使用早期构建，其失败/成功截图都不能直接代表当前代码。
+8. **BE-08 剩余项**：compose 已有四个命名卷（uploads/logs/eval-results/data）；trace 的 **retention 调度、abandoned 恢复、真实用户/资源归属与权限体系**仍未实现。共享会话 ID 校验不等于完整权限体系。
+9. **RAG-10 交叉引用**：知识片段只出现在报告“知识依据”一节，没有逐条挂到具体观测；`api/chat.py` 的历史仅用于展示，**不参与回答生成**，多轮省略追问需要另接有界上下文。
+10. **parent 回填**：`document_splitter_service` 已在 child 分片上携带 `_parent_id`/`_parent_text`，但检索与引用仍按 child 呈现，完整 parent 回填未闭环。
+11. **DK-03 正文质量**：文件与哈希齐全，但正文提取偏短，需人工核对提取质量（不是哈希校验能替代的）。
+12. **独立盲测**：`eval/rag/dev.jsonl` 仅 14 条且阈值在该集上拟合，**没有独立 blind 集**，满分不能作为泛化结论。

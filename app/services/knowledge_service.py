@@ -76,12 +76,13 @@ def make_chunk(*, chunk_id: str, document_id: str, revision: str, text: str,
                title: str = "", heading_path: Sequence[str] = (),
                source_uri: str = "", line_start: int | None = None,
                line_end: int | None = None, score: float = 0.0,
-               source_kind: str = "manual") -> RetrievedChunk:
+               source_kind: str = "manual", parent_id: str = "",
+               parent_text: str = "") -> RetrievedChunk:
     return RetrievedChunk(
         chunk_id=chunk_id, document_id=document_id, revision=revision, text=text,
         title=title, heading_path=tuple(heading_path), source_uri=source_uri,
         line_start=line_start, line_end=line_end, score=score,
-        source_kind=source_kind,
+        source_kind=source_kind, parent_id=parent_id, parent_text=parent_text,
     )
 
 
@@ -456,6 +457,9 @@ class VectorStoreRetriever:
             if active.get(document_id) != revision:
                 # 非 active 版本（staged/failed/superseded）一律不可见。
                 continue
+            parent_text = str(metadata.get("_parent_text") or "")
+            if len(parent_text) > RetrievedChunk.MAX_PARENT_CHARS:
+                parent_text = parent_text[: RetrievedChunk.MAX_PARENT_CHARS] + "…[truncated]"
             chunks.append(make_chunk(
                 chunk_id=str(metadata.get("_chunk_id") or ""),
                 document_id=document_id,
@@ -467,6 +471,9 @@ class VectorStoreRetriever:
                 line_start=metadata.get("_line_start"),
                 line_end=metadata.get("_line_end"),
                 score=_score_for_gate(raw_score, kind),
+                # parent 回填：child 命中时把整节原文一并交给引用与上下文。
+                parent_id=str(metadata.get("_parent_id") or ""),
+                parent_text=parent_text,
             ))
             if len(chunks) >= int(k):
                 break

@@ -47,7 +47,14 @@ class RetrievedChunk:
     score: float = 0.0
     source_kind: str = "manual"
     parent_id: str = ""
+    #: 父段落原文（parent/child 回填）。检索按 child 命中，但引用与人工复核需要
+    #: 完整上下文（前提条件、完整命令、注意事项），否则只看 child 会丢信息。
+    #: 有界保存，避免把整节正文塞进事件载荷。
+    parent_text: str = ""
     status: str = "active"
+
+    #: parent 原文保留上限（字符）。
+    MAX_PARENT_CHARS = 2000
 
     def __post_init__(self) -> None:
         if not self.chunk_id or not self.document_id or not self.revision:
@@ -63,7 +70,7 @@ class RetrievedChunk:
         return f"L{self.line_start}-L{end}"
 
     def to_dict(self) -> dict[str, Any]:
-        return {
+        payload = {
             "chunk_id": self.chunk_id,
             "document_id": self.document_id,
             "revision": self.revision,
@@ -75,6 +82,11 @@ class RetrievedChunk:
             "source_kind": self.source_kind,
             "snippet": self.text[:400],
         }
+        if self.parent_id:
+            payload["parent_id"] = self.parent_id
+        if self.parent_text:
+            payload["parent_text"] = self.parent_text
+        return payload
 
 
 @dataclass(frozen=True)
@@ -231,13 +243,18 @@ def render_context(chunks: Sequence[RetrievedChunk], *,
     used = 0
     for index, chunk in enumerate(chunks, 1):
         heading = " > ".join(chunk.heading_path) or chunk.title
+        # parent 回填：有 parent 原文时给它，模型才能看到完整命令/前提，而不是
+        # 一个被切成半句的 child。没有 parent 时仍用 child 原文。
+        body = chunk.parent_text or chunk.text
+        if chunk.parent_text:
+            body = f"{chunk.parent_text}\n（命中片段: {chunk.text}）"
         block = (
             f"[K{index}] {chunk.title or heading}\n"
             f"  章节: {heading}\n"
             f"  文档: {chunk.document_id}@{chunk.revision}"
             f"{(' ' + chunk.source_uri) if chunk.source_uri else ''}"
             f"{(' ' + chunk.locator) if chunk.locator else ''}\n"
-            f"  内容:\n{chunk.text}\n"
+            f"  内容:\n{body}\n"
         )
         if used + len(block) > max_chars:
             parts.append(f"（其余 {len(chunks) - index + 1} 条命中因上下文预算被省略）")

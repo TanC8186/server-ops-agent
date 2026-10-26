@@ -423,3 +423,97 @@ bash -n docker-entrypoint.sh
 
 写回本文件前，最后一轮测量是 15:43:27Z–15:44:50Z：
 `527 passed, 1 skipped`（exit 0），收集 528。**这个数字只对应那一刻的工作区。**
+
+---
+
+# 2026-10-27 第二轮整改验证（A01–A13）
+
+本节**追加**在 2026-10-26 记录之后，不覆盖任何历史失败证据。上面的历史结论
+仍然是当时的真实测量结果，不能因为本轮修复就被当成“当时也已通过”。
+
+## V1. 本轮实测（2026-10-27，当前工作区 = 基线 `fca7f1c` + 两轮实现）
+
+| 检查 | 命令 | 结果 |
+|---|---|---|
+| 后端全量 pytest | `./.venv/Scripts/python.exe -m pytest tests -p no:cacheprovider -q -o addopts= --tb=line --disable-warnings -rs` | **572 passed, 1 skipped, 2 warnings，75.50s**（exit 0） |
+| 前端单测 | `cd web && npm test` | **48 passed, 0 fail** |
+| 前端构建 | `cd web && npm run build` | 通过，产物 `assets/index-vsa-hn5h.js` 320.57 kB / `index-Zmx7MErZ.css` 28.86 kB |
+| 前端 lint | `cd web && npm run lint` | 通过（oxlint 无输出） |
+| Python 静态检查 | `./.venv/Scripts/python.exe -m ruff check app servers scripts --select F821,F811,F841` | All checks passed（去掉过期的 F841 未用变量） |
+| Compose 配置 | `docker compose config --quiet` | 通过（exit 0） |
+| Docker daemon | `docker info --format '{{.ServerVersion}}'` | 29.8.2（可用） |
+| skip | `tests/test_p0_run_paths.py:134` | 环境不允许创建符号链接，仍是 **未执行**，不是通过 |
+
+收集总数从 528 → 572（+44），新增测试文件：
+`test_acceptance_boundaries.py`(12)、`test_acceptance_targets_budget_paging.py`(12)、
+`test_claim_boundaries.py`(11)、`test_parent_backfill.py`(5)；前端 +4。
+
+## V2. 三个离线探针（修复后，均不访问真实外部服务）
+
+```powershell
+.\.venv\Scripts\python.exe docs/claude-code-handoff/probes/rag_probe_2026_10_27.py
+.\.venv\Scripts\python.exe docs/claude-code-handoff/probes/runtime_probe_2026_10_27.py
+.\.venv\Scripts\python.exe docs/claude-code-handoff/probes/ui_eval_probe_2026_10_27.py
+```
+
+| 探针字段 | 修复前 | 修复后 |
+|---|---|---|
+| `superseded_revision_visible.retrieved_texts` | `["OLD instructions","NEW instructions"]` | `["NEW instructions"]`（`bug_reproduced=false`） |
+| `failed_batch_visible.retrieved_texts` | 含 `FAILED PARTIAL instructions` | `["NEW instructions"]`（`bug_reproduced=false`） |
+| `strict_local_selects_remote_factory.selected_factories` | `[{factory:remote}]` | `[]`（`bug_reproduced=false`） |
+| `first_initialization_failure_is_sticky.actual_connect_attempts` | `1` | `2`（`bug_reproduced=false`） |
+| `facts.cases[].accepted_as_supported` | `true,true,true` | `false,false,false` |
+| `target_choice.candidates[].target_id` | 缺失 | `tgt-<hex>`，两实例不同 |
+| `topic_and_budget.valid_topic_query` | `ok=false`，`unexpected keyword argument 'topic_id'` | `ok=true, error=""` |
+| `topic_and_budget.log_query.executed_limit` | `999999` | `100` |
+| `topic_and_budget.log_query.retained_data_chars` | `200054` | `2` |
+| `topic_and_budget.log_query.evidence_budget` | `used=0, remaining=10` | `used=2, limit=10, remaining=8` |
+| `cloud_cancel.runtime_cancelled_flag` | `false` | `true` |
+| `trace_page` | `truncated=true, next_after_seq=null`（读不到终态） | 返回含 `status seq=2` 与 `run_complete`，`truncated=false` |
+| `same_service_candidates.bug_reproduced` | `true`（2 进 1 出） | `false`（2 进 2 出，各带 target_id） |
+| `new_eval_format.api_result` | `{"results":[]}` | 1 条结果 + `manifest`，`bug_reproduced=false` |
+
+探针退出 0 只表示执行完成；上表右列是**执行完毕后的观测值**，不是“业务已验收”。
+
+## V3. 每条反例对应的回归测试（真实业务代码 + 仅替换外部 I/O）
+
+| 编号 | 测试文件 | 关键用例 |
+|---|---|---|
+| A01 | `test_acceptance_boundaries.py` | `test_superseded_revision_is_not_retrievable`、`test_rollback_makes_old_revision_visible_again`、`test_failed_revision_is_not_retrievable`、`test_active_revisions_snapshot_is_consistent_under_concurrency` |
+| A02 | 同上 | `test_partial_batch_failure_rolls_back_every_candidate_id`、`test_failed_new_revision_keeps_old_active_intact`、`test_cleanup_failure_is_recorded_and_retry_succeeds` |
+| A03 | 同上 | `test_strict_local_never_selects_remote_factory`、`test_strict_local_returns_no_remote_http_and_refuses_when_model_absent` |
+| A04 | `test_acceptance_targets_budget_paging.py`、`web/src/view.test.ts` | `test_candidate_id_binds_exact_instance_and_region`、`test_stale_candidate_id_is_rejected_instead_of_silently_rebinding`、同服务双实例用例 |
+| A05 | `test_acceptance_targets_budget_paging.py` | `test_valid_topic_query_succeeds_without_injecting_unknown_keys`、`test_topic_outside_binding_is_still_rejected` |
+| A06 | `test_claim_boundaries.py` | 三个反例参数化降级 + `test_correct_latency_claim_stays_supported` |
+| A07 | `test_acceptance_targets_budget_paging.py` | `test_log_limit_is_clamped_and_evidence_budget_is_consumed`、`test_budget_notes_describe_what_was_dropped` |
+| A08 | `test_acceptance_boundaries.py` | `test_transient_initialization_failure_recovers_without_reset`、`test_permanent_invalid_index_is_not_retried`、`test_concurrent_recovery_initializes_only_once` |
+| A09 | `test_acceptance_targets_budget_paging.py`、`test_runs_api.py` | `test_mixed_seq_page_always_reaches_terminal_event`、`test_paging_walks_all_events_without_gaps_or_duplicates` |
+| A10 | `test_runs_api.py`、`web/src/view.test.ts` | 新格式 `{manifest, rows}` 端到端 + 旧裸列表兼容 |
+| A11 | `test_cloud_multi.py`、`test_p0_cloud_pipeline.py` | 流关闭取消两专科 + 正常终态不被记成 `run_cancelled` |
+| A12 | `web/src/view.test.ts`、`test_health_capabilities.py` | 候选身份/请求体、manifest 摘要、health 五类能力 |
+| A13(parent) | `test_parent_backfill.py` | child 命中时携带 parent_id/parent_text、上下文用完整父段落、超长有界截断、旧索引降级 |
+
+版本化用例使用**先写一行再抛错**的 fake（`RowWiseFailingVectors.fail_after_rows`），
+不是“调用前直接抛错”的 fake —— 后者无法覆盖“批量插入已落部分行”的竞态。
+
+## V4. 仍未进入“真实依赖验证”的范围（诚实标注）
+
+1. **真实 Milvus**：本机 19530 未启动。`_revision in [...]` 预过滤表达式、
+   `delete_by_ids` 语义、collection 度量读取全部只在 fake 上验证。
+2. **真实 Docker 镜像/恢复**：daemon 可用但本轮未 `build`/`up`，没有镜像、
+   信号传播、卷重建、Milvus 冷启动恢复的实测证据；只有 `compose config` 解析。
+3. **真实浏览器旅程**：A04 候选点击、A12 aria-live/窄屏 inspector 只有纯逻辑
+   单测；旧的 BROWSER_CHECK 使用早期构建，不能代表当前代码。
+4. **真实云 API**：仍只有一次 cloud_multi 历史运行（模型返回非 JSON 导致角色失败）。
+5. **真实远端任务取消**：A11 只证明 runtime 标记/清理/审计一致；同步 SDK / 远端
+   任务是否真正终止仍未单独记录。
+6. **独立盲测 / retention / abandoned / 权限 / parent 回填 / DK-03 正文质量**：
+   仍属未完成（见 IMPLEMENTATION_STATUS §7）。
+
+## V5. 与上一轮文档的矛盾修正
+
+- 上轮写“持久卷未做”，实际 compose 已有四个命名卷；本轮如实记录为“已有”。
+- 上轮 FE-09 记为“未实现”，本轮 `aria-live` 与窄屏 inspector 入口**已实现**，
+  但真实浏览器/读屏器未验证，因此仍不能标“已验证”。
+- 上轮把“入口接上”当成 RAG-03/07/08、BE-01/03/04/06/07 的完成依据；本轮按
+  **行为**重写，并在 §5 表里区分“已实现 / 测试替身验证 / 真实依赖验证”。
