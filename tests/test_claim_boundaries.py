@@ -447,3 +447,33 @@ def test_correct_percent_and_traffic_readings_stay_supported():
 
     assert cpu_checked[0]["status"] == "supported", cpu_problems
     assert net_checked[0]["status"] == "supported", net_problems
+
+
+@pytest.mark.parametrize(
+    "claim",
+    [
+        "延迟 九百九十九毫秒",
+        "延迟 十二秒",
+        "延迟 一百ms",
+    ],
+)
+def test_chinese_numerals_are_parsed_and_checked(claim):
+    """中文数字不能成为绕过数值校验的通道（对抗复核发现）。"""
+    checked, problems = verify_claims(
+        [{"claim": claim, "status": "supported", "evidence_ids": ["E1"]}],
+        {"E1": REAL_NETWORK_EVIDENCE},
+    )
+
+    assert checked[0]["status"] == "hypothesis", f"{claim} 不应为 supported"
+    assert problems
+
+
+def test_chinese_numeral_correct_reading_stays_supported():
+    """正确的中文数字读数仍应通过（不因引入解析而误伤）。"""
+    checked, problems = verify_claims(
+        [{"claim": "网络延迟 十二毫秒", "status": "supported", "evidence_ids": ["E1"]}],
+        {"E1": REAL_NETWORK_EVIDENCE},
+    )
+
+    # 证据里没有正好 12 的观测（avg=12.5、data_points 有 12）；12 存在 -> 通过。
+    assert checked[0]["status"] == "supported", problems

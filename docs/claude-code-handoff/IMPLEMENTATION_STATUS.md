@@ -17,7 +17,7 @@
 
 | 维度 | 状态 |
 |---|---|
-| 后端测试 | **611 passed, 1 skipped**（`-o addopts=""`，2026-10-27 本轮实测） |
+| 后端测试 | **615 passed, 1 skipped**（`-o addopts=""`，2026-10-27 本轮实测） |
 | 前端 | `npm run build` 通过 / `npm run lint` 0 warning / `npm test` **48 passed** |
 | 静态检查 | `ruff --select F821,F811,F841` 全通过；`docker compose config --quiet` 通过 |
 | 三个离线验收探针 | 全部 `bug_reproduced=false`（2026-10-27 修复后复跑，见 §6） |
@@ -122,7 +122,7 @@
 | A03 | strict_local 真正约束 provider；远端 factory/HTTP 次数为 0 | 是（含接线） | 同上 + `test_local_knowledge_tool_uses_local_only_embeddings_and_no_remote_calls` | 否 |
 | A04 | 服务端候选 ID、保留同名多实例、点击绑定具体实例 | 是 | `test_acceptance_targets_budget_paging.py`、`view.test.ts` | 否（未在真实浏览器点过） |
 | A05 | 补全只用 schema 接受字段；合法 topic 成功、越界拒绝 | 是 | 同上 | 否 |
-| A06 | 按 metric/value/unit/target/time 核对；三反例降级、正确对照保留 | 是（含真实 payload） | `test_claim_boundaries.py`（33 条，含 `data_points[].unit`、无单位按指标名推断、duration 读数 vs 查询窗口） | 否 |
+| A06 | 按 metric/value/unit/target/time 核对；三反例降级、正确对照保留 | 是（含真实 payload） | `test_claim_boundaries.py`（39 条，含 `data_points[].unit`、无单位按指标名推断、duration 读数 vs 查询窗口） | 否 |
 | A07 | 日志参数收敛 + 证据字节预算真实生效 | 是 | 同上 | 否 |
 | A08 | transient 锁内有限退避恢复；permanent 不重试；并发不重复初始化 | 是 | `test_acceptance_boundaries.py`（3 条） | 否 |
 | A09 | 混合 seq/无 seq 的分页必定读到终态（含前端续页） | 是（前后端） | `test_runs_api.py` + `web/src/view.test.ts`（nextRunCursor/isStuckPage/appendRunEvents） | 否 |

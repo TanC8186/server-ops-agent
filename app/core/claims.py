@@ -82,6 +82,50 @@ def _duration_family(unit: str) -> str:
     return _DURATION_FAMILIES.get((unit or "").strip().lower(), "")
 
 
+#: 中文数字字符 -> 数值（支持“九百九十九”“十二”“一百零五”这类常见写法）。
+_CN_DIGITS = {
+    "零": 0, "〇": 0, "一": 1, "二": 2, "两": 2, "三": 3, "四": 4,
+    "五": 5, "六": 6, "七": 7, "八": 8, "九": 9,
+}
+_CN_UNITS = {"十": 10, "百": 100, "千": 1000, "万": 10000}
+#: 中文数字串 + 单位（单位可缺省）。
+_CN_NUMBER_RE = re.compile(
+    r"([零〇一二两三四五六七八九十百千万]{1,12})\s*"
+    r"(%|percent|ms|msec|millisecond|毫秒|秒|s\b|分钟|min\b|小时|h\b|"
+    r"gb|mb|kb|count|次|个)?"
+)
+
+
+def _parse_cn_number(text: str) -> float | None:
+    """把中文数字串解析成数值；无法解析返回 None。
+
+    只覆盖声明里会出现的常见量级（十/百/千/万），不做完整中文语法解析。
+    """
+    if not text:
+        return None
+    total = 0
+    section = 0
+    current = 0
+    for char in text:
+        if char in _CN_DIGITS:
+            current = _CN_DIGITS[char]
+        elif char in _CN_UNITS:
+            unit = _CN_UNITS[char]
+            if unit == 10000:
+                section = (section + current) * unit
+                total += section
+                section = 0
+                current = 0
+            else:
+                if current == 0:
+                    current = 1  # “十二” = 10 + 2
+                section += current * unit
+                current = 0
+        else:
+            return None
+    return float(total + section + current)
+
+
 def claim_value_pairs(text: str) -> list[tuple[float, str]]:
     """抽取声明中的 ``(数值, 单位)`` 对（A06）。
 
@@ -102,6 +146,14 @@ def claim_value_pairs(text: str) -> list[tuple[float, str]]:
             pairs.append((float(match.group(1)), unit))
         except ValueError:
             continue
+    # 中文数字（“九百九十九毫秒”“十二秒”）：没有阿拉伯数字时也必须能核对，
+    # 否则模型可以用中文数字绕过数值校验。
+    for match in _CN_NUMBER_RE.finditer(cleaned):
+        value = _parse_cn_number(match.group(1))
+        if value is None:
+            continue
+        unit = (match.group(2) or "").strip().lower()
+        pairs.append((value, unit))
     return pairs
 
 #: 浮点比较容差：0.05 或相对 0.1%。

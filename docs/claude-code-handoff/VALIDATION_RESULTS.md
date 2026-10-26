@@ -435,7 +435,7 @@ bash -n docker-entrypoint.sh
 
 | 检查 | 命令 | 结果 |
 |---|---|---|
-| 后端全量 pytest | `./.venv/Scripts/python.exe -m pytest tests -p no:cacheprovider -q -o addopts= --tb=line --disable-warnings -rs` | **611 passed, 1 skipped, 2 warnings，93.14s**（exit 0） |
+| 后端全量 pytest | `./.venv/Scripts/python.exe -m pytest tests -p no:cacheprovider -q -o addopts= --tb=line --disable-warnings -rs` | **615 passed, 1 skipped, 2 warnings，92.23s**（exit 0） |
 | 前端单测 | `cd web && npm test` | **48 passed, 0 fail** |
 | 前端构建 | `cd web && npm run build` | 通过，产物 `assets/index-vsa-hn5h.js` 320.57 kB / `index-Zmx7MErZ.css` 28.86 kB |
 | 前端 lint | `cd web && npm run lint` | 通过（oxlint 无输出） |
@@ -444,9 +444,9 @@ bash -n docker-entrypoint.sh
 | Docker daemon | `docker info --format '{{.ServerVersion}}'` | 29.8.2（可用） |
 | skip | `tests/test_p0_run_paths.py:134` | 环境不允许创建符号链接，仍是 **未执行**，不是通过 |
 
-收集总数从 528 → 611（+83），新增测试文件：
+收集总数从 528 → 615（+87），新增测试文件：
 `test_acceptance_boundaries.py`(12)、`test_acceptance_targets_budget_paging.py`(12)、
-`test_claim_boundaries.py`(33)、`test_parent_backfill.py`(5)、`test_runs_api.py` +5（abandoned/retention）；前端 +4。
+`test_claim_boundaries.py`(39)、`test_parent_backfill.py`(5)、`test_runs_api.py` +5（abandoned/retention）；前端 +4。
 
 ## V2. 三个离线探针（修复后，均不访问真实外部服务）
 
@@ -649,7 +649,7 @@ URL 断言全部通过。
 
 ### 8.4 仍存在、已知且未修的边界（诚实记录）
 
-1. **A06 中文数字**：`延迟 九百九十九毫秒` 无阿拉伯数字，抽不出数值对，会通过。
+1. ~~**A06 中文数字**：`延迟 九百九十九毫秒` 无阿拉伯数字，抽不出数值对，会通过。~~ **已修**：新增中文数字解析（十/百/千/万），该例现已降级；仍不覆盖完整中文语法（如“两千零一十”之外的复杂写法）。
 2. **A06 空 payload**：`data: {}` / `None` 时证据无任何数值对，任何声明都通过。
    该形态经 `RunTools` 不可达（`source=unspecified` 非 live 证据），影响有限。
 3. **A06 单位换算**：`延迟 0.012s`（= 证据的 12ms）被拒，属**过严**而非漏放；
