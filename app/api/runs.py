@@ -14,6 +14,7 @@ from __future__ import annotations
 import asyncio
 import json
 import re
+import time
 from pathlib import Path
 
 from fastapi import APIRouter, HTTPException, Query
@@ -30,6 +31,84 @@ RUN_ID_PATTERN = re.compile(r"^[0-9a-f]{32}$")
 #: 单次回放的默认/最大事件数，避免把超大 trace 全量返回。
 DEFAULT_EVENT_LIMIT = 2000
 MAX_EVENT_LIMIT = 20000
+
+#: 没有终态记录、且文件最后修改早于该秒数的运行判为 ``abandoned``。
+#:
+#: 为什么需要它：进程被强杀/容器被重启时，trace 里不会写 ``run_complete`` 或
+#: ``run_error``，这次运行会永远停在 ``status=running``。把它如实标成
+#: ``abandoned``（而不是继续显示“进行中”，也不是假装成功）比补一条编造的终态
+#: 更诚实。阈值默认 1 小时，可用 ``RUN_ABANDONED_AFTER_SECONDS`` 覆盖。
+DEFAULT_ABANDONED_AFTER_SECONDS = 3600
+ABANDONED_AFTER_ENV = "RUN_ABANDONED_AFTER_SECONDS"
+
+
+#: trace 保留天数；0 表示不自动清理。``TRACE_RETENTION_DAYS`` 可覆盖。
+DEFAULT_TRACE_RETENTION_DAYS = 30
+RETENTION_DAYS_ENV = "TRACE_RETENTION_DAYS"
+
+#: 单次清理最多删除的文件数与每批字节上限（避免一次删太多影响磁盘）。
+RETENTION_MAX_FILES_PER_RUN = 200
+
+
+def abandoned_after_seconds() -> float:
+    """多久没有终态的 run 判为 abandoned（秒）。非法值回退到默认。"""
+    import os
+
+    raw = os.environ.get(ABANDONED_AFTER_ENV, "").strip()
+    if not raw:
+        return float(DEFAULT_ABANDONED_AFTER_SECONDS)
+    try:
+        value = float(raw)
+    except ValueError:
+        return float(DEFAULT_ABANDONED_AFTER_SECONDS)
+    return value if value > 0 else float(DEFAULT_ABANDONED_AFTER_SECONDS)
+
+
+def retention_days() -> float:
+    """trace 保留天数；``0`` 表示关闭自动清理。非法值回退到默认。"""
+    import os
+
+    raw = os.environ.get(RETENTION_DAYS_ENV, "").strip()
+    if not raw:
+        return float(DEFAULT_TRACE_RETENTION_DAYS)
+    try:
+        value = float(raw)
+    except ValueError:
+        return float(DEFAULT_TRACE_RETENTION_DAYS)
+    return max(0.0, value)
+
+
+def purge_expired_traces(*, now: float | None = None) -> dict:
+    """按保留策略删除过期 trace 文件，返回清理统计（可审计、可重跑）。
+
+    只删 `logs/traces/*.jsonl` 里通过 run_id 格式与包含性校验的普通文件；
+    越界条目、非本目录文件、符号链接逃逸一律跳过。删除失败逐条记录，不抛异常
+    （清理是运维动作，不能影响 API 可用性）。
+    """
+    import os
+
+    days = retention_days()
+    if days <= 0:
+        return {"enabled": False, "deleted": 0, "failed": 0, "scanned": 0}
+    cutoff = (now if now is not None else time.time()) - days * 86400
+    deleted = failed = scanned = 0
+    if not TRACE_DIR.exists():
+        return {"enabled": True, "deleted": 0, "failed": 0, "scanned": 0}
+    for candidate in list(TRACE_DIR.glob("*.jsonl"))[:RETENTION_MAX_FILES_PER_RUN]:
+        if not is_valid_run_id(candidate.stem):
+            continue
+        resolved = resolve_trace_file(candidate)
+        if resolved is None or not resolved.is_file():
+            continue
+        scanned += 1
+        if _safe_mtime(resolved) >= cutoff:
+            continue
+        try:
+            os.remove(resolved)
+            deleted += 1
+        except OSError:
+            failed += 1
+    return {"enabled": True, "deleted": deleted, "failed": failed, "scanned": scanned}
 
 
 def is_valid_run_id(run_id: str) -> bool:
@@ -84,7 +163,7 @@ async def list_runs(limit: int = Query(default=20, ge=1, le=100)) -> dict:
     runs = []
     for path in files:
         events = await asyncio.to_thread(_read_jsonl, path)
-        runs.append(_summarize_run(path.stem, events))
+        runs.append(_summarize_run(path.stem, events, mtime=_safe_mtime(path)))
     return {"runs": runs}
 
 
@@ -92,12 +171,17 @@ async def list_runs(limit: int = Query(default=20, ge=1, le=100)) -> dict:
 _TERMINAL_EVENTS = frozenset({"run_complete", "run_error"})
 
 
-def _summarize_run(run_id: str, events: list[dict]) -> dict:
+def _summarize_run(run_id: str, events: list[dict],
+                   mtime: float | None = None) -> dict:
     """把一次 run 的 trace 压缩成列表一行。
 
     ``lifecycle`` / ``quality`` 只从**终态记录**（run_complete / run_error）读取，
     没有终态时返回 null——不能用“报告生成成功”推断运行完成，也不能把
     ``success`` 拆成两套互相矛盾的布尔值（BE-05 / BE-08）。
+
+    唯一例外是 **abandoned**：没有终态、且文件已静默超过保留阈值的运行，说明
+    进程在写终态前就消失了。这时如实标成 ``abandoned``，而不是让列表永远显示
+    “进行中”，也不是补一条编造的成功终态。
 
     ``has_report`` 是“报告正文是否落盘”的事实，与证据质量（quality）无关。
     """
@@ -119,6 +203,12 @@ def _summarize_run(run_id: str, events: list[dict]) -> dict:
             and response_chars > 0)
     )
     lifecycle = _lifecycle_of(end)
+    abandoned = False
+    if lifecycle is None and mtime is not None:
+        quiet_for = time.time() - mtime
+        if quiet_for >= abandoned_after_seconds():
+            lifecycle = "abandoned"
+            abandoned = True
 
     return {
         "run_id": run_id,
@@ -130,6 +220,8 @@ def _summarize_run(run_id: str, events: list[dict]) -> dict:
         "quality": _quality_of(end),
         "status": _status_of(end, lifecycle),
         "degraded": _degraded_of(end, lifecycle),
+        #: 明确区分“进程在写终态前消失”与“仍在运行”。
+        "abandoned": abandoned,
         "steps": len(steps),
         "plan_steps": len(plan.get("steps", []) or plan.get("assignments", [])),
         "target": _target_of(events),
@@ -165,7 +257,12 @@ def _status_of(end: dict, lifecycle: str | None) -> str:
     契约只允许 ``ok|error|cancelled|abandoned``。诊断质量不在这里表达——
     它有自己的 ``quality`` 字段与 ``degraded`` 布尔，混进 status 会让
     “跑完但证据不足”被读成失败。
+
+    ``abandoned`` 不是终态记录推导出来的（它来自“无终态且长时间静默”），所以
+    必须先看 ``lifecycle``，不能因为 ``end`` 为空就一律返回 ``running``。
     """
+    if lifecycle == "abandoned":
+        return "abandoned"
     if not end:
         return "running"
     return {

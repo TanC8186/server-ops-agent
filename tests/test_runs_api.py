@@ -277,3 +277,103 @@ def test_eval_results_aggregate(trace_dir, client):
     assert result["total_tokens"] == 18
     # 旧格式没有 manifest 段，补 null 而不是猜一个。
     assert result["manifest"] is None
+
+
+# ---------------------------------------------------------------------------
+# abandoned：没有终态且长时间静默的运行
+# ---------------------------------------------------------------------------
+
+
+def test_run_without_terminal_becomes_abandoned_when_stale(trace_dir, client, monkeypatch):
+    """进程在写终态前消失：如实标 abandoned，而不是永远显示“进行中”。"""
+    monkeypatch.setenv(runs.ABANDONED_AFTER_ENV, "10")
+    _write_trace(trace_dir, VALID_RUN, [
+        {"event": "run_start", "ts": "2026-10-22T01:00:00", "session_id": "s1"},
+        {"event": "tool_step", "step": "a"},
+    ])
+    path = trace_dir / "traces" / f"{VALID_RUN}.jsonl"
+    old = path.stat().st_mtime - 3600
+    import os
+    os.utime(path, (old, old))
+
+    run = client.get("/api/runs").json()["runs"][0]
+
+    assert run["abandoned"] is True
+    assert run["lifecycle"] == "abandoned"
+    assert run["status"] == "abandoned"
+
+
+def test_fresh_run_without_terminal_is_still_running(trace_dir, client, monkeypatch):
+    """刚写入、还没有终态的运行不能被误判成 abandoned。"""
+    monkeypatch.setenv(runs.ABANDONED_AFTER_ENV, "3600")
+    _write_trace(trace_dir, VALID_RUN, [{"event": "run_start", "ts": "t"}])
+
+    run = client.get("/api/runs").json()["runs"][0]
+
+    assert run["abandoned"] is False
+    assert run["lifecycle"] is None
+    assert run["status"] == "running"
+
+
+def test_completed_run_is_never_abandoned(trace_dir, client, monkeypatch):
+    """有终态记录时，即使文件很旧也不能标 abandoned。"""
+    monkeypatch.setenv(runs.ABANDONED_AFTER_ENV, "1")
+    _write_trace(trace_dir, VALID_RUN, [
+        {"event": "run_start", "ts": "t"},
+        {"event": "run_complete", "duration_ms": 5},
+    ])
+    path = trace_dir / "traces" / f"{VALID_RUN}.jsonl"
+    old = path.stat().st_mtime - 3600
+    import os
+    os.utime(path, (old, old))
+
+    run = client.get("/api/runs").json()["runs"][0]
+
+    assert run["abandoned"] is False
+    assert run["lifecycle"] == "completed"
+    assert run["status"] == "ok"
+
+
+# ---------------------------------------------------------------------------
+# retention：保留策略只删过期 trace，越界/新鲜文件不动
+# ---------------------------------------------------------------------------
+
+
+def test_purge_expired_traces_only_removes_old_valid_files(trace_dir, monkeypatch):
+    import os
+
+    monkeypatch.setenv(runs.RETENTION_DAYS_ENV, "1")
+    _write_trace(trace_dir, VALID_RUN, [{"event": "run_start"}])
+    other = "b" * 32
+    _write_trace(trace_dir, other, [{"event": "run_start"}])
+    (trace_dir / "traces" / "not-a-run.jsonl").write_text(
+        json.dumps({"event": "run_start"}) + "\n", encoding="utf-8"
+    )
+
+    old_path = trace_dir / "traces" / f"{other}.jsonl"
+    old = old_path.stat().st_mtime - 10 * 86400
+    os.utime(old_path, (old, old))
+
+    stats = runs.purge_expired_traces()
+
+    assert stats["enabled"] is True
+    assert stats["deleted"] == 1
+    assert stats["failed"] == 0
+    assert not old_path.exists(), "过期 trace 应被删除"
+    assert (trace_dir / "traces" / f"{VALID_RUN}.jsonl").exists(), "新鲜 trace 不得删除"
+    assert (trace_dir / "traces" / "not-a-run.jsonl").exists(), "非法名不得删除"
+
+
+def test_purge_is_disabled_when_retention_is_zero(trace_dir, monkeypatch):
+    monkeypatch.setenv(runs.RETENTION_DAYS_ENV, "0")
+    _write_trace(trace_dir, VALID_RUN, [{"event": "run_start"}])
+    path = trace_dir / "traces" / f"{VALID_RUN}.jsonl"
+    import os
+    old = path.stat().st_mtime - 10 * 86400
+    os.utime(path, (old, old))
+
+    stats = runs.purge_expired_traces()
+
+    assert stats["enabled"] is False
+    assert stats["deleted"] == 0
+    assert path.exists()
