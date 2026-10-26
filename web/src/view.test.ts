@@ -274,3 +274,38 @@ test("A09：多页事件按服务端顺序追加，不重排", async () => {
   );
   assert.deepEqual(appendRunEvents(first, {}), first);
 });
+
+test("A12：未配置模式也要有“重新读取配置”入口，不只是错误时", async () => {
+  const { shouldOfferModeReload } = await import("./view.ts");
+
+  // 读取成功但有模式未配置 -> 需要入口（旧实现遗漏的场景）
+  assert.equal(
+    shouldOfferModeReload({ modesState: "loaded", hasError: false, configured: [true, false] }),
+    true,
+  );
+  // 错误时 -> 需要入口
+  assert.equal(
+    shouldOfferModeReload({ modesState: "error", hasError: true, configured: [true, true] }),
+    true,
+  );
+  // 都配置好了 -> 不需要
+  assert.equal(
+    shouldOfferModeReload({ modesState: "loaded", hasError: false, configured: [true, true] }),
+    false,
+  );
+  // 仍在加载 -> 不显示
+  assert.equal(
+    shouldOfferModeReload({ modesState: "loading", hasError: false, configured: [false] }),
+    false,
+  );
+});
+
+test("A12：<=1180px 使用内联 inspector 替代入口（与 CSS 断点一致）", async () => {
+  const { usesInlineInspector, NARROW_INSPECTOR_BREAKPOINT_PX } = await import("./view.ts");
+
+  assert.equal(NARROW_INSPECTOR_BREAKPOINT_PX, 1180);
+  assert.equal(usesInlineInspector(1180), true);
+  assert.equal(usesInlineInspector(1100), true);
+  assert.equal(usesInlineInspector(1181), false);
+  assert.equal(usesInlineInspector(1440), false);
+});

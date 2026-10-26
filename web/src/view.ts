@@ -343,3 +343,30 @@ export function appendRunEvents(
 export function isStuckPage(page: RunPageShape, pagesRead: number): boolean {
   return page?.truncated === true && nextRunCursor(page, pagesRead) === null;
 }
+
+/**
+ * A12：是否需要显示“重新读取配置”入口。
+ *
+ * 旧实现只在 `modeError` 出现时才给刷新按钮，于是“配置读取成功但某个模式
+ * 未配置”这个更常见的情况没有刷新入口。这里把判断做成纯函数并有测试覆盖，
+ * 避免以后被改回“仅错误时可见”。
+ */
+export function shouldOfferModeReload(input: {
+  modesState: string;
+  hasError: boolean;
+  configured: boolean[];
+}): boolean {
+  if (input.hasError) return true;
+  if (input.modesState !== "loaded") return false;
+  return input.configured.some((value) => value === false);
+}
+
+/**
+ * A12：<=1180px 时右侧 inspector 被隐藏，替代入口的可见性由这个断点决定。
+ * 与 styles.css 的 `@media (max-width: 1180px)` 共用同一常量，避免两边漂移。
+ */
+export const NARROW_INSPECTOR_BREAKPOINT_PX = 1180;
+
+export function usesInlineInspector(viewportWidth: number): boolean {
+  return Number.isFinite(viewportWidth) && viewportWidth <= NARROW_INSPECTOR_BREAKPOINT_PX;
+}

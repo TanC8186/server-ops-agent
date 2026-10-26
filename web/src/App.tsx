@@ -27,6 +27,7 @@ import {
   evalManifestSummary,
   isStuckPage,
   nextRunCursor,
+  shouldOfferModeReload,
   targetCandidates,
   targetRequestBody,
   type TargetCandidate,
@@ -184,7 +185,12 @@ export default function App() {
   const selectedModeInfo = modeInfos.find((item) => item.id === executionMode);
   const canStart = !!executionMode && modesState === "loaded" && !!selectedModeInfo?.configured && !!symptom.trim() && !running;
   // A12：配置读完但存在未配置模式时，仍然要能重新读取（不需要先制造一次错误）。
-  const canReloadModes = modesState === "loaded" && modeInfos.some((item) => !item.configured);
+  // 判断逻辑放在 view.ts 的纯函数里，有单测覆盖，避免被改回“仅错误时可见”。
+  const canReloadModes = shouldOfferModeReload({
+    modesState,
+    hasError: !!modeError,
+    configured: modeInfos.map((item) => item.configured),
+  });
 
   const loadModes = useCallback(async () => {
     try {
