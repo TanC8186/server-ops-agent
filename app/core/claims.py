@@ -201,23 +201,61 @@ def claim_numbers(text: str) -> list[float]:
     return [value for value, _unit in claim_value_pairs(text)]
 
 
+#: 指标名 -> 单位族（当 payload 没有显式 unit 时按指标语义推断）。
+#:
+#: 真实 MCP 返回值（``servers/monitor_server.py``）的形态是
+#: ``{"metric_name": "...", "data_points": [{"value": ..., "unit": "%"}, ...],
+#:    "statistics": {...}}`` —— **没有顶层 ``data.unit``**。只读 ``data.unit``
+#: 会让 ``has_duration_evidence`` 永远为 False，于是“网络延迟 999ms”被当成查询
+#: 窗口跳过（A06 第一个反例因此在接入真实 payload 后重新出现）。
+_METRIC_UNIT_HINTS: tuple[tuple[tuple[str, ...], str], ...] = (
+    (("latency", "延迟", "rtt", "response_time", "duration"), "ms"),
+    (("packet_loss", "丢包"), "%"),
+    (("bandwidth", "带宽", "throughput", "rx_mbps", "tx_mbps"), "mbps"),
+    (("cpu", "memory", "disk", "usage", "percent", "usage_percent"), "%"),
+)
+
+
+def _unit_from_metric_name(name: str) -> str:
+    """按指标名推断单位（无显式 unit 时的兜底；认不出返回空串）。"""
+    text = str(name or "").strip().lower()
+    if not text:
+        return ""
+    for aliases, unit in _METRIC_UNIT_HINTS:
+        if any(alias in text for alias in aliases):
+            return unit
+    return ""
+
+
+def _evidence_metric_name(data: Mapping[str, Any]) -> str:
+    for key in ("metric_name", "metric", "name", "metricName"):
+        value = data.get(key)
+        if value:
+            return str(value)
+    return ""
+
+
 def evidence_value_pairs(evidence: Mapping[str, Any]) -> list[tuple[float, str]]:
     """从一条证据里抽取 ``(数值, 单位)`` 观测对。
 
-    只认**结构化字段**：``data.statistics`` 的统计值、``data.data_points[].value``、
-    ``data.value``；单位取 ``data.unit``。不从日志正文里猜数字（那会把
-    "timeout after 3000ms" 当成被观测到的延迟值）。
+    单位来源按优先级：
+    1. 每个数据点自己的 ``unit``（真实 MCP 服务就是这么发的）；
+    2. 顶层 ``data.unit``；
+    3. 指标名推断（``latency``→ms、``packet_loss``→%、``cpu_usage_percent``→%）；
+    4. 都没有 → 空单位。
+
+    只认**结构化字段**（``statistics`` / ``data_points[].value`` / ``data.value``），
+    不从日志正文里猜数字（那会把 "timeout after 3000ms" 当成被观测到的延迟值）。
     """
     data = _observed_value(evidence)
     if not isinstance(data, Mapping):
         return []
-    unit = str(data.get("unit") or "").strip().lower()
-    values: list[float] = []
-    statistics = data.get("statistics")
-    if isinstance(statistics, Mapping):
-        for value in statistics.values():
-            if isinstance(value, (int, float)) and not isinstance(value, bool):
-                values.append(float(value))
+    fallback_unit = (
+        str(data.get("unit") or "").strip().lower()
+        or _unit_from_metric_name(_evidence_metric_name(data))
+    )
+    pairs: list[tuple[float, str]] = []
+
     points = data.get("data_points")
     if isinstance(points, list):
         for point in points:
@@ -225,11 +263,23 @@ def evidence_value_pairs(evidence: Mapping[str, Any]) -> list[tuple[float, str]]
                 continue
             value = point.get("value")
             if isinstance(value, (int, float)) and not isinstance(value, bool):
-                values.append(float(value))
+                unit = str(point.get("unit") or "").strip().lower() or fallback_unit
+                pairs.append((float(value), unit))
+
+    statistics = data.get("statistics")
+    if isinstance(statistics, Mapping):
+        for key, value in statistics.items():
+            if not isinstance(value, (int, float)) or isinstance(value, bool):
+                continue
+            # count 是条数，不是被观测到的指标读数。
+            if str(key).lower() in {"count", "total", "n"}:
+                continue
+            pairs.append((float(value), fallback_unit))
+
     raw = data.get("value")
     if isinstance(raw, (int, float)) and not isinstance(raw, bool):
-        values.append(float(raw))
-    return [(value, unit) for value in values]
+        pairs.append((float(raw), fallback_unit))
+    return pairs
 
 
 def _foreign_service_mentions(text: str, target: str) -> list[str]:

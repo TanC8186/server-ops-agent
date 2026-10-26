@@ -435,7 +435,7 @@ bash -n docker-entrypoint.sh
 
 | 检查 | 命令 | 结果 |
 |---|---|---|
-| 后端全量 pytest | `./.venv/Scripts/python.exe -m pytest tests -p no:cacheprovider -q -o addopts= --tb=line --disable-warnings -rs` | **590 passed, 1 skipped, 2 warnings，82.53s**（exit 0） |
+| 后端全量 pytest | `./.venv/Scripts/python.exe -m pytest tests -p no:cacheprovider -q -o addopts= --tb=line --disable-warnings -rs` | **600 passed, 1 skipped, 2 warnings，83.40s**（exit 0） |
 | 前端单测 | `cd web && npm test` | **48 passed, 0 fail** |
 | 前端构建 | `cd web && npm run build` | 通过，产物 `assets/index-vsa-hn5h.js` 320.57 kB / `index-Zmx7MErZ.css` 28.86 kB |
 | 前端 lint | `cd web && npm run lint` | 通过（oxlint 无输出） |
@@ -444,9 +444,9 @@ bash -n docker-entrypoint.sh
 | Docker daemon | `docker info --format '{{.ServerVersion}}'` | 29.8.2（可用） |
 | skip | `tests/test_p0_run_paths.py:134` | 环境不允许创建符号链接，仍是 **未执行**，不是通过 |
 
-收集总数从 528 → 590（+62），新增测试文件：
+收集总数从 528 → 600（+72），新增测试文件：
 `test_acceptance_boundaries.py`(12)、`test_acceptance_targets_budget_paging.py`(12)、
-`test_claim_boundaries.py`(17)、`test_parent_backfill.py`(5)、`test_runs_api.py` +5（abandoned/retention）；前端 +4。
+`test_claim_boundaries.py`(23)、`test_parent_backfill.py`(5)、`test_runs_api.py` +5（abandoned/retention）；前端 +4。
 
 ## V2. 三个离线探针（修复后，均不访问真实外部服务）
 
@@ -541,3 +541,60 @@ bash -n docker-entrypoint.sh
 - 没有验证真实中文 IME 输入与真实读屏器播报（`aria-live` 只确认了 DOM 与
   文案存在，未确认读屏实际朗读）。
 - 375 / 768 / 1024 / 1440 四档只测了 1100 与 1440 两个宽度。
+
+## V7. 对抗复核发现的三项反驳与修复（2026-10-27）
+
+一个独立复核子代理用自己的反例（不复用本仓库探针）逐条尝试**反驳**修复，发现三项
+此前被我判为"已修复"的说法不成立。以下是证据与修复，全部可复跑。
+
+### 7.1 A06 对真实 payload 无效（HIGH，已修）
+
+复核用 `servers/monitor_server.py` 实际返回的形状：
+`{"metric_name": ..., "data_points": [{"value": 12, "unit": "ms"}], "statistics": {...}}`
+—— **没有顶层 `data.unit`**。原实现只读 `data.unit`，于是 `has_duration_evidence`
+永远为 False，`999ms` 被当成查询窗口跳过。复核实测：`网络延迟 999ms` 与
+`网络延迟 12%` **仍显示为 supported**（3 个原反例中的 2 个）。
+
+修复：`evidence_value_pairs` 单位来源改为
+`data_points[].unit` → 顶层 `data.unit` → 指标名推断（latency→ms、packet_loss→%、
+cpu/memory/disk/usage→%）；并且 `statistics.count` 不再被当成读数。
+新增 6 项回归（含 `999s`、`50分钟`、无单位 payload 按指标名推断、count 不算读数）。
+
+### 7.2 A03 只修了工厂，没接线（MEDIUM，已修）
+
+复核实测：`create_embedding_service(strict_local=True)` 正确，但 `grep` 显示
+**生产代码没有任何地方传这个参数**；本地模式跑一次 `retrieve_knowledge`，
+在 `EMBEDDING_PROVIDER=openai` 下真的调用了远端工厂与 `embed_query`。
+
+修复：
+- `vector_store_manager.create_local_vector_store_manager()` 提供**独立**实例，
+  注入 `LocalOnlyEmbeddings`（只允许本地，失败即抛错）；
+- `knowledge_wiring.knowledge_tools(execution_mode="local")` 注入该检索器；
+- 不改全局配置、不复用全局单例（云端模式与管理页不受影响）。
+新增 2 项回归（本地不调远端工厂 + 云端不被切换）。
+
+### 7.3 A09 前端不分页（MEDIUM，已修）
+
+复核实测：后端分页正确，但 `api.getRun` 不传游标、`App.tsx` 只请求一次，
+因此 >2000 事件的运行在 UI 上永远读不到终态（复核构造 2601 条 trace 验证）。
+
+修复：
+- `api.getRun(runId, cursor)` 支持 `after_seq` / `after_event`；
+- `view.ts` 新增纯函数 `nextRunCursor` / `isStuckPage` / `appendRunEvents`
+  与 `MAX_RUN_PAGES` 上限；
+- `App.tsx` 的 `openRun` 与 `backfill` 改为循环读完全部页；截断且无游标时
+  明确提示"内容不完整"，绝不假装读全。
+新增 3 项前端单测（游标优先级 / 页数上限 / 顺序追加）。
+
+### 7.4 复核确认无问题的项
+
+A01、A02、A04、A05、A07、A08、A10、A11 经复核独立复现为**已修复**；
+A12/A13 确为部分完成且文档诚实，未发现夸大（尤其没有把 Docker 镜像或恢复
+写成已验证）。
+
+复核同时给出的两个非阻断观察，记录在此不隐藏：
+
+- A07：预算耗尽后每次调用仍记一条固定 51 字符占位且不再预占，单次有界、
+  总量受 `tool_calls` 限制，不是无界增长。
+- A01：依赖真实 `langchain_milvus` 尊重 `expr`；若某适配器接受 `expr` 却忽略它，
+  `pool=max(4k,k+8)` 的候选窗口可能仍被旧版占满。真实库行为正确。

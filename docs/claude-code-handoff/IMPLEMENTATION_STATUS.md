@@ -17,7 +17,7 @@
 
 | 维度 | 状态 |
 |---|---|
-| 后端测试 | **590 passed, 1 skipped**（`-o addopts=""`，2026-10-27 本轮实测） |
+| 后端测试 | **600 passed, 1 skipped**（`-o addopts=""`，2026-10-27 本轮实测） |
 | 前端 | `npm run build` 通过 / `npm run lint` 0 warning / `npm test` **48 passed** |
 | 静态检查 | `ruff --select F821,F811,F841` 全通过；`docker compose config --quiet` 通过 |
 | 三个离线验收探针 | 全部 `bug_reproduced=false`（2026-10-27 修复后复跑，见 §6） |
@@ -66,7 +66,7 @@
 
 | ID | 已实现 | 已单测 | 已验证 | 说明与缺口 |
 |---|---|---|---|---|
-| BE-01 | 是（A06 加严） | `test_claims.py`、`test_cloud_multi_quality.py`、`test_claim_boundaries.py` | 否 | `quality.render_report` 同时渲染 `claim` 与服务端 `rendered`；A06 起按 **(数值, 单位)** 逐对核对被引用证据、并检测声明里的**别的目标**：`999ms`（同族数值不符）、`12%`（percent vs ms 单位冲突）、`12ms，svc-b…`（目标不一致）全部降为假设；查询窗口“最近 10 分钟”不误判 |
+| BE-01 | 是（A06 加严，含真实 payload） | `test_claims.py`、`test_cloud_multi_quality.py`、`test_claim_boundaries.py` | 否 | 按 **(数值, 单位)** 逐对核对被引用证据、检测声明里的**别的目标**；单位来源优先 `data_points[].unit`（真实 MCP 形态），其次顶层 `data.unit`，再按指标名推断，`statistics.count` 不算读数；`999ms`/`12%`/`999s`/`50分钟`/`svc-b` 全部降为假设，查询窗口“最近 10 分钟”不误判 |
 | BE-02 | 是（本轮修复） | `test_cls_wrapper_status.py`（9 项） | 否 | CLS 包装层透传 ok/status/source/demo/partial，AccessDenied 不再变成“0 条成功” |
 | BE-03 | 是（A04 收口） | `test_target_resolution.py`、`test_acceptance_targets_budget_paging.py` | 否 | 目标目录按**完整目标**去重；同名多实例进入 `target_required` 并各自带稳定 `target_id`；用候选 ID 重发可绑定到具体实例/地域，候选下线时明确 `not_found` 而不是悄悄改绑 |
 | BE-04 | 是（A05 修正） | `test_runtime_target_binding.py`、`test_acceptance_targets_budget_paging.py` | 否 | `get_topic_info_by_name` 移出发现工具；补全**只写工具 schema 接受的键**并在补全后再校验一次（曾把 `topic_id` 塞给只接受 `topic_name` 的工具）；越界 topic 与未声明 topics 仍拒绝 |
@@ -82,7 +82,7 @@
 | RAG-01 | 是（本轮换入口） | `test_knowledge_pipeline.py`、`test_run_context_and_chat.py` | 否 | `/api/chat` 与 `/api/chat_stream` 走 `knowledge_service.answer_question`（retrieve→gate→answer），不再走旧 `RagAgentService` 的工具循环 |
 | RAG-02 | 是 | `test_retrieval_contract.py` | 否 | `retrieval`/`content`/`done` 事件；前端 `sse.ts`+`view.ts` 消费 |
 | RAG-03 | 是（A01/A02 收口） | `test_knowledge_api.py`、`test_acceptance_boundaries.py` | 否 | 初始化只在成功后置 `_initialized`；**A01** 检索只返回 active revision 分片（`KnowledgeStore.active_revisions()` 一致快照 + Milvus `_revision in [...]` 预过滤 + 后置核对）；**A02** 批量写入失败按全部预生成 chunk_ids 回滚，清理失败记 `cleanup_failed`/`pending_cleanup` 并可 retry |
-| RAG-04 | 是（A03 收紧） | `test_embedding_descriptor.py`、`test_acceptance_boundaries.py` | **否** | 建库 metric 取自描述符；初始化读真实 `metric_type` 比对；缺描述符而 collection 非空 → `invalid_index`。**A03**：`strict_local=True` 不再受远端 provider 影响，返回按需加载的本地 embedding，远端工厂调用为 0。真实 Milvus 未验证 |
+| RAG-04 | 是（A03 收紧并接线） | `test_embedding_descriptor.py`、`test_acceptance_boundaries.py` | **否** | 建库 metric 取自描述符；初始化读真实 `metric_type` 比对；缺描述符而 collection 非空 → `invalid_index`。**A03**：`strict_local=True` 不再受远端 provider 影响；本地模式的 `retrieve_knowledge` 注入独立 `LocalOnlyEmbeddings` 检索器（不复用全局单例、不改全局配置），远端工厂调用为 0。真实 Milvus 未验证 |
 | RAG-05 | 是 | `test_chunking.py`、`test_token_chunking.py` | 实测语料 | 超长单行代码按 token 二分硬切（实测 951 个 chunk，**0 个超预算**） |
 | RAG-06 | 是（本轮修复） | 单测 | **否** | 删掉不存在的 `similarity_search_with_score` 回退；分数按 metric 解释（COSINE/IP 相似度、L2 转距离），metric 未知时全部记 0 |
 | RAG-07 | 是（A08 补恢复） | `test_knowledge_api.py`、`test_acceptance_boundaries.py` | 否 | 有界后台 worker、job 状态机、retry、重启把残留 running 标 failed；**A08** 起 `VectorStoreManager` 区分 transient/permanent：transient 在锁内有限退避重试并随依赖恢复，`invalid_index` 永久拒绝 |
@@ -119,13 +119,13 @@
 |---|---|---|---|---|
 | A01 | 检索只返回 active revision；staged/failed/superseded 不进候选 | 是 | `test_acceptance_boundaries.py`（4 条，含并发一致快照） | 否 |
 | A02 | 失败按全部预生成 ID 回滚；清理失败可记录/重试；旧 active 保留 | 是 | 同上（3 条；含“先写一行再抛错”fake） | 否 |
-| A03 | strict_local 真正约束 provider；远端 factory/HTTP 次数为 0 | 是 | 同上（2 条）+ RAG 探针 | 否 |
+| A03 | strict_local 真正约束 provider；远端 factory/HTTP 次数为 0 | 是（含接线） | 同上 + `test_local_knowledge_tool_uses_local_only_embeddings_and_no_remote_calls` | 否 |
 | A04 | 服务端候选 ID、保留同名多实例、点击绑定具体实例 | 是 | `test_acceptance_targets_budget_paging.py`、`view.test.ts` | 否（未在真实浏览器点过） |
 | A05 | 补全只用 schema 接受字段；合法 topic 成功、越界拒绝 | 是 | 同上 | 否 |
-| A06 | 按 metric/value/unit/target/time 核对；三反例降级、正确对照保留 | 是 | `test_claim_boundaries.py`（11 条） | 否 |
+| A06 | 按 metric/value/unit/target/time 核对；三反例降级、正确对照保留 | 是（含真实 payload） | `test_claim_boundaries.py`（23 条，含 `data_points[].unit` 与无单位按指标名推断） | 否 |
 | A07 | 日志参数收敛 + 证据字节预算真实生效 | 是 | 同上 | 否 |
 | A08 | transient 锁内有限退避恢复；permanent 不重试；并发不重复初始化 | 是 | `test_acceptance_boundaries.py`（3 条） | 否 |
-| A09 | 混合 seq/无 seq 的分页必定读到终态 | 是 | `test_acceptance_targets_budget_paging.py` + `test_runs_api.py` | 否 |
+| A09 | 混合 seq/无 seq 的分页必定读到终态（含前端续页） | 是（前后端） | `test_runs_api.py` + `web/src/view.test.ts`（nextRunCursor/isStuckPage/appendRunEvents） | 否 |
 | A10 | 评测列表兼容旧 list 与 `{manifest, rows}`，返回 manifest 并贯通面板 | 是 | `test_runs_api.py`、`view.test.ts` | 否 |
 | A11 | 云端取消标记/清理/审计/后续工具禁止调用一致 | 是 | `test_cloud_multi.py`（34 项相关）+ RAG/运行时探针 | 否（真实远端任务是否终止未测） |
 | A12 | 未配置模式刷新、FE-09、MCP/模型可用性反馈 | 部分 | `view.test.ts`、`test_health_capabilities.py` | **否**：真实浏览器旅程/读屏器未重跑 |

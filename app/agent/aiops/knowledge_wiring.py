@@ -13,6 +13,7 @@ from __future__ import annotations
 from typing import Any
 
 from app.config import config
+from app.services import knowledge_service
 from app.tools.knowledge_retrieval_tool import create_knowledge_tool
 
 
@@ -25,15 +26,28 @@ def knowledge_tool_enabled() -> bool:
     return bool(getattr(config, "rag_tool_enabled", True))
 
 
+def local_only_retriever():
+    """本地诊断模式专用的检索器：embedding 只允许本地，绝不触达远端（A03）。
+
+    为什么不能复用默认检索器：默认检索器绑定进程级 ``vector_store_manager``，
+    它的 embedding 函数在首次初始化时定型。若配置是远端 provider，本地模式跑一次
+    检索就会复用**远端** embedding 客户端（对抗复核实测到远端工厂被调用）。
+    这里用一个独立的 manager 实例，只注入 ``LocalOnlyEmbeddings``，并**不修改**
+    全局配置或全局单例——云端模式与知识库管理页完全不受影响。
+    """
+    from app.services.vector_store_manager import create_local_vector_store_manager
+
+    return knowledge_service.VectorStoreRetriever(store=create_local_vector_store_manager())
+
+
 def knowledge_tools(*, retriever: Any = None, execution_mode: str = "") -> list:
     """返回可加入 ``RunTools`` 的内置工具列表（当前只有知识检索）。
 
-    ``execution_mode`` 只用于说明边界（A03）：两个模式用的是**同一份**服务端
-    向量库，因此差别不在于“远端/本地”，而在于**不会因为模式切换去改全局配置**。
-    本地模式的承诺是“不调用远端 LLM/embedding”；检索本身由 Milvus 完成、不会
-    触发 embedding 调用，所以这里注入同一检索器不会破坏该承诺——但 embedding
-    的远端回退由 ``create_embedding_service(strict_local=True)`` 单独保证。
+    ``execution_mode == "local"`` 时注入**只允许本地 embedding** 的检索器；其余
+    模式用默认检索器。两条路径都不改全局配置来“切换模式”。
     """
     if not knowledge_tool_enabled():
         return []
+    if retriever is None and execution_mode == "local":
+        retriever = local_only_retriever()
     return [create_knowledge_tool(retriever=retriever)]

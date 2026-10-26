@@ -404,3 +404,58 @@ def test_concurrent_recovery_initializes_only_once(monkeypatch):
     assert errors == []
     assert results == [True] * 6
     assert calls["connect"] == 1, f"并发恢复只能连接一次，实际 {calls['connect']} 次"
+
+
+# ── A03 接线：本地模式的知识检索不得复用远端 embedding ────────────
+
+
+def test_local_knowledge_tool_uses_local_only_embeddings_and_no_remote_calls(monkeypatch):
+    """本地模式的 retrieve_knowledge 必须注入只允许本地的检索器（A03）。
+
+    对抗复核发现：``create_embedding_service(strict_local=True)`` 本身正确，但
+    生产路径没有任何地方传它；本地运行的知识检索复用进程全局 manager，配置为
+    远端 provider 时真的会调远端工厂 + embed_query。
+    """
+    from app.agent.aiops import knowledge_wiring
+    from app.services import vector_store_manager as vsm
+
+    remote_calls: list = []
+
+    def fake_remote(**kwargs):
+        remote_calls.append(kwargs)
+        return object()
+
+    monkeypatch.setattr(config, "embedding_provider", "openai")
+    monkeypatch.setattr(config, "embedding_model", "adv-remote-emb")
+    monkeypatch.setattr(config, "embedding_api_key", "k")
+    monkeypatch.setattr(config, "embedding_base_url", "https://audit.invalid/v1")
+    monkeypatch.setattr(emb, "_create_openai_embeddings", fake_remote)
+
+    tools = knowledge_wiring.knowledge_tools(execution_mode="local")
+
+    assert tools, "本地模式仍应提供知识检索工具"
+    retriever = tools[0]._retriever
+    store = retriever._store
+    assert store is not vsm.vector_store_manager, "不得复用进程全局向量管理器"
+
+    embedding = getattr(store, "_embedding_function", None)
+    assert isinstance(embedding, vsm.LocalOnlyEmbeddings), (
+        f"本地模式必须注入只允许本地的 embedding，实际: {type(embedding).__name__}"
+    )
+
+    # 真正需要 embedding 时：不得触达远端工厂；本地不可用则明确失败。
+    with pytest.raises(RuntimeError, match="本地 embedding 模型不可用"):
+        embedding.embed_query("cpu high")
+    assert remote_calls == [], f"本地模式不得调用远端 embedding 工厂: {remote_calls}"
+
+
+def test_cloud_mode_does_not_switch_to_local_embeddings():
+    """云端/管理路径不受影响：非 local 模式不注入本地专用检索器。"""
+    from app.agent.aiops import knowledge_wiring
+
+    tools = knowledge_wiring.knowledge_tools(execution_mode="cloud_multi")
+
+    assert tools
+    # retriever=None 表示由工具在调用时解析默认（全局）检索器；这保证云端模式
+    # 不会因为本地模式的需要而被切换成“只允许本地 embedding”。
+    assert tools[0]._retriever is None

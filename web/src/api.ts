@@ -246,12 +246,31 @@ function query(params: Record<string, string | number | undefined>): string {
   return text ? `?${text}` : "";
 }
 
+/** 单次 run 读取的一页（A09）：两种游标互斥，截断时必有一个非空。 */
+export interface RunEventPage {
+  run_id: string;
+  events: RunEvent[];
+  truncated?: boolean;
+  next_after_seq?: number | null;
+  next_after_event?: number | null;
+}
+
 export const api = {
   executionModes: () => getJson<{ modes: ExecutionModeInfo[] }>("/api/execution-modes"),
   listRuns: (limit = 20) => getJson<{ runs: RunSummary[] }>(`/api/runs${query({ limit })}`),
-  getRun: (runId: string) =>
-    getJson<{ run_id: string; events: RunEvent[]; truncated?: boolean; next_after_seq?: number | null }>(
-      `/api/runs/${encodeURIComponent(runId)}`,
+  /**
+   * 读取一页 run 事件。
+   *
+   * A09：服务端在有 seq 时给 `next_after_seq`，无 seq 边界页给 `next_after_event`
+   * （位置游标）。调用方必须按返回的游标继续翻页，否则事件数超过单页上限的
+   * run 永远读不到终态。两个参数都可选，保持旧调用方式可用。
+   */
+  getRun: (runId: string, cursor?: { after_seq?: number | null; after_event?: number | null }) =>
+    getJson<RunEventPage>(
+      `/api/runs/${encodeURIComponent(runId)}${query({
+        after_seq: cursor?.after_seq ?? undefined,
+        after_event: cursor?.after_event ?? undefined,
+      })}`,
     ),
   listEvalResults: () => getJson<{ results: EvalResult[] }>("/api/eval/results"),
   health: () => getJson<Record<string, unknown>>("/health"),

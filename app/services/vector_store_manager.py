@@ -204,7 +204,9 @@ class VectorStoreManager:
 
             connection_args = {"uri": f"http://{config.milvus_host}:{config.milvus_port}"}
             self.vector_store = Milvus(
-                embedding_function=get_embedding_service_lazy(),
+                # 实例级注入优先：本地模式的 manager 只允许本地 embedding（A03）。
+                embedding_function=getattr(self, "_embedding_function", None)
+                or get_embedding_service_lazy(),
                 collection_name=self.collection_name,
                 connection_args=connection_args,
                 auto_id=False,
@@ -416,11 +418,55 @@ class VectorStoreManager:
         return [row for row in rows or [] if isinstance(row, dict)]
 
 
-def get_embedding_service_lazy():
-    """延迟导入 embedding 服务，避免模块导入时加载模型。"""
-    from app.services.vector_embedding_service import get_embedding_service
+def get_embedding_service_lazy(*, strict_local: bool | None = None):
+    """延迟导入 embedding 服务，避免模块导入时加载模型。
 
-    return get_embedding_service()
+    ``strict_local=True`` 时（本地诊断模式）返回**独立的**本地 embedding：
+    - 不读取/不修改进程全局配置来“切换模式”（A03 明确禁止这种做法）；
+    - 在远端 provider 配置下也不会构造远端客户端、不发 HTTP；
+    - 本地模型不可用时明确抛错，而不是悄悄回退远端。
+    """
+    from app.services.vector_embedding_service import create_embedding_service
+
+    return create_embedding_service(strict_local=strict_local)
+
+
+class LocalOnlyEmbeddings:
+    """本地 mode 专用的 embedding 适配器：把任何远端能力都挡在外面。
+
+    为什么需要单独一层：``VectorStoreManager`` 是进程级单例，它的
+    ``embedding_function`` 在首次初始化时绑定。若本地模式的检索复用同一份
+    单例，一旦配置是远端 provider，本地运行就会复用**远端** embedding 客户端
+    （对抗复核实测：``embed_query`` 打到了远端工厂）。这里给出一个明确只允许
+    本地实现的包装，本地模式用它自己的 manager 实例。
+    """
+
+    def __init__(self) -> None:
+        self._inner = None
+
+    def _service(self):
+        if self._inner is None:
+            self._inner = get_embedding_service_lazy(strict_local=True)
+        return self._inner
+
+    def embed_documents(self, texts: List[str]) -> List[List[float]]:
+        return self._service().embed_documents(texts)
+
+    def embed_query(self, text: str) -> List[float]:
+        return self._service().embed_query(text)
+
+
+def create_local_vector_store_manager() -> "VectorStoreManager":
+    """构造一个**只允许本地 embedding** 的向量库管理器（本地诊断模式专用）。
+
+    不复用模块级 ``vector_store_manager``：那个单例已经被初始化/绑定后不能再改
+    embedding 函数，而修改它会污染云端模式与知识库管理页面。独立实例让两种模式
+    各自独立，谁也不需要改全局配置。
+    """
+    manager = VectorStoreManager()
+    # 让这个实例在初始化时使用只允许本地的 embedding。
+    manager._embedding_function = LocalOnlyEmbeddings()  # type: ignore[attr-defined]
+    return manager
 
 
 # 全局单例（懒加载，不会在导入时崩溃）

@@ -234,3 +234,127 @@ def test_identifier_digits_are_not_treated_as_observed_values():
     )
 
     assert checked[0]["status"] == "supported", problems
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 真实 MCP payload 形态（servers/monitor_server.py）：单位在 data_points[].unit，
+# 字段名是 metric_name，**没有顶层 data.unit**。这是对抗复核发现的回归点：
+# 只读 data.unit 会让 duration 证据永远识别不出来，于是“999ms”被当成查询窗口。
+# ─────────────────────────────────────────────────────────────────────────────
+
+REAL_NETWORK_EVIDENCE = {
+    "id": "E1",
+    "tool": "query_network_metrics",
+    "ok": True,
+    "status": "ok",
+    "live": True,
+    "source": "tencent_cloud",
+    "target": "svc-a",
+    "data": {
+        "metric_name": "network_latency",
+        "data_points": [
+            {"timestamp": 1, "value": 12, "unit": "ms"},
+            {"timestamp": 2, "value": 13, "unit": "ms"},
+        ],
+        "statistics": {"avg": 12.5, "max": 13, "min": 12, "p95": 13, "count": 2},
+    },
+}
+
+REAL_CPU_EVIDENCE = {
+    "id": "E2",
+    "tool": "query_cpu_metrics",
+    "ok": True,
+    "status": "ok",
+    "live": True,
+    "source": "tencent_cloud",
+    "target": "svc-a",
+    "data": {
+        "metric_name": "cpu_usage_percent",
+        "data_points": [{"value": 12, "unit": "%"}],
+        "statistics": {"avg": 12.0, "max": 14.0, "count": 2},
+    },
+}
+
+UNITLESS_DISK_EVIDENCE = {
+    "id": "E3",
+    "tool": "query_disk_metrics",
+    "ok": True,
+    "status": "ok",
+    "live": True,
+    "source": "tencent_cloud",
+    "target": "svc-a",
+    "data": {
+        "metric_name": "disk_usage",
+        "data_points": [{"value": 71.5}],
+        "statistics": {"avg": 71.5},
+    },
+}
+
+
+@pytest.mark.parametrize(
+    "claim",
+    [
+        "网络延迟 999ms",
+        "网络延迟 12%",
+        "网络延迟 999s",
+        "网络延迟 50分钟",
+    ],
+)
+def test_review_counterexamples_are_rejected_on_real_payload_shape(claim):
+    """单位来自 data_points[].unit（真实服务形态），不是假设的 data.unit。"""
+    checked, problems = verify_claims(
+        [{"claim": claim, "status": "supported", "evidence_ids": ["E1"]}],
+        {"E1": REAL_NETWORK_EVIDENCE},
+    )
+
+    assert checked[0]["status"] == "hypothesis", f"{claim} 不应为 supported: {problems}"
+    assert problems
+
+
+def test_correct_value_on_real_payload_stays_supported():
+    checked, problems = verify_claims(
+        [{"claim": "网络延迟 12.5ms", "status": "supported", "evidence_ids": ["E1"]}],
+        {"E1": REAL_NETWORK_EVIDENCE},
+    )
+
+    assert checked[0]["status"] == "supported", problems
+
+
+def test_percent_metric_on_real_payload():
+    good, good_problems = verify_claims(
+        [{"claim": "CPU 使用率 12%", "status": "supported", "evidence_ids": ["E2"]}],
+        {"E2": REAL_CPU_EVIDENCE},
+    )
+    bad, _ = verify_claims(
+        [{"claim": "CPU 使用率 99%", "status": "supported", "evidence_ids": ["E2"]}],
+        {"E2": REAL_CPU_EVIDENCE},
+    )
+
+    assert good[0]["status"] == "supported", good_problems
+    assert bad[0]["status"] == "hypothesis"
+
+
+def test_unit_inferred_from_metric_name_when_payload_has_no_unit():
+    """payload 完全没有单位时，按指标名推断（disk_usage → %）。"""
+    good, good_problems = verify_claims(
+        [{"claim": "磁盘使用率 71.5%", "status": "supported", "evidence_ids": ["E3"]}],
+        {"E3": UNITLESS_DISK_EVIDENCE},
+    )
+    bad, _ = verify_claims(
+        [{"claim": "磁盘使用率 12%", "status": "supported", "evidence_ids": ["E3"]}],
+        {"E3": UNITLESS_DISK_EVIDENCE},
+    )
+
+    assert good[0]["status"] == "supported", good_problems
+    assert bad[0]["status"] == "hypothesis"
+
+
+def test_statistics_count_is_not_treated_as_an_observed_value():
+    """statistics.count=2 是条数，不是被测到的读数值。"""
+    checked, problems = verify_claims(
+        [{"claim": "网络延迟 2ms", "status": "supported", "evidence_ids": ["E1"]}],
+        {"E1": REAL_NETWORK_EVIDENCE},
+    )
+
+    assert checked[0]["status"] == "hypothesis", "count 不能被当成延迟读数"
+    assert problems

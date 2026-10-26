@@ -238,3 +238,39 @@ test("知识库状态与作业状态：invalid_index 与 unavailable 分开展�
   assert.equal(jobStatusLabel("ready").tone, "ok");
   assert.equal(jobStatusLabel("failed").tone, "error");
 });
+
+test("A09：分页游标优先用位置游标，其次 seq，读完返回 null", async () => {
+  const { nextRunCursor, isStuckPage } = await import("./view.ts");
+
+  // 未截断 -> 结束
+  assert.equal(nextRunCursor({ truncated: false }, 1), null);
+  // 位置游标优先（无 seq 边界页）
+  assert.deepEqual(nextRunCursor({ truncated: true, next_after_event: 2000 }, 1), {
+    after_event: 2000,
+  });
+  // 其次 seq 游标
+  assert.deepEqual(nextRunCursor({ truncated: true, next_after_seq: 42 }, 1), {
+    after_seq: 42,
+  });
+  // 截断却无任何游标 -> 不能继续，且必须能被识别为“卡住”
+  const stuck = { truncated: true };
+  assert.equal(nextRunCursor(stuck, 1), null);
+  assert.equal(isStuckPage(stuck, 1), true);
+  assert.equal(isStuckPage({ truncated: false }, 1), false);
+});
+
+test("A09：页数上限保护，避免服务端异常时无限翻页", async () => {
+  const { MAX_RUN_PAGES, nextRunCursor } = await import("./view.ts");
+  assert.equal(nextRunCursor({ truncated: true, next_after_event: 10 }, MAX_RUN_PAGES), null);
+});
+
+test("A09：多页事件按服务端顺序追加，不重排", async () => {
+  const { appendRunEvents } = await import("./view.ts");
+  const first = appendRunEvents([], { events: [{ event: "a" }, { event: "b" }] });
+  const second = appendRunEvents(first, { events: [{ event: "c" }] });
+  assert.deepEqual(
+    second.map((item) => (item as { event: string }).event),
+    ["a", "b", "c"],
+  );
+  assert.deepEqual(appendRunEvents(first, {}), first);
+});

@@ -286,3 +286,60 @@ export function jobStatusLabel(status: unknown): StatusLabel {
       return { text: "未知", tone: "muted", detail: "" };
   }
 }
+
+/**
+ * 历史 run 的分页续读（A09）。
+ *
+ * 服务端一页最多返回固定条数，截断时给出两种游标之一：
+ * - `next_after_seq`：本页边界事件带 seq 时的 seq 游标；
+ * - `next_after_event`：无 seq 边界页的位置游标（跳过前 N 条）。
+ *
+ * 前端必须一直翻到 `truncated=false` 才能看到终态（`run_complete`）。这里把
+ * “要不要继续翻”“下一次带什么游标”做成纯函数，便于单测，也避免 App 里各写一份。
+ *
+ * 安全上限：`MAX_PAGES` 防止服务端异常时无限翻页（正常 trace 远不会到）。
+ */
+export const MAX_RUN_PAGES = 50;
+
+export interface RunPageShape {
+  events?: unknown;
+  truncated?: boolean;
+  next_after_seq?: number | null;
+  next_after_event?: number | null;
+}
+
+export interface RunCursor {
+  after_seq?: number | null;
+  after_event?: number | null;
+}
+
+/** 根据一页响应决定是否继续、以及下一页的游标；null 表示已读完。 */
+export function nextRunCursor(page: RunPageShape, pagesRead: number): RunCursor | null {
+  if (!page || page.truncated !== true) return null;
+  if (pagesRead >= MAX_RUN_PAGES) return null;
+  const afterEvent = page.next_after_event;
+  if (typeof afterEvent === "number" && Number.isFinite(afterEvent) && afterEvent > 0) {
+    return { after_event: afterEvent };
+  }
+  const afterSeq = page.next_after_seq;
+  if (typeof afterSeq === "number" && Number.isFinite(afterSeq) && afterSeq >= 0) {
+    return { after_seq: afterSeq };
+  }
+  // 截断却没有任何可用游标：说明服务端与前端契约不一致。继续翻只会重复同一页，
+  // 因此停在这里（调用方应提示“记录被截断”），不能静默假装读完了。
+  return null;
+}
+
+/** 合并多页事件；保留服务端顺序，不重排、不去重（服务端已保证无重复）。 */
+export function appendRunEvents(
+  collected: unknown[],
+  page: RunPageShape,
+): unknown[] {
+  const events = Array.isArray(page?.events) ? page.events : [];
+  return [...collected, ...events];
+}
+
+/** 一页是否“被截断且无法继续”——用于给用户明确提示。 */
+export function isStuckPage(page: RunPageShape, pagesRead: number): boolean {
+  return page?.truncated === true && nextRunCursor(page, pagesRead) === null;
+}

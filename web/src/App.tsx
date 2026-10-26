@@ -21,8 +21,12 @@ import {
 } from "./state";
 import { diagnose as diagnoseStream, type DiagnoseOutcome } from "./sse";
 import {
+  MAX_RUN_PAGES,
+  appendRunEvents,
   candidateKey,
   evalManifestSummary,
+  isStuckPage,
+  nextRunCursor,
   targetCandidates,
   targetRequestBody,
   type TargetCandidate,
@@ -120,6 +124,38 @@ function initialRunParam(): string | null {
   return new URLSearchParams(window.location.search).get("run");
 }
 
+/**
+ * 读完整一次 run 的事件（A09）。
+ *
+ * 服务端单页有条数上限；必须按返回的游标循环到 `truncated=false`，否则事件数
+ * 超过一页的运行在界面上永远看不到终态。`onPage` 每读完一页回调一次，让大
+ * trace 能渐进渲染而不是等到全部读完。
+ *
+ * 只读：这里不发任何诊断 POST，也不会自动重跑。`stuck` 表示服务端截断却给不出
+ * 可继续的游标（契约不一致），此时提示“内容不完整”，绝不假装已读全。
+ */
+async function collectRunEvents(
+  runId: string,
+  onPage?: (events: unknown[]) => void,
+): Promise<{ events: unknown[]; stuck: boolean }> {
+  let collected: unknown[] = [];
+  let cursor: { after_seq?: number | null; after_event?: number | null } | undefined;
+  let stuck = false;
+  for (let page = 0; page < MAX_RUN_PAGES; page += 1) {
+    const data = await api.getRun(runId, cursor);
+    collected = appendRunEvents(collected, data);
+    if (page === 0) onPage?.(collected);
+    const next = nextRunCursor(data, page + 1);
+    if (!next) {
+      stuck = isStuckPage(data, page + 1);
+      break;
+    }
+    cursor = next;
+    if (!data.truncated) break;
+  }
+  return { events: collected, stuck };
+}
+
 export default function App() {
   const [sessionId, setSessionId] = useState(newSessionId);
   const [runs, setRuns] = useState<RunSummary[]>([]);
@@ -214,12 +250,13 @@ export default function App() {
     await refresh();
     if (!runId) return;
     try {
-      const data = await api.getRun(runId);
+      // A09：同样按游标读完全部页，否则长运行补齐时看不到终态。
+      const collected = await collectRunEvents(runId);
       if (version !== requestVersion.current) return;
       setLive((prev) => {
         if (prev.runId !== runId) return prev;
         // 回放与实时共用 state.ts 的同一份 reducer。
-        const saved = replay(prev.sessionId, data.events);
+        const saved = replay(prev.sessionId, collected.events as StoredRunEvent[]);
         return {
           ...saved,
           runId,
@@ -342,11 +379,20 @@ export default function App() {
     setSelectedEvents([]);
     if (!fromUrl) setRunParam(runId);
     try {
-      const data = await api.getRun(runId);
+      // A09：服务端一页有条数上限，必须按游标翻到 truncated=false，否则事件
+      // 较多的运行在 UI 上永远读不到终态。这里循环消费全部页。
+      const collected = await collectRunEvents(runId, (progress) => {
+        if (selectedRunRef.current !== runId) return;
+        // 边翻边渲染：大 trace 不必等所有页读完才显示。
+        setSelectedEvents(progress as StoredRunEvent[]);
+      });
       if (selectedRunRef.current !== runId) return;
-      setSelectedEvents(data.events);
-      setNotice("");
-      if (data.truncated) setNotice("该运行的事件较多，已按服务端上限截断显示。");
+      setSelectedEvents(collected.events as StoredRunEvent[]);
+      setNotice(
+        collected.stuck
+          ? "该运行的事件超出服务端上限且无法继续翻页，显示的内容不完整。"
+          : "",
+      );
     } catch (error) {
       if (selectedRunRef.current !== runId) return;
       // 只读恢复失败：提示，但不自动新建诊断任务。
