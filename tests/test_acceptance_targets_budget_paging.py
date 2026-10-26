@@ -421,3 +421,31 @@ def test_normal_completion_is_not_marked_cancelled():
 
     assert events[-1]["type"] == "complete"
     assert holder["runtime"].cancelled is False, "正常完成不得标记为已取消"
+
+
+def test_recorded_evidence_never_exceeds_budget_across_many_calls():
+    """预算耗尽后继续调用，记录下来的数据总量不得超过 evidence_chars（A07）。"""
+    observed: list = []
+    tool = _log_tool(observed)
+    budget = RequestBudget(
+        tool_calls=10, llm_calls=12, subprocess_calls=10,
+        prompt_chars=20_000, evidence_chars=10,
+    )
+
+    async def run() -> tuple[int, dict]:
+        runtime = runtime_tools.RunTools([tool], "run-1", "local", lambda _: None,
+                                         budget=budget)
+        runtime.bind(Target(service="svc-a"))
+        total = 0
+        for _ in range(5):
+            evidence = await runtime.call("search_service_logs",
+                                          {"service_name": "svc-a", "limit": 999_999})
+            total += len(json.dumps(evidence["data"], ensure_ascii=False))
+        return total, budget.snapshot()["evidence_chars"]
+
+    recorded, snapshot = asyncio.run(run())
+
+    assert recorded <= snapshot["limit"], (
+        f"记录的数据 {recorded} 超过预算上限 {snapshot['limit']}"
+    )
+    assert snapshot["used"] <= snapshot["limit"]

@@ -369,9 +369,13 @@ class RunTools:
             return data, ""
         size = _json_size(data)
         if remaining <= 0:
-            note = "证据预算已用尽，本次结果仅保留占位说明"
+            # 预算已耗尽：数据字段只留**最小占位**（空对象，2 字符），说明文字
+            # 只进证据缺口，不再往证据载荷里塞 50+ 字符的 note。
+            # 旧实现每次仍记一条带 note 的占位且不做预占，导致“记录的数据总量”
+            # 可以超过 evidence_chars（虽然单次有界）。
+            note = "证据预算已用尽，本次结果仅保留占位"
             self.budget_notes.append(note)
-            return {"_truncated": True, "note": note}, note
+            return {}, note
         if size <= remaining:
             try:
                 self.budget.reserve("evidence_chars", size)
