@@ -377,3 +377,44 @@ def test_purge_is_disabled_when_retention_is_zero(trace_dir, monkeypatch):
     assert stats["enabled"] is False
     assert stats["deleted"] == 0
     assert path.exists()
+
+
+def test_large_no_seq_trace_is_capped_and_pages_with_position_cursor(trace_dir, client, monkeypatch):
+    """超大且无 seq 的 trace：单页必须受限，且能靠位置游标无重复读到终态。"""
+    total = runs.MAX_EVENT_LIMIT + 500
+    events = [{"event": "run_start", "seq": 1}]
+    events += [{"event": "evidence"} for _ in range(total)]
+    events += [{"event": "run_complete"}]
+    _write_trace(trace_dir, VALID_RUN, events)
+
+    collected: list[dict] = []
+    after_event = 0
+    for _ in range(20):
+        page = client.get(
+            f"/api/runs/{VALID_RUN}",
+            params={"limit": 2000, "after_event": after_event},
+        ).json()
+        assert len(page["events"]) <= runs.MAX_EVENT_LIMIT, "单页不得超过硬上限"
+        collected.extend(page["events"])
+        if not page["truncated"]:
+            break
+        assert page["next_after_event"], "无 seq 截断页必须给出位置游标"
+        after_event = page["next_after_event"]
+
+    assert len(collected) == len(events), f"分页必须完整，实际 {len(collected)}/{len(events)}"
+    assert collected[-1]["event"] == "run_complete", "必须能读到终态"
+
+
+def test_small_no_seq_trace_is_delivered_whole(trace_dir, client):
+    """小规模无 seq trace 一次交付，避免调用方为了确认终态多跑一轮。"""
+    events = [{"event": "run_start", "seq": 1}]
+    events += [{"event": "evidence"} for _ in range(20)]
+    events += [{"event": "run_complete"}]
+    _write_trace(trace_dir, VALID_RUN, events)
+
+    page = client.get(
+        f"/api/runs/{VALID_RUN}", params={"limit": 5, "after_seq": 1}
+    ).json()
+
+    assert page["truncated"] is False
+    assert page["events"][-1]["event"] == "run_complete"

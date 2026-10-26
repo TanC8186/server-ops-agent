@@ -50,6 +50,25 @@ RETENTION_DAYS_ENV = "TRACE_RETENTION_DAYS"
 RETENTION_MAX_FILES_PER_RUN = 200
 
 
+def _coerce_index(value: object, default: int = 0) -> int:
+    """把查询参数收敛成正整数。
+
+    直接调用 ``get_run(...)``（探针、脚本、内部调用）时，FastAPI 的
+    ``Query(...)`` 默认对象不会被解析，``events[after_event:]`` 会因切片参数
+    不是整数而 TypeError。HTTP 路径本来就已由 FastAPI 校验，这里只做一次
+    "能当整数就用、否则用默认值"的兜底，让两种调用方式行为一致。
+    """
+    if isinstance(value, bool):
+        return default
+    if isinstance(value, int):
+        return value if value >= 0 else default
+    try:
+        parsed = int(value)  # type: ignore[arg-type]
+    except (TypeError, ValueError):
+        return default
+    return parsed if parsed >= 0 else default
+
+
 def abandoned_after_seconds() -> float:
     """多久没有终态的 run 判为 abandoned（秒）。非法值回退到默认。"""
     import os
@@ -338,33 +357,56 @@ def _after_seq(events: list[dict], after_seq: int) -> list[dict]:
 async def get_run(
     run_id: str,
     after_seq: int = Query(default=0, ge=0),
+    after_event: int = Query(default=0, ge=0),
     limit: int = Query(default=DEFAULT_EVENT_LIMIT, ge=1, le=MAX_EVENT_LIMIT),
 ) -> dict:
     path = trace_path(run_id)
     if not path.exists():
         raise HTTPException(status_code=404, detail="run not found")
     events = await asyncio.to_thread(_read_jsonl, path)
-    if after_seq:
+    after_seq = _coerce_index(after_seq)
+    after_event = _coerce_index(after_event)
+    limit = _coerce_index(limit) or DEFAULT_EVENT_LIMIT
+    if after_event:
+        # 位置游标优先：它不依赖事件是否带 seq，是“无 seq 边界页”的唯一可靠续读方式。
+        events = events[after_event:]
+    elif after_seq:
         events = _after_seq(events, after_seq)
     selected = events[:limit]
     truncated = len(events) > limit
-    # 分页的硬约束：只要能翻页，就必须给得出合法续读游标。
-    # 本页最后一条没有可用 seq 时（例如本页全是无 seq 的过程记录），
-    # ``next_after_seq`` 无从计算，前端将永远读不到终态。
-    # 这种情况下宁可不截断——把剩余记录一次性交付，保证“任意小分页都能
-    # 到达终态”，而不是返回一个 truncated=true 且游标为 null 的死页面。
+    next_after_seq: int | None = None
+    next_after_event: int | None = None
     if truncated and _usable_seq(selected[-1]) is None:
-        selected = events
-        truncated = False
-    # 续读游标取本页最大的 seq，而不是最后一条元素的 seq：终态/错误记录可能
-    # 不带 seq，用最后一条会返回 null，前端误以为不能继续翻页。
-    # 走到这里的截断页，其边界事件必然带 seq，游标因此非空。
-    seqs = [seq for seq in (_usable_seq(e) for e in selected) if seq is not None]
+        # 边界事件没有 seq，``next_after_seq`` 无从计算。两种收尾，都必须保证
+        # “任意小分页能读到终态”，同时不能把整份 trace 一次性放大返回：
+        # - 剩余量在 MAX_EVENT_LIMIT 以内：直接全部交付（truncated=false）；
+        # - 否则：仍然截断，但改用**位置游标** ``after_event``（跳过前 N 条）。
+        #   位置游标不依赖 seq，是这类页唯一可靠的续读方式。
+        if len(events) <= MAX_EVENT_LIMIT:
+            selected = events
+            truncated = False
+        else:
+            selected = events[:MAX_EVENT_LIMIT]
+            truncated = True
+            next_after_event = len(selected)
+            # 已经用位置游标续读时，必须继续给出位置游标——否则调用方拿不到
+            # 任何可用游标，只能重复读同一页。这里用“已跳过的绝对位置”表达。
+            if after_event:
+                next_after_event = after_event + len(selected)
+    elif truncated:
+        # 边界事件带 seq：续读游标取本页最大的 seq（终态/错误记录可能不带 seq，
+        # 用最后一条会返回 null，让前端误以为不能继续翻页）。
+        seqs = [seq for seq in (_usable_seq(e) for e in selected) if seq is not None]
+        next_after_seq = max(seqs) if seqs else None
+        if next_after_seq is None:
+            # 极端兜底：截断却没有可用 seq 游标时改用位置游标，绝不给死页面。
+            next_after_event = (after_event + len(selected)) if after_event else len(selected)
     return {
         "run_id": path.stem,
         "events": selected,
         "truncated": truncated,
-        "next_after_seq": max(seqs) if truncated else None,
+        "next_after_seq": next_after_seq,
+        "next_after_event": next_after_event,
     }
 
 
