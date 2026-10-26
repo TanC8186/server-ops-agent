@@ -459,3 +459,10 @@ def test_cloud_mode_does_not_switch_to_local_embeddings():
     # retriever=None 表示由工具在调用时解析默认（全局）检索器；这保证云端模式
     # 不会因为本地模式的需要而被切换成“只允许本地 embedding”。
     assert tools[0]._retriever is None
+
+
+def test_local_only_embeddings_is_a_real_embeddings_subclass():
+    """必须是 langchain Embeddings 子类：Milvus 初始化会按类型校验。"""
+    from langchain_core.embeddings import Embeddings
+
+    assert isinstance(vsm.LocalOnlyEmbeddings(), Embeddings)

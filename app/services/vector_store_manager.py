@@ -25,6 +25,7 @@ from pathlib import Path
 from typing import List, Sequence
 
 from langchain_core.documents import Document
+from langchain_core.embeddings import Embeddings
 from langchain_milvus import Milvus
 from loguru import logger
 
@@ -431,7 +432,7 @@ def get_embedding_service_lazy(*, strict_local: bool | None = None):
     return create_embedding_service(strict_local=strict_local)
 
 
-class LocalOnlyEmbeddings:
+class LocalOnlyEmbeddings(Embeddings):
     """本地 mode 专用的 embedding 适配器：把任何远端能力都挡在外面。
 
     为什么需要单独一层：``VectorStoreManager`` 是进程级单例，它的
