@@ -435,7 +435,7 @@ bash -n docker-entrypoint.sh
 
 | 检查 | 命令 | 结果 |
 |---|---|---|
-| 后端全量 pytest | `./.venv/Scripts/python.exe -m pytest tests -p no:cacheprovider -q -o addopts= --tb=line --disable-warnings -rs` | **615 passed, 1 skipped, 2 warnings，92.23s**（exit 0） |
+| 后端全量 pytest | `./.venv/Scripts/python.exe -m pytest tests -p no:cacheprovider -q -o addopts= --tb=line --disable-warnings -rs` | **621 passed, 1 skipped, 2 warnings，95.46s**（exit 0） |
 | 前端单测 | `cd web && npm test` | **48 passed, 0 fail** |
 | 前端构建 | `cd web && npm run build` | 通过，产物 `assets/index-vsa-hn5h.js` 320.57 kB / `index-Zmx7MErZ.css` 28.86 kB |
 | 前端 lint | `cd web && npm run lint` | 通过（oxlint 无输出） |
@@ -444,9 +444,9 @@ bash -n docker-entrypoint.sh
 | Docker daemon | `docker info --format '{{.ServerVersion}}'` | 29.8.2（可用） |
 | skip | `tests/test_p0_run_paths.py:134` | 环境不允许创建符号链接，仍是 **未执行**，不是通过 |
 
-收集总数从 528 → 615（+87），新增测试文件：
+收集总数从 528 → 621（+93），新增测试文件：
 `test_acceptance_boundaries.py`(12)、`test_acceptance_targets_budget_paging.py`(12)、
-`test_claim_boundaries.py`(39)、`test_parent_backfill.py`(5)、`test_runs_api.py` +5（abandoned/retention）；前端 +4。
+`test_claim_boundaries.py`(45)、`test_parent_backfill.py`(5)、`test_runs_api.py` +5（abandoned/retention）；前端 +4。
 
 ## V2. 三个离线探针（修复后，均不访问真实外部服务）
 
@@ -656,3 +656,58 @@ URL 断言全部通过。
    不实现毫秒/秒换算以免引入新的误判面。
 4. **A03 大小写**：`execution_mode` 精确匹配 `"local"`；调用方只传字面量，
    不可利用，但比较偏脆弱。
+
+## V9. 第三轮对抗复核（终验）发现的两项与修复
+
+终验代理确认 **A06 的 13 条要求用例与 A09 的 (a)–(d) 分页断言在两栈上均不可反驳**
+（含 140 份真实 trace / 270 次分页回放，最坏 283 759 事件 21 页 < 50 页上限），
+但报告了两处新的真实问题，均已修复。
+
+### 9.1 A06 窗口词洗白（已修）
+
+模型只要在句中任何位置补一个范围词，就能把任意时长洗成查询窗口：
+
+- `CPU 使用率 999ms，最近10分钟` → 旧实现 supported
+- `过去5分钟 CPU 使用率 8888ms 峰值` → supported
+- `最近5分钟内出现过 999ms 的卡顿，CPU 使用率 12%` → supported
+- `disk usage 999ms since deploy` → supported
+
+原因：`_looks_like_query_window` 对**整句**搜索范围线索。
+
+修复：范围线索必须**紧贴数值前 6 个字符内**；数值本身带读数语义（延迟/耗时/
+响应时间/超时/latency）时一律按读数核验。新增 4 项回归。
+
+### 9.2 A06 服务端核算行渲染了错误数值（已修）
+
+`rendered` 兜底用了 `claim_numbers(text)[0]`，于是：
+
+- `CPU 最近10分钟使用率 12%` → 渲染 `cpu_usage_percent=10`（10 是窗口长度）
+- `过去5秒内 CPU 使用率 12%` → 渲染 `=5`
+- `日志中出现了上游超时` → 渲染 `metric=0`
+
+即"服务端确定性核算"本身给出了证据中不存在的数字——正是本模块要杜绝的行为。
+
+修复：新增 `_first_supported_reading()`，只挑**确实被证据支持**的读数用于渲染；
+证据没有任何数值读数时渲染 `（无数值读数）`，不再编造 `metric=0`。
+新增 2 项回归。
+
+### 9.3 仍未修的已知边界（完整记录，不隐藏）
+
+A06：
+
+1. **科学计数法** `延迟 1.2e1ms` 解析为 1.2 并与证据 1.2 匹配。
+2. **跨族 other 单位** `网络流量 12.5gb` 对 `mbps` 证据按数值通过。
+3. **容差** `12.0000001%`、`13.012ms` 落在 `_ABS_TOL=0.05` 内。
+4. **全角单位** `网络延迟 １２ｍｓ` 单位丢失，退化为纯数值匹配。
+5. **无单位声明** `CPU 使用率 12` 按设计只核对数值。
+
+A09（均为 writer 不可达的损坏 trace）：
+
+6. 重复/非单调 `seq` → 可能跳过事件（真实 writer 的 seq 是单调计数器，140 份
+   真实 trace 中 0 例）。
+7. 全部 `seq == 0` → 首页重复，50 页封顶后 `stuck=true`。
+8. `limit` 越界：边界无 seq 且剩余 ≤ `MAX_EVENT_LIMIT` 时最多返回 20000 条。
+9. 32 MB 截断标记 `trace_truncated`：整份 trace 没有终态事件，UI 会显示不完整
+   （分页本身不会卡住）。
+
+这些属于"已知且如实标注"，不是"已修复"。

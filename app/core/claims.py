@@ -396,23 +396,92 @@ _DURATION_READING_CUES = (
 )
 
 
+def _first_supported_reading(
+    text: str,
+    observed: list[tuple[float, str]],
+) -> tuple[float, str]:
+    """挑出声明里**确实被证据支持**的那个读数，用于服务端渲染。
+
+    优先返回“数值与单位都对得上证据”的一对；没有单位信息时退回数值匹配；
+    都没有匹配时返回证据里的第一个观测值（保证渲染值一定来自证据，而不是模型
+    文本里可能错误的数字）。
+    """
+    values = [value for value, _unit in observed]
+    units = {unit for _value, unit in observed}
+    for value, unit in claim_value_pairs(text):
+        category = _unit_category(unit)
+        if category == "duration" and not any(
+            _unit_category(item) == "duration" for item in units
+        ):
+            # 查询窗口不参与渲染。
+            continue
+        if not _has_number(values, value):
+            continue
+        if category == "percent":
+            matched_unit = next(
+                (item for item in units if _unit_category(item) == "percent"), ""
+            )
+        elif category == "duration":
+            family = _duration_family(unit)
+            matched_unit = next(
+                (item for item in units if _duration_family(item) == family), ""
+            )
+        else:
+            matched_unit = ""
+        return value, matched_unit
+    if observed:
+        return observed[0]
+    return 0.0, ""
+
+
 def _looks_like_query_window(text: str, value: float, unit: str) -> bool:
     """判断某个 duration 数值是不是**查询窗口**而不是被观测到的读数。
 
     判定顺序（保守优先"这是读数"，因为误放过读数会直接造成错误结论）：
 
-    1. 数值附近出现明确的读数语义（耗时/延迟/响应时间/超时…）→ 不是窗口；
-    2. 数值前有“最近/过去/近/last/past/within…”这类范围线索 → 是窗口；
-    3. 其余情况 → 按读数处理（要求证据里存在同单位同族的观测）。
+    1. 数值本身出现在读数语境里（“延迟 999ms”），或整句带读数语义且没有更强
+       的范围修饰 → 不是窗口；
+    2. 范围线索必须**紧贴在数值前**才成立（“最近10分钟”“过去5秒”），而不是
+       “句子里任何地方出现‘最近’”。否则模型只要在句尾补一句“最近10分钟”，
+       就能把任意 `999ms` 洗成查询窗口（对抗复核反例：窗口词洗白）。
+
+    实现：在数值附近（前 6 个字符内）找范围线索，而不是全句搜索。
     """
     if not text:
         return False
-    lower = text.lower()
-    near_reading = any(cue in lower for cue in _DURATION_READING_CUES)
-    near_window = any(cue in lower for cue in _QUERY_WINDOW_CUES)
-    if near_reading:
+    # 读数语义优先：出现“延迟/耗时/响应时间/超时”时，时长是读数。
+    if any(cue in text.lower() for cue in _DURATION_READING_CUES):
         return False
-    return near_window
+    # 找到该数值在文本中的位置（按数值字面量匹配，兼容阿拉伯与中文数字）。
+    position = _value_position_in_text(text, value)
+    if position is None:
+        return False
+    # 只看数值**前面**的一小段：范围修饰必须直接修饰这个时长。
+    window = text[max(0, position - 6):position]
+    return any(cue in window.lower() for cue in _QUERY_WINDOW_CUES)
+
+
+def _value_position_in_text(text: str, value: float) -> int | None:
+    """粗定位一个数值在文本中的起始下标；找不到返回 ``None``。"""
+    if not text:
+        return None
+    candidates: list[int] = []
+    # 阿拉伯数字（含小数）
+    rendered = f"{value:g}"
+    index = text.find(rendered)
+    if index >= 0:
+        candidates.append(index)
+    for form in (f"{int(value)}" if float(value).is_integer() else "", str(value)):
+        if form:
+            found = text.find(form)
+            if found >= 0:
+                candidates.append(found)
+    # 中文数字：直接扫所有中文数字串并解析比对
+    for match in _CN_NUMBER_RE.finditer(text):
+        parsed = _parse_cn_number(match.group(1))
+        if parsed is not None and abs(parsed - value) <= _ABS_TOL:
+            candidates.append(match.start())
+    return min(candidates) if candidates else None
 
 
 def _verify_claim_value_pairs(
@@ -722,15 +791,28 @@ def verify_claims(claims: Iterable[Mapping[str, Any]],
             if structured is not None:
                 item["rendered"] = render_observation(structured, primary)
             else:
-                item["rendered"] = render_observation(
-                    Observation(
-                        evidence_id=str(primary.get("id", "")),
-                        metric=_metric_of(primary),
-                        value=next(iter(claim_numbers(text)), 0.0),
-                        unit="",
-                        target=str(primary.get("target") or ""),
-                    ),
-                    primary,
-                )
+                # 渲染的数值必须是**被证据支持的那个读数**，不能盲取声明里的第一个
+                # 数字：`CPU 最近10分钟使用率 12%` 的第一个数字是窗口长度 10，
+                # 用它渲染会写出一条证据里根本不存在的“服务端核算”。
+                observed = evidence_value_pairs(primary)
+                supported_value, supported_unit = _first_supported_reading(text, observed)
+                if observed:
+                    item["rendered"] = render_observation(
+                        Observation(
+                            evidence_id=str(primary.get("id", "")),
+                            metric=_metric_of(primary),
+                            value=supported_value,
+                            unit=supported_unit,
+                            target=str(primary.get("target") or ""),
+                        ),
+                        primary,
+                    )
+                else:
+                    # 证据里没有任何数值读数（例如只有日志文本）：不要编造
+                    # “metric=0”这种不存在的核算值，只标注证据身份。
+                    item["rendered"] = (
+                        f"{primary.get('id', '')} {_metric_of(primary) or '证据'}"
+                        f" target={primary.get('target') or '未绑定'}（无数值读数）"
+                    )
         checked.append(item)
     return checked, problems

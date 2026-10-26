@@ -477,3 +477,59 @@ def test_chinese_numeral_correct_reading_stays_supported():
 
     # 证据里没有正好 12 的观测（avg=12.5、data_points 有 12）；12 存在 -> 通过。
     assert checked[0]["status"] == "supported", problems
+
+
+@pytest.mark.parametrize(
+    "claim",
+    [
+        "CPU 使用率 999ms，最近10分钟",
+        "过去5分钟 CPU 使用率 8888ms 峰值",
+        "最近5分钟内出现过 999ms 的卡顿，CPU 使用率 12%",
+        "disk usage 999ms since deploy",
+    ],
+)
+def test_window_word_cannot_launder_a_duration_reading(claim):
+    """句尾补一个“最近10分钟”不能把 999ms 洗成查询窗口（终验复核反例）。
+
+    旧实现全句搜范围线索；只要句子里任何地方出现“最近/过去”，该时长就被
+    当成窗口跳过。现在范围线索必须紧贴数值前面。
+    """
+    checked, problems = verify_claims(
+        [{"claim": claim, "status": "supported", "evidence_ids": ["E1"]}],
+        {"E1": REAL_CPU_PERCENT},
+    )
+
+    assert checked[0]["status"] == "hypothesis", f"{claim} 不应为 supported"
+    assert problems
+
+
+def test_server_rendered_value_comes_from_evidence_not_from_window_number():
+    """服务端核算行不能把查询窗口的 10/5 当成读数渲染出去。"""
+    checked, problems = verify_claims(
+        [{"claim": "CPU 最近10分钟使用率 12%", "status": "supported",
+          "evidence_ids": ["E1"]}],
+        {"E1": REAL_CPU_PERCENT},
+    )
+
+    assert checked[0]["status"] == "supported", problems
+    rendered = str(checked[0].get("rendered") or "")
+    assert "12" in rendered, rendered
+    assert "=10" not in rendered and "=5" not in rendered, rendered
+
+
+def test_numberless_evidence_does_not_render_a_fabricated_zero():
+    """证据没有数值读数时，不得渲染 metric=0 这种不存在的核算值。"""
+    logs = {
+        "id": "E9", "tool": "search_service_logs", "ok": True, "status": "ok",
+        "live": True, "source": "tencent_cloud", "target": "svc-a",
+        "data": {"logs": [{"level": "ERROR", "message": "upstream timeout"}]},
+    }
+    checked, problems = verify_claims(
+        [{"claim": "日志中出现了上游超时", "status": "supported", "evidence_ids": ["E9"]}],
+        {"E9": logs},
+    )
+
+    assert checked[0]["status"] == "supported", problems
+    rendered = str(checked[0].get("rendered") or "")
+    assert "=0" not in rendered, rendered
+    assert "无数值读数" in rendered, rendered
