@@ -418,3 +418,43 @@ def test_small_no_seq_trace_is_delivered_whole(trace_dir, client):
 
     assert page["truncated"] is False
     assert page["events"][-1]["event"] == "run_complete"
+
+
+def test_seq_to_position_cursor_handoff_does_not_redeliver(trace_dir, client):
+    """seq 游标切到位置游标时必须带上已跳过距离，不能重复投递（对抗复核反例）。"""
+    events = [{"event": "run_start", "seq": 1}]
+    events += [{"event": "evidence", "i": index} for index in range(2_500)]
+    events += [{"event": "status", "seq": 2}]
+    events += [{"event": "run_complete"}]
+    _write_trace(trace_dir, VALID_RUN, events)
+
+    seen: set[int] = set()
+    duplicates = 0
+    cursor: dict = {}
+    delivered = 0
+    for _ in range(20):
+        page = client.get(f"/api/runs/{VALID_RUN}", params={
+            "limit": 2_000,
+            **({"after_seq": cursor["after_seq"]} if "after_seq" in cursor else {}),
+            **({"after_event": cursor["after_event"]} if "after_event" in cursor else {}),
+        }).json()
+        delivered += len(page["events"])
+        for event in page["events"]:
+            index = event.get("i")
+            if isinstance(index, int):
+                if index in seen:
+                    duplicates += 1
+                seen.add(index)
+        if not page["truncated"]:
+            assert page["events"][-1]["event"] == "run_complete", "必须读到终态"
+            break
+        cursor = {}
+        if page.get("next_after_event") is not None:
+            cursor["after_event"] = page["next_after_event"]
+        elif page.get("next_after_seq") is not None:
+            cursor["after_seq"] = page["next_after_seq"]
+        else:
+            pytest.fail(f"截断页没有任何可用游标: {page}")
+
+    assert duplicates == 0, f"分页重复投递 {duplicates} 条"
+    assert len(seen) == 2_500, f"事件不完整: {len(seen)}/2500（共投递 {delivered}）"

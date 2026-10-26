@@ -367,11 +367,18 @@ async def get_run(
     after_seq = _coerce_index(after_seq)
     after_event = _coerce_index(after_event)
     limit = _coerce_index(limit) or DEFAULT_EVENT_LIMIT
+    #: 本次请求实际跳过的**绝对位置**。位置游标的续读必须从这里继续累加，
+    #: 否则 seq→位置游标交接时会丢掉已跳过的距离，客户端在两页之间反复读取。
+    total_events = len(events)
+    skipped = 0
     if after_event:
         # 位置游标优先：它不依赖事件是否带 seq，是“无 seq 边界页”的唯一可靠续读方式。
         events = events[after_event:]
+        skipped = min(after_event, total_events)
     elif after_seq:
         events = _after_seq(events, after_seq)
+        # seq 游标切掉的前缀长度就是已跳过的绝对位置（按文件顺序）。
+        skipped = total_events - len(events)
     selected = events[:limit]
     truncated = len(events) > limit
     next_after_seq: int | None = None
@@ -388,11 +395,10 @@ async def get_run(
         else:
             selected = events[:MAX_EVENT_LIMIT]
             truncated = True
-            next_after_event = len(selected)
-            # 已经用位置游标续读时，必须继续给出位置游标——否则调用方拿不到
-            # 任何可用游标，只能重复读同一页。这里用“已跳过的绝对位置”表达。
-            if after_event:
-                next_after_event = after_event + len(selected)
+            # 绝对位置续读：本页末尾在**整份 trace** 中的位置是 skipped + 本页条数。
+            # 必须带上 skipped，否则从 seq 游标切到位置游标的那一页会丢掉已读距离，
+            # 客户端在两页之间反复读取（对抗复核实测 550k 事件、终态永不可达）。
+            next_after_event = skipped + len(selected)
     elif truncated:
         # 边界事件带 seq：续读游标取本页最大的 seq（终态/错误记录可能不带 seq，
         # 用最后一条会返回 null，让前端误以为不能继续翻页）。
@@ -400,7 +406,7 @@ async def get_run(
         next_after_seq = max(seqs) if seqs else None
         if next_after_seq is None:
             # 极端兜底：截断却没有可用 seq 游标时改用位置游标，绝不给死页面。
-            next_after_event = (after_event + len(selected)) if after_event else len(selected)
+            next_after_event = skipped + len(selected)
     return {
         "run_id": path.stem,
         "events": selected,

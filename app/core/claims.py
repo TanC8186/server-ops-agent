@@ -332,6 +332,37 @@ def _looks_like_hostname(token: str) -> bool:
     return tail.isalpha() and 2 <= len(tail) <= 6
 
 
+#: 明确表示“时间范围”的前缀/后缀线索。命中才允许某个 duration 数值不被核验。
+_QUERY_WINDOW_CUES = (
+    "最近", "近", "过去", "过去", "以上", "以来", "时间段", "时间内", "期间",
+    "since", "last", "past", "within", "over the last", "during",
+)
+#: 明确的“耗时/延迟”语义：这类时长是读数，不是查询窗口。
+_DURATION_READING_CUES = (
+    "耗时", "延迟", "时延", "响应时间", "rt", "latency", "duration", "超时",
+    "timeout", "elapsed", "ms 内", "rt",
+)
+
+
+def _looks_like_query_window(text: str, value: float, unit: str) -> bool:
+    """判断某个 duration 数值是不是**查询窗口**而不是被观测到的读数。
+
+    判定顺序（保守优先"这是读数"，因为误放过读数会直接造成错误结论）：
+
+    1. 数值附近出现明确的读数语义（耗时/延迟/响应时间/超时…）→ 不是窗口；
+    2. 数值前有“最近/过去/近/last/past/within…”这类范围线索 → 是窗口；
+    3. 其余情况 → 按读数处理（要求证据里存在同单位同族的观测）。
+    """
+    if not text:
+        return False
+    lower = text.lower()
+    near_reading = any(cue in lower for cue in _DURATION_READING_CUES)
+    near_window = any(cue in lower for cue in _QUERY_WINDOW_CUES)
+    if near_reading:
+        return False
+    return near_window
+
+
 def _verify_claim_value_pairs(
     text: str,
     evidence_with_pairs: list[tuple[str, list[tuple[float, str]]]],
@@ -355,7 +386,18 @@ def _verify_claim_value_pairs(
         category = _unit_category(unit)
         if category == "duration":
             if not has_duration_evidence:
-                # 查询窗口（“最近 10 分钟”），不是被观测到的数值。
+                # 证据里没有任何 duration 单位。这类数值有两种可能：
+                # 1) 查询窗口（“最近 10 分钟”“过去 5 秒内”），**不**参与核验；
+                # 2) 被当成指标读数写出来的时长（“CPU 使用率 999ms”、
+                #    “接口耗时 999ms”），属于张冠李戴，必须拒绝。
+                # 旧实现把它们一律当查询窗口跳过，于是任意“999ms/999秒”都能
+                # 挂在非 duration 证据上冒充 supported（对抗复核反例）。
+                if _looks_like_query_window(text, value, unit):
+                    continue
+                issues.append(
+                    f"声明中的时长数值 {value:g}{unit} 无法在引用证据中找到"
+                    "（被引用证据没有任何时长单位）"
+                )
                 continue
             claim_family = _duration_family(unit)
             matching = [

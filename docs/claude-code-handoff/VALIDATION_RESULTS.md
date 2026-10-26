@@ -435,7 +435,7 @@ bash -n docker-entrypoint.sh
 
 | 检查 | 命令 | 结果 |
 |---|---|---|
-| 后端全量 pytest | `./.venv/Scripts/python.exe -m pytest tests -p no:cacheprovider -q -o addopts= --tb=line --disable-warnings -rs` | **602 passed, 1 skipped, 2 warnings，85.52s**（exit 0） |
+| 后端全量 pytest | `./.venv/Scripts/python.exe -m pytest tests -p no:cacheprovider -q -o addopts= --tb=line --disable-warnings -rs` | **611 passed, 1 skipped, 2 warnings，93.14s**（exit 0） |
 | 前端单测 | `cd web && npm test` | **48 passed, 0 fail** |
 | 前端构建 | `cd web && npm run build` | 通过，产物 `assets/index-vsa-hn5h.js` 320.57 kB / `index-Zmx7MErZ.css` 28.86 kB |
 | 前端 lint | `cd web && npm run lint` | 通过（oxlint 无输出） |
@@ -444,9 +444,9 @@ bash -n docker-entrypoint.sh
 | Docker daemon | `docker info --format '{{.ServerVersion}}'` | 29.8.2（可用） |
 | skip | `tests/test_p0_run_paths.py:134` | 环境不允许创建符号链接，仍是 **未执行**，不是通过 |
 
-收集总数从 528 → 602（+74），新增测试文件：
+收集总数从 528 → 611（+83），新增测试文件：
 `test_acceptance_boundaries.py`(12)、`test_acceptance_targets_budget_paging.py`(12)、
-`test_claim_boundaries.py`(23)、`test_parent_backfill.py`(5)、`test_runs_api.py` +5（abandoned/retention）；前端 +4。
+`test_claim_boundaries.py`(33)、`test_parent_backfill.py`(5)、`test_runs_api.py` +5（abandoned/retention）；前端 +4。
 
 ## V2. 三个离线探针（修复后，均不访问真实外部服务）
 
@@ -598,3 +598,61 @@ A12/A13 确为部分完成且文档诚实，未发现夸大（尤其没有把 Do
   总量受 `tool_calls` 限制，不是无界增长。
 - A01：依赖真实 `langchain_milvus` 尊重 `expr`；若某适配器接受 `expr` 却忽略它，
   `pool=max(4k,k+8)` 的候选窗口可能仍被旧版占满。真实库行为正确。
+
+## V8. 第二轮对抗复核发现的两项反驳与修复（2026-10-27）
+
+第一个复核代理的问题修完后，第二个独立代理（`aa13bcba`）再次用**自造反例**尝试反驳，
+结果：A03 确认已修（含两种 provider、预热的远端缓存不被复用、全局状态零变更），
+但 **A06 与 A09 仍各有一处真实缺口**。
+
+### 8.1 A06：duration 声明挂在非 duration 证据上仍被放过（已修）
+
+反例（真实 CPU/流量 payload，无 ms 单位）：
+
+- `CPU 使用率 999ms` → 旧实现判为“查询窗口”跳过 → **supported**
+- `CPU 使用率 999秒` → 同上 → **supported**
+- `CPU 使用率 12%，接口耗时 999ms` → **supported**
+- `网络延迟 999ms` 对 `network_traffic_mbps` 证据 → **supported**
+
+原因：`_verify_claim_value_pairs` 只要证据没有 duration 单位，就把**任何**时长数值
+当作查询窗口跳过。
+
+修复：先判语义再决定是否核验——
+- 出现读数语义（耗时/延迟/响应时间/超时/latency…）→ 必须核验，证据没有时长单位即拒绝；
+- 出现范围线索（最近/过去/近/last/past/within/期间…）→ 判为查询窗口，不核验；
+- 其余按读数处理（保守：误放过读数会直接造成错误结论）。
+
+新增 8 项回归（4 条应拒 + 3 条查询窗口应通过 + 2 条正确读数应通过）。
+
+### 8.2 A09：seq→位置游标交接丢失跳过距离（已修）
+
+反例：混合 trace（前 2 万条无 seq，边界有 seq）。第 1 页给 `next_after_seq`，
+第 2 页按 seq 续读后返回 `next_after_event = len(selected)` —— **丢掉了已跳过的
+20000 条**，客户端在偏移 20000 与 22000 之间反复读取。复核实测 60003 事件：
+`pages=50 delivered=550000 uniq=42000 dup=508000 terminal=False stuck=True`。
+
+修复：记录本次请求的 `skipped`（位置游标=传入值；seq 游标=切掉的前缀长度），
+位置游标一律返回 `skipped + len(selected)` 的**绝对位置**。
+
+修复后实测：
+- 22 002 条混合 trace → 2 页、零重复、`run_complete` 可达；
+- 60 001 条生产形态 trace → 4 页、唯一 60000、零重复、终态可达。
+
+新增 1 项回归（seq→位置交接不得重复投递且必须读到终态）。
+
+### 8.3 复核确认无问题
+
+A03 本地模式：`store is global: False`、`_embedding_function` 为 `LocalOnlyEmbeddings`、
+`embed_query` 抛错、远端记录器为空；`openai` 与 `dashscope` 两种 provider 均如此；
+云端路径未被切换；全局单例与配置零变更。A09 规范要求的小分页/HTTP 回放/`getRun`
+URL 断言全部通过。
+
+### 8.4 仍存在、已知且未修的边界（诚实记录）
+
+1. **A06 中文数字**：`延迟 九百九十九毫秒` 无阿拉伯数字，抽不出数值对，会通过。
+2. **A06 空 payload**：`data: {}` / `None` 时证据无任何数值对，任何声明都通过。
+   该形态经 `RunTools` 不可达（`source=unspecified` 非 live 证据），影响有限。
+3. **A06 单位换算**：`延迟 0.012s`（= 证据的 12ms）被拒，属**过严**而非漏放；
+   不实现毫秒/秒换算以免引入新的误判面。
+4. **A03 大小写**：`execution_mode` 精确匹配 `"local"`；调用方只传字面量，
+   不可利用，但比较偏脆弱。

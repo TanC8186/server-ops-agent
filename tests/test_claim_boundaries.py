@@ -358,3 +358,92 @@ def test_statistics_count_is_not_treated_as_an_observed_value():
 
     assert checked[0]["status"] == "hypothesis", "count 不能被当成延迟读数"
     assert problems
+
+
+# ── 第二轮对抗复核：duration 声明挂在非 duration 证据上 ──────────────
+
+REAL_CPU_PERCENT = {
+    "id": "E1",
+    "tool": "query_cpu_metrics",
+    "ok": True,
+    "status": "ok",
+    "live": True,
+    "source": "tencent_cloud",
+    "target": "svc-a",
+    "data": {
+        "metric_name": "cpu_usage_percent",
+        "data_points": [{"value": 12, "unit": "%"}],
+        "statistics": {"avg": 12.0, "count": 2},
+    },
+}
+
+REAL_TRAFFIC_MBPS = {
+    "id": "E2",
+    "tool": "query_network_metrics",
+    "ok": True,
+    "status": "ok",
+    "live": True,
+    "source": "tencent_cloud",
+    "target": "svc-a",
+    "data": {
+        "metric_name": "network_traffic_mbps",
+        "data_points": [{"value": 12.5, "unit": "mbps"}],
+        "statistics": {"avg": 12.5},
+    },
+}
+
+
+@pytest.mark.parametrize(
+    ("evidence", "claim"),
+    [
+        (REAL_CPU_PERCENT, "CPU 使用率 999ms"),
+        (REAL_CPU_PERCENT, "CPU 使用率 999秒"),
+        (REAL_CPU_PERCENT, "CPU 使用率 12%，接口耗时 999ms"),
+        (REAL_TRAFFIC_MBPS, "网络延迟 999ms"),
+    ],
+)
+def test_duration_claim_on_non_duration_evidence_is_rejected(evidence, claim):
+    """证据没有任何时长单位时，声明里的时长是“读数”而不是查询窗口，必须拒绝。
+
+    对抗复核实测：旧实现把这类 duration 一律当查询窗口跳过，于是任意
+    “999ms/999秒” 都能挂在 CPU/流量证据上冒充 supported。
+    """
+    checked, problems = verify_claims(
+        [{"claim": claim, "status": "supported", "evidence_ids": [evidence["id"]]}],
+        {evidence["id"]: evidence},
+    )
+
+    assert checked[0]["status"] == "hypothesis", f"{claim} 不应为 supported"
+    assert problems
+
+
+@pytest.mark.parametrize(
+    "claim",
+    [
+        "CPU 最近10分钟使用率 12%",
+        "过去5秒内 CPU 使用率 12%",
+        "近一小时 CPU 平均 12%",
+    ],
+)
+def test_query_window_is_still_not_validated(claim):
+    """带明确范围线索的时长是查询窗口，不能因为证据无 duration 单位就被判错。"""
+    checked, problems = verify_claims(
+        [{"claim": claim, "status": "supported", "evidence_ids": ["E1"]}],
+        {"E1": REAL_CPU_PERCENT},
+    )
+
+    assert checked[0]["status"] == "supported", problems
+
+
+def test_correct_percent_and_traffic_readings_stay_supported():
+    cpu_checked, cpu_problems = verify_claims(
+        [{"claim": "CPU 使用率 12%", "status": "supported", "evidence_ids": ["E1"]}],
+        {"E1": REAL_CPU_PERCENT},
+    )
+    net_checked, net_problems = verify_claims(
+        [{"claim": "网络流量 12.5mbps", "status": "supported", "evidence_ids": ["E2"]}],
+        {"E2": REAL_TRAFFIC_MBPS},
+    )
+
+    assert cpu_checked[0]["status"] == "supported", cpu_problems
+    assert net_checked[0]["status"] == "supported", net_problems
