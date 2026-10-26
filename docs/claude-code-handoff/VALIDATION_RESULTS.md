@@ -517,3 +517,27 @@ bash -n docker-entrypoint.sh
   但真实浏览器/读屏器未验证，因此仍不能标“已验证”。
 - 上轮把“入口接上”当成 RAG-03/07/08、BE-01/03/04/06/07 的完成依据；本轮按
   **行为**重写，并在 §5 表里区分“已实现 / 测试替身验证 / 真实依赖验证”。
+
+## V6. 当前构建的浏览器验收（2026-10-27，A12 窄屏替代入口 / aria-live）
+
+用 `npm run build` 后的产物起 `vite preview`，Playwright 以 1100×900 视口加载：
+
+| 检查 | 观测 |
+|---|---|
+| `matchMedia('(max-width: 1180px)')` | `true` |
+| 右侧 `aside.inspector` | `display: none`（媒体查询按设计隐藏） |
+| `.inspector-toggle` | 存在、`display: flex`、可见、`aria-expanded="false"`、`aria-controls="run-inspector-inline"` |
+| 真实点击后（300ms 后读取） | `aria-expanded="true"`、`.inspector-inline` 的 `hidden` 移除、`display: block`、按钮文案变为“收起本次运行与评测信息” |
+| 展开内容 | 「本次运行」8 个字段 + 「评测结果」 + 「这套系统在做什么」全部渲染 |
+| `[role="status"][aria-live="polite"]` | 存在，文本随状态更新（观测到“待命。”） |
+
+截图：`docs/claude-code-handoff/screenshots/narrow-inspector-1100px-2026-10-27.png`
+
+**边界（不得含糊）**：
+
+- 本轮没有启动后端（`127.0.0.1:9900` 未起，页面显示 502），因此**没有**验证
+  “真实诊断任务旅程”：两模式选择后真正跑一次、target_required 点选候选、
+  引用卡片、错误/部分成功/取消态、刷新历史。
+- 没有验证真实中文 IME 输入与真实读屏器播报（`aria-live` 只确认了 DOM 与
+  文案存在，未确认读屏实际朗读）。
+- 375 / 768 / 1024 / 1440 四档只测了 1100 与 1440 两个宽度。

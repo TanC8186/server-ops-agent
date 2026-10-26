@@ -21,7 +21,7 @@
 | 前端 | `npm run build` 通过 / `npm run lint` 0 warning / `npm test` **48 passed** |
 | 静态检查 | `ruff --select F821,F811,F841` 全通过；`docker compose config --quiet` 通过 |
 | 三个离线验收探针 | 全部 `bug_reproduced=false`（2026-10-27 修复后复跑，见 §6） |
-| 真实浏览器 | 旧记录见 [BROWSER_CHECK.md](../BROWSER_CHECK.md)；**当前构建的浏览器旅程未重跑**（A12 待办） |
+| 真实浏览器 | **部分**：当前构建（`vite preview`）在 1100/1440 已验证 A12 窄屏替代入口与 aria-live 存在；完整任务旅程仍未重跑 |
 | 真实 Milvus | **未验证**（本机 19530 未启动，全部用 fake store / 内存向量） |
 | 真实云 API 诊断 | 部分（一次 cloud_multi 真实运行，模型返回非 JSON 导致角色失败，见 BROWSER_CHECK D12） |
 | Docker 镜像 | **未验证**：Docker daemon 可用（29.8.2），但本轮未 build/up，无镜像与恢复验证 |
@@ -59,7 +59,7 @@
 | FE-06 | 是（含本轮修复） | `test_knowledge_api.py`（14 项） | 浏览器步骤 2/3/11 | 文档/作业/版本/撤销面板；本轮修掉“失败 revision 可被 activate” |
 | FE-07 | 是 | `view.test.ts` + 浏览器 | 浏览器步骤 7 | 引用卡片渲染 citations（title/locator/source_uri/snippet/score）；检索状态五态独立标签 |
 | FE-08 | 是 | `test_runs_api.py` + `test_run_lifecycle_wiring.py` | 否 | 运行列表与评测分开加载；`?run=` 深链；分页在无可信游标时不截断，任意小分页都能读到终态（A09） |
-| FE-09 | 部分（A12 收窄） | `view.test.ts`（新增 4 条） | **否** | 已补：`aria-live` 播报区（`role=status`+`.sr-only`）、≤1180px 证据 inspector 替代入口（`aria-expanded` 切换按钮）、IME 组合态判断。**仍缺**：真实 IME/读屏器与当前构建的浏览器旅程实测 |
+| FE-09 | 部分（A12 收窄） | `view.test.ts`（新增 4 条） | **部分**：当前构建 1100px 浏览器实测通过 | 已补：`aria-live` 播报区（`role=status`+`.sr-only`）、≤1180px 证据 inspector 替代入口（`aria-expanded` 切换按钮，点击后 `hidden` 移除、内容完整可达）、IME 组合态判断。**仍缺**：真实中文 IME、真实读屏器朗读、完整任务旅程、375/768/1024 三档 |
 | target_required 候选选择 | 是（A04 修复） | `test_target_required_flow.py`、`view.test.ts`、`test_acceptance_targets_budget_paging.py` | 否 | 服务端签发稳定候选 `target_id`；前端按完整身份去重、点击后带 `target_candidate_id` 重发一次，服务端在当前目录重新校验并绑定到具体实例/地域 |
 
 ### 后端
