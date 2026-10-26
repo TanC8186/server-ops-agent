@@ -365,3 +365,59 @@ def test_budget_notes_reach_local_quality_gaps():
     joined = " ".join(quality["gaps"])
     assert "limit" in joined
     assert any("截断" in gap or "超过" in gap for gap in quality["gaps"])
+
+
+def test_normal_completion_is_not_marked_cancelled():
+    """A11 反向保证：正常走完的运行不能被误标成取消。"""
+    from types import SimpleNamespace
+
+    from app.agent.aiops import cloud_multi
+
+    class _Runtime:
+        def __init__(self) -> None:
+            self.cancelled = False
+            self.calls = 0
+            self.evidence: list = []
+            self.by_name: dict = {}
+
+        def cancel(self) -> None:
+            self.cancelled = True
+
+        async def discover_service(self, requested, user_input, candidate=None):
+            return "svc-a"
+
+        def catalog(self, names=None):
+            return "{}"
+
+    class _Model:
+        async def ainvoke(self, messages):
+            system = messages[0][1]
+            if "Supervisor" in system:
+                payload = {"assignments": [
+                    {"agent": "metrics", "focus": "c", "tools": []},
+                    {"agent": "logs", "focus": "l", "tools": []},
+                ]}
+            else:
+                payload = {"observations": [], "hypotheses": [],
+                           "recommendations": [], "evidence_gaps": []}
+            return SimpleNamespace(content=json.dumps(payload))
+
+    holder: dict = {}
+
+    async def create_runtime(run_id, mode, emit, **kwargs):
+        holder["runtime"] = _Runtime()
+        return holder["runtime"]
+
+    async def collect():
+        return [event async for event in cloud_multi.run_cloud_multi(
+            "svc-a high", "s", "a" * 32)]
+
+    import unittest.mock as mock
+
+    with mock.patch.object(cloud_multi, "create_run_tools", create_runtime), \
+         mock.patch.object(cloud_multi, "create_chat_model", lambda **k: _Model()), \
+         mock.patch.object(cloud_multi, "trace_event", lambda *a, **k: None):
+        events = asyncio.run(collect())
+
+    assert events[-1]["type"] == "complete"
+    assert holder["runtime"].cancelled is False, "正常完成不得标记为已取消"
