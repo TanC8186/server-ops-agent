@@ -503,7 +503,9 @@ async def create_run_tools(run_id: str, execution_mode: str,
     # 知识检索是进程内工具（不在 MCP 里）；失败只影响它自己的证据条目。
     from app.agent.aiops.knowledge_wiring import knowledge_tools
 
-    runtime = RunTools([*tools, get_current_time, *knowledge_tools()],
-                       run_id, execution_mode, emit, budget=budget)
+    runtime = RunTools(
+        [*tools, get_current_time, *knowledge_tools(execution_mode=execution_mode)],
+        run_id, execution_mode, emit, budget=budget,
+    )
     runtime.deadline = deadline
     return runtime

@@ -25,8 +25,15 @@ def knowledge_tool_enabled() -> bool:
     return bool(getattr(config, "rag_tool_enabled", True))
 
 
-def knowledge_tools(*, retriever: Any = None) -> list:
-    """返回可加入 ``RunTools`` 的内置工具列表（当前只有知识检索）。"""
+def knowledge_tools(*, retriever: Any = None, execution_mode: str = "") -> list:
+    """返回可加入 ``RunTools`` 的内置工具列表（当前只有知识检索）。
+
+    ``execution_mode`` 只用于说明边界（A03）：两个模式用的是**同一份**服务端
+    向量库，因此差别不在于“远端/本地”，而在于**不会因为模式切换去改全局配置**。
+    本地模式的承诺是“不调用远端 LLM/embedding”；检索本身由 Milvus 完成、不会
+    触发 embedding 调用，所以这里注入同一检索器不会破坏该承诺——但 embedding
+    的远端回退由 ``create_embedding_service(strict_local=True)`` 单独保证。
+    """
     if not knowledge_tool_enabled():
         return []
     return [create_knowledge_tool(retriever=retriever)]
