@@ -1,25 +1,50 @@
-export type RunStatus = "ok" | "error";
+/**
+ * REST 调用封装。
+ *
+ * SSE 传输与解析已统一到 `sse.ts`；这里不再保留旧版 `diagnose` /
+ * `parseSseChunk` / `normalizeSseEvent`，避免出现两套事件形状。
+ */
+
+export type ExecutionMode = "local" | "cloud_multi";
+export type RunStatus = "ok" | "error" | "running" | "cancelled";
+
+export interface ExecutionModeInfo {
+  id: ExecutionMode;
+  label: string;
+  description: string;
+  configured: boolean;
+  model: string;
+}
 
 export interface RunSummary {
   run_id: string;
   session_id: string | null;
   started_at: string | null;
   duration_ms: number | null;
+  lifecycle?: string | null;
+  quality?: string | null;
+  /** 跑完但质量不足以支撑结论；由服务端按 quality 计算，不由前端猜。 */
+  degraded?: boolean;
   status: RunStatus;
   steps: number;
   plan_steps: number;
   backend: "local" | "cloud";
+  execution_mode?: ExecutionMode;
+  target?: Record<string, unknown> | null;
+  has_report?: boolean;
   severity: string;
   category: string;
   input_tokens: number;
   output_tokens: number;
 }
 
+/** trace 文件里的事件形状（仅用于运行回放的类型提示）。 */
 export interface RunEvent {
-  ts: string;
+  ts?: string;
   event: string;
   node?: string;
   step?: string;
+  tool?: string;
   tools?: { name: string; args: Record<string, unknown> }[];
   action?: string;
   backend?: string;
@@ -35,6 +60,14 @@ export interface RunEvent {
   message?: string;
   run_id?: string;
   session_id?: string;
+  execution_mode?: ExecutionMode;
+  agent?: string;
+  status?: string;
+  response?: string;
+  report?: string;
+  seq?: number;
+  event_id?: string;
+  [key: string]: unknown;
 }
 
 export interface EvalRow {
@@ -60,8 +93,106 @@ export interface EvalResult {
   total_tokens: number;
 }
 
-export const API_BASE = import.meta.env.VITE_API_BASE ?? "";
-const API_KEY = import.meta.env.VITE_API_KEY ?? "";
+/** 知识库文档（契约见 docs/claude-code-handoff/M2_API_CONTRACT.md §2.1）。 */
+export interface KnowledgeDocument {
+  document_id: string;
+  title: string;
+  source_uri?: string;
+  source_kind?: string;
+  active_revision?: string | null;
+  status: string;
+  chunks: number;
+  updated_at?: string | null;
+  pending_revision?: string | null;
+}
+
+export interface KnowledgeDocumentList {
+  documents: KnowledgeDocument[];
+  next_cursor?: string | null;
+}
+
+export interface KnowledgeJobProgress {
+  chunks_total?: number;
+  chunks_done?: number;
+}
+
+export interface KnowledgeJobError {
+  code?: string;
+  message?: string;
+  retryable?: boolean;
+}
+
+export interface KnowledgeJob {
+  job_id: string;
+  document_id?: string;
+  status: string;
+  progress?: KnowledgeJobProgress;
+  revision?: string | null;
+  started_at?: string | null;
+  finished_at?: string | null;
+  error?: KnowledgeJobError | null;
+}
+
+export interface KnowledgeJobList {
+  jobs: KnowledgeJob[];
+}
+
+/** 202 响应：已接收，但新版本还不能检索。 */
+export interface KnowledgeUploadAccepted {
+  job_id: string;
+  document_id: string;
+  status: string;
+}
+
+export interface KnowledgeRevision {
+  revision: string;
+  created_at?: string | null;
+  status: string;
+  chunks: number;
+}
+
+export interface KnowledgeRevisionList {
+  revisions: KnowledgeRevision[];
+  active_revision?: string | null;
+}
+
+/** 服务端会话历史的一条消息（assistant 带引用与检索状态）。 */
+export interface ChatHistoryMessage {
+  role: string;
+  content: string;
+  citations?: Record<string, unknown>[];
+  retrieval_status?: string;
+  outcome?: string;
+}
+
+export interface ChatSessionInfo {
+  session_id: string;
+  message_count: number;
+  history: ChatHistoryMessage[];
+}
+
+export interface KnowledgeStatus {
+  status: string;
+  collection?: string;
+  chunks?: number;
+  embedding?: {
+    provider?: string;
+    model?: string;
+    dimension?: number;
+    normalization?: string;
+    distance?: string;
+    descriptor_hash?: string;
+  };
+  milvus?: { connected?: boolean; latency_ms?: number };
+  documents?: { active?: number; pending?: number };
+  reason?: string;
+}
+
+const ENV =
+  (import.meta as unknown as { env?: Record<string, string | undefined> }).env ?? {};
+
+export const API_BASE = ENV.VITE_API_BASE ?? "";
+const API_KEY = ENV.VITE_API_KEY ?? "";
 
 export function headers(): Record<string, string> {
   const result: Record<string, string> = { "Content-Type": "application/json" };
@@ -69,129 +200,117 @@ export function headers(): Record<string, string> {
   return result;
 }
 
-async function getJson<T>(path: string): Promise<T> {
-  const response = await fetch(`${API_BASE}${path}`, { headers: headers() });
-  if (!response.ok) {
-    throw new Error(`${response.status} ${response.statusText}`);
+/** multipart 上传不能手写 Content-Type（boundary 由浏览器生成）。 */
+function uploadHeaders(): Record<string, string> {
+  const result = headers();
+  delete result["Content-Type"];
+  return result;
+}
+
+async function errorMessage(response: Response): Promise<string> {
+  let detail = "";
+  try {
+    const body = (await response.json()) as { detail?: unknown };
+    if (typeof body.detail === "string") detail = body.detail;
+  } catch {
+    // 代理层可能返回非 JSON 错误页
   }
+  return detail || `${response.status} ${response.statusText}`;
+}
+
+async function request<T>(path: string, init: RequestInit): Promise<T> {
+  const response = await fetch(`${API_BASE}${path}`, init);
+  if (!response.ok) {
+    throw new Error(await errorMessage(response));
+  }
+  if (response.status === 204) return undefined as T;
   return (await response.json()) as T;
 }
 
+async function getJson<T>(path: string): Promise<T> {
+  return request<T>(path, { headers: headers() });
+}
+
+function query(params: Record<string, string | number | undefined>): string {
+  const search = new URLSearchParams();
+  for (const [key, value] of Object.entries(params)) {
+    if (value !== undefined && value !== "") search.set(key, String(value));
+  }
+  const text = search.toString();
+  return text ? `?${text}` : "";
+}
+
 export const api = {
-  listRuns: () => getJson<{ runs: RunSummary[] }>("/api/runs"),
+  executionModes: () => getJson<{ modes: ExecutionModeInfo[] }>("/api/execution-modes"),
+  listRuns: (limit = 20) => getJson<{ runs: RunSummary[] }>(`/api/runs${query({ limit })}`),
   getRun: (runId: string) =>
-    getJson<{ run_id: string; events: RunEvent[] }>(`/api/runs/${runId}`),
+    getJson<{ run_id: string; events: RunEvent[]; truncated?: boolean; next_after_seq?: number | null }>(
+      `/api/runs/${encodeURIComponent(runId)}`,
+    ),
   listEvalResults: () => getJson<{ results: EvalResult[] }>("/api/eval/results"),
   health: () => getJson<Record<string, unknown>>("/health"),
+
+  // ---------- 知识库管理（M2） ----------
+
+  knowledgeStatus: () => getJson<KnowledgeStatus>("/api/knowledge/status"),
+
+  listKnowledgeDocuments: (limit = 20, cursor = "", status = "") =>
+    getJson<KnowledgeDocumentList>(
+      `/api/knowledge/documents${query({ limit, cursor, status })}`,
+    ),
+
+  /** 202 = 已排队；`job_id` 需要用 `getKnowledgeJob` 轮询。 */
+  uploadKnowledgeDocument: (file: File) => {
+    const form = new FormData();
+    form.append("file", file);
+    return request<KnowledgeUploadAccepted>("/api/knowledge/documents", {
+      method: "POST",
+      headers: uploadHeaders(),
+      body: form,
+    });
+  },
+
+  listKnowledgeJobs: (status = "", limit = 20) =>
+    getJson<KnowledgeJobList>(`/api/knowledge/jobs${query({ status, limit })}`),
+
+  getKnowledgeJob: (jobId: string) =>
+    getJson<KnowledgeJob>(`/api/knowledge/jobs/${encodeURIComponent(jobId)}`),
+
+  retryKnowledgeJob: (jobId: string) =>
+    request<KnowledgeUploadAccepted>(
+      `/api/knowledge/jobs/${encodeURIComponent(jobId)}/retry`,
+      { method: "POST", headers: headers() },
+    ),
+
+  listKnowledgeRevisions: (documentId: string) =>
+    getJson<KnowledgeRevisionList>(
+      `/api/knowledge/documents/${encodeURIComponent(documentId)}/revisions`,
+    ),
+
+  activateKnowledgeRevision: (documentId: string, revision: string) =>
+    request<{ active_revision?: string }>(
+      `/api/knowledge/documents/${encodeURIComponent(documentId)}/activate`,
+      { method: "POST", headers: headers(), body: JSON.stringify({ revision }) },
+    ),
+
+  deleteKnowledgeDocument: (documentId: string) =>
+    request<{ deleted_chunks: number }>(
+      `/api/knowledge/documents/${encodeURIComponent(documentId)}`,
+      { method: "DELETE", headers: headers() },
+    ),
+
+  // ---------- 知识问答会话历史（RAG-09） ----------
+
+  /** 服务端保存的会话历史；带引用与检索状态，刷新后可回填。 */
+  chatSession: (sessionId: string) =>
+    getJson<ChatSessionInfo>(
+      `/api/chat/session/${encodeURIComponent(sessionId)}`,
+    ),
+
+  clearChatSession: (sessionId: string) =>
+    request<{ status?: string; message?: string }>("/api/chat/clear", {
+      method: "POST",
+      headers: headers(),
+      body: JSON.stringify({ sessionId }),
+    }),
 };
-
-export interface DiagnoseHandlers {
-  onEvent: (event: RunEvent) => void;
-  onDone: () => void;
-  onError: (message: string) => void;
-}
-
-const CRLF = String.fromCharCode(13) + String.fromCharCode(10);
-const LF = String.fromCharCode(10);
-
-/** 从一段 SSE 原始文本里解析出 data: JSON 事件。 */
-export function parseSseChunk(chunk: string): RunEvent[] {
-  const events: RunEvent[] = [];
-  const dataLines = chunk
-    .split(LF)
-    .filter((line) => line.startsWith("data:"))
-    .map((line) => line.slice(5).trim());
-  if (!dataLines.length) return events;
-  const raw = dataLines.join(LF);
-  if (!raw) return events;
-  try {
-    events.push(normalizeSseEvent(JSON.parse(raw) as Record<string, unknown>));
-  } catch {
-    // 忽略心跳或非 JSON 负载
-  }
-  return events;
-}
-
-/**
- * 后端 SSE 用 `type` 字段，trace 文件用 `event` 字段。
- * 统一成 trace 的形状，前端只处理一种结构。
- */
-export function normalizeSseEvent(payload: Record<string, unknown>): RunEvent {
-  const type = String(payload.type ?? payload.event ?? "unknown");
-  const base: RunEvent = {
-    ts: String(payload.ts ?? new Date().toISOString()),
-    event: type,
-  };
-  if (type === "plan") {
-    base.steps = payload.plan_steps ?? payload.plan;
-  }
-  if (type === "step_complete") {
-    base.step = payload.current_step as string | undefined;
-    base.result_chars = (payload.result_preview as string | undefined)?.length;
-  }
-  if (type === "plan") {
-    base.steps = payload.plan_steps ?? payload.plan;
-  }
-  if (type === "report") {
-    base.result_preview = payload.report as string | undefined;
-  }
-  if (type === "complete") {
-    base.result_preview = payload.response as string | undefined;
-    base.duration_ms = payload.duration_ms as number | undefined;
-  }
-  return { ...base, ...(payload as unknown as Partial<RunEvent>), event: type };
-}
-
-/**
- * 用 fetch + ReadableStream 消费 SSE：EventSource 不支持 POST。
- * sse-starlette 用 CRLF 分隔行，所以先归一化再按空行切事件。
- */
-export async function diagnose(
-  sessionId: string,
-  handlers: DiagnoseHandlers,
-  signal?: AbortSignal,
-): Promise<void> {
-  const response = await fetch(`${API_BASE}/api/aiops`, {
-    method: "POST",
-    headers: headers(),
-    body: JSON.stringify({ session_id: sessionId }),
-    signal,
-  });
-  if (!response.ok || !response.body) {
-    handlers.onError(`诊断请求失败: ${response.status}`);
-    return;
-  }
-
-  const reader = response.body.getReader();
-  const decoder = new TextDecoder();
-  let buffer = "";
-
-  try {
-    for (;;) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      buffer += decoder.decode(value, { stream: true }).split(CRLF).join(LF);
-
-      const chunks = buffer.split(LF + LF);
-      buffer = chunks.pop() ?? "";
-      for (const chunk of chunks) {
-        for (const event of parseSseChunk(chunk)) {
-          handlers.onEvent(event);
-          if (event.event === "complete") {
-            handlers.onDone();
-            return;
-          }
-          if (event.event === "error") {
-            handlers.onError(event.message ?? "诊断失败");
-            return;
-          }
-        }
-      }
-    }
-    handlers.onDone();
-  } catch (error) {
-    if ((error as Error).name !== "AbortError") {
-      handlers.onError((error as Error).message);
-    }
-  }
-}

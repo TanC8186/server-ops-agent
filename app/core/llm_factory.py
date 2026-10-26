@@ -66,6 +66,7 @@ def _create_chat_model(
             base_url=config.llm_base_url,
             temperature=temperature,
             streaming=streaming,
+            max_tokens=max_tokens or config.llm_max_tokens,
         )
     else:
         raise ValueError(f"未知的 LLM_PROVIDER: {provider}（支持 anthropic / openai）")

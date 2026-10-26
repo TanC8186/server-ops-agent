@@ -1,0 +1,10 @@
+{
+  "ref": "refs/tags/v262",
+  "node_id": "MDM6UmVmMzI4NzMzMTM6cmVmcy90YWdzL3YyNjI=",
+  "url": "https://api.github.com/repos/systemd/systemd/git/refs/tags/v262",
+  "object": {
+    "sha": "1f7dffaf714cc4488159c498b7a17cf34c5a96d5",
+    "type": "tag",
+    "url": "https://api.github.com/repos/systemd/systemd/git/tags/1f7dffaf714cc4488159c498b7a17cf34c5a96d5"
+  }
+}

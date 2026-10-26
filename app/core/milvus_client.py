@@ -189,12 +189,20 @@ class MilvusClientManager:
         self._create_index()
 
     def _create_index(self) -> None:
-        """为 vector 字段创建索引"""
+        """为 vector 字段创建索引。
+
+        度量类型必须与 embedding 描述符一致：collection 建好之后再改度量要重建
+        索引，所以这里唯一一次创建就必须用 ``current_descriptor().distance``。
+        旧 collection 若已是 L2 而描述符声明 cosine，会在
+        ``VectorStoreManager`` 初始化时被判为 invalid_index，而不是静默混用。
+        """
         if self._collection is None:
             raise RuntimeError("Collection 未初始化")
 
+        from app.services.vector_embedding_service import current_descriptor, metric_type_for
+
         index_params = {
-            "metric_type": "L2",  # 欧氏距离
+            "metric_type": metric_type_for(current_descriptor().distance),
             "index_type": "IVF_FLAT",
             "params": {"nlist": 128},
         }
@@ -204,7 +212,7 @@ class MilvusClientManager:
             index_params=index_params,
         )
 
-        logger.info("成功为 vector 字段创建索引")
+        logger.info(f"成功为 vector 字段创建索引（metric={index_params['metric_type']}）")
 
     def _load_collection(self) -> None:
         """加载 collection 到内存"""
@@ -250,6 +258,19 @@ class MilvusClientManager:
         if self._collection is None:
             raise RuntimeError("Collection 未初始化，请先调用 connect()")
         return self._collection
+
+    def collection_count(self) -> int:
+        """返回 collection 内的实体数；未连接或统计失败时返回 0。
+
+        只用于“空 collection 可以写入初始描述符 / 非空 collection 缺描述符要拒绝”
+        这一判断，不参与任何业务计数。
+        """
+        if self._collection is None:
+            return 0
+        try:
+            return int(self._collection.num_entities)
+        except Exception:  # noqa: BLE001 - 统计失败退化为 0，由调用方决定严格度
+            return 0
 
     def health_check(self) -> bool:
         """

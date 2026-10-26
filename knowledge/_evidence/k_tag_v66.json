@@ -1,0 +1,10 @@
+{
+  "ref": "refs/tags/v6.6",
+  "node_id": "MDM6UmVmMjMyNTI5ODpyZWZzL3RhZ3MvdjYuNg==",
+  "url": "https://api.github.com/repos/torvalds/linux/git/refs/tags/v6.6",
+  "object": {
+    "sha": "5260836abb7056beed3f3f0d0e4262c11f36f0d0",
+    "type": "tag",
+    "url": "https://api.github.com/repos/torvalds/linux/git/tags/5260836abb7056beed3f3f0d0e4262c11f36f0d0"
+  }
+}

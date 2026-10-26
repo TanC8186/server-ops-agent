@@ -9,7 +9,6 @@
 支持 CVM 实例监控和自定义指标上报。
 """
 
-import os
 import sys
 import logging
 import functools
@@ -19,12 +18,15 @@ from typing import Dict, Any, Optional, List
 from datetime import datetime, timedelta
 from pathlib import Path
 
-from dotenv import load_dotenv
 from fastmcp import FastMCP
 
-# 加载 .env 配置
-_ENV_PATH = Path(__file__).resolve().parent.parent / ".env"
-load_dotenv(_ENV_PATH)
+# 兼容两种入口：`python servers/monitor_server.py` 与 `import servers.monitor_server`。
+if __package__ in (None, ""):
+    _PROJECT_ROOT = Path(__file__).resolve().parent.parent
+    if str(_PROJECT_ROOT) not in sys.path:
+        sys.path.insert(0, str(_PROJECT_ROOT))
+
+from servers._config import read_env, read_env_bool
 
 from tencentcloud.common import credential
 from tencentcloud.common.exception.tencent_cloud_sdk_exception import TencentCloudSDKException
@@ -38,12 +40,13 @@ logging.basicConfig(
 logger = logging.getLogger("Monitor_MCP_Server")
 
 # ── 腾讯云凭证 ──────────────────────────────────────────────────
-SECRET_ID = os.getenv("TENCENTCLOUD_SECRET_ID", "")
-SECRET_KEY = os.getenv("TENCENTCLOUD_SECRET_KEY", "")
-DEFAULT_REGION = os.getenv("TENCENTCLOUD_REGION", "ap-beijing")
+# 只读配置：进程环境优先，其次 env 文件；绝不写入 os.environ。
+SECRET_ID = read_env("TENCENTCLOUD_SECRET_ID", "")
+SECRET_KEY = read_env("TENCENTCLOUD_SECRET_KEY", "")
+DEFAULT_REGION = read_env("TENCENTCLOUD_REGION", "ap-beijing")
 USE_REAL_API = bool(SECRET_ID and SECRET_KEY)
 # 合成数据只在显式开启时使用，且必须带 source=demo 标记；默认 fail-fast。
-DEMO_MODE = os.getenv("DEMO_MODE", "0").lower() in ("1", "true", "yes")
+DEMO_MODE = read_env_bool("DEMO_MODE", False)
 
 if USE_REAL_API:
     _cred = credential.Credential(SECRET_ID, SECRET_KEY)

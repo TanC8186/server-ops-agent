@@ -46,7 +46,7 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-button, input { font: inherit; color: inherit; }
+button, input, textarea { font: inherit; color: inherit; }
 
 a { color: var(--agent); }
 
@@ -555,3 +555,144 @@ a { color: var(--agent); }
 }
 
 .tool-trail li { overflow-wrap: anywhere; }
+
+/* ---------- execution mode and diagnosis task ---------- */
+
+.mode-chooser { margin: 0 0 25px; }
+.section-intro { margin-bottom: 16px; }
+.eyebrow { font-size: 11px; color: var(--agent); letter-spacing: .09em; }
+.section-intro h3 { margin: 5px 0; font-size: 22px; font-weight: 500; letter-spacing: -.025em; }
+.section-intro p { margin: 0; color: var(--muted); font-size: 12.5px; }
+.execution-mode-cards { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.execution-mode-card { display: flex; flex-direction: column; align-items: stretch; text-align: left; gap: 12px; padding: 18px; min-width: 0; background: var(--paper-raised); border: 1px solid var(--rule); border-radius: 5px; cursor: pointer; }
+.execution-mode-card:hover:not(:disabled) { border-color: var(--agent); }
+.execution-mode-card.selected { border-color: var(--agent); box-shadow: inset 0 0 0 1px var(--agent); background: var(--agent-soft); }
+.execution-mode-card:focus-visible { outline: 2px solid var(--agent); outline-offset: 3px; }
+.execution-mode-card:disabled { cursor: default; }
+.mode-card-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.mode-number { font-family: var(--mono); color: var(--muted); font-size: 11px; }
+.config-state { border: 1px solid var(--rule); border-radius: 9px; padding: 1px 7px; color: var(--muted); font-size: 10.5px; white-space: nowrap; }
+.config-state.configured { color: var(--agent); border-color: var(--agent); }
+.execution-mode-card strong { font-size: 17px; line-height: 1.4; font-weight: 500; }
+.mode-description { color: var(--ink-soft); font-size: 12.5px; line-height: 1.65; }
+.model-name { font-family: var(--mono); font-size: 10.5px; color: var(--muted); overflow-wrap: anywhere; }
+.mode-selection { border-top: 1px solid var(--rule); padding-top: 9px; margin-top: auto; font-size: 11.5px; color: var(--agent); }
+.configuration-note { font-size: 11.5px; max-width: none; margin-top: 10px; }
+.mode-load-error { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 12px; }
+.mode-load-error .note { margin: 0; }
+.task-input-head { display: flex; align-items: baseline; flex-wrap: wrap; justify-content: space-between; gap: 8px; margin-bottom: 10px; }
+.task-input-head strong { color: var(--agent); font-size: 12.5px; font-weight: 500; }
+.task-input-head span { font-family: var(--mono); color: var(--muted); font-size: 10px; }
+.compose > textarea { display: block; width: 100%; }
+.task-actions { display: flex; align-items: flex-end; gap: 10px; margin-top: 10px; }
+.task-actions .btn { min-height: 39px; white-space: nowrap; }
+.service-input { flex: 1; min-width: 0; }
+.service-input input { width: 100%; border: 1px solid var(--rule); border-radius: var(--radius); padding: 8px 11px; background: var(--paper); font-size: 12.5px; min-height: 39px; }
+.service-input input:focus-visible { outline: 2px solid var(--agent); outline-offset: 1px; }
+.compose textarea:disabled, .service-input input:disabled { opacity: .6; }
+.session-options { margin-top: 10px; font-size: 11px; color: var(--muted); }
+.session-options summary { cursor: pointer; }
+.session-options label { margin-top: 8px; }
+.session-options textarea { width: 100%; }
+.active-mode { padding: 9px 12px; background: var(--paper-raised); border-left: 2px solid var(--agent); font-size: 12px; }
+.active-mode strong { color: var(--agent); font-weight: 500; }
+.active-mode span { color: var(--muted); font-family: var(--mono); font-size: 10px; }
+.replay-banner { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 0; color: var(--muted); font-size: 12px; }
+.tool-evidence { margin-top: 5px; color: var(--muted); font-size: 11.5px; }
+.tool-evidence summary { cursor: pointer; }
+.tool-evidence pre { white-space: pre-wrap; overflow-wrap: anywhere; font-family: var(--mono); max-height: 260px; overflow: auto; background: var(--paper-raised); padding: 8px; color: var(--ink-soft); }
+.mode-switch button:disabled { opacity: .45; cursor: not-allowed; }
+
+@media (max-width: 760px) {
+  .execution-mode-cards { gap: 9px; }
+  .execution-mode-card { padding: 13px; }
+  .execution-mode-card strong { font-size: 15px; }
+  .mode-description { font-size: 12px; }
+  .stage-head { flex-wrap: wrap; padding: 16px 18px; }
+  .stream { padding: 20px 18px 28px; }
+  .compose { padding: 14px 18px; }
+  .task-actions { flex-wrap: wrap; }
+  .service-input { flex-basis: 100%; }
+}
+
+@media (max-width: 420px) {
+  .execution-mode-cards { grid-template-columns: 1fr; }
+}
+
+/* ---------- target_required 候选卡片 ---------- */
+
+.target-choice { margin: 18px 0 22px; padding: 16px 18px; border: 1px solid var(--warn); border-left-width: 3px; background: var(--warn-soft); border-radius: var(--radius); }
+.target-choice h3 { margin: 4px 0 6px; font-size: 16px; font-weight: 500; }
+.target-choice .note { margin: 0 0 12px; max-width: 68ch; }
+.target-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 10px; }
+.target-card { display: flex; flex-direction: column; gap: 3px; align-items: flex-start; text-align: left; padding: 11px 13px; background: var(--paper-raised); border: 1px solid var(--rule); border-radius: var(--radius); cursor: pointer; font-size: 12px; color: var(--ink-soft); }
+.target-card:hover:not(:disabled) { border-color: var(--warn); }
+.target-card:focus-visible { outline: 2px solid var(--agent); outline-offset: 2px; }
+.target-card:disabled { opacity: .55; cursor: not-allowed; }
+.target-card strong { font-family: var(--mono); font-size: 13px; color: var(--ink); }
+.target-card .target-choose { margin-top: 6px; color: var(--agent); font-size: 11.5px; }
+
+.plan-summary { margin: 0 0 6px; font-family: var(--mono); font-size: 11px; color: var(--muted); }
+.plan-step.failed::before { background: var(--alert); border-color: var(--alert); }
+.plan-step.failed .step-text { color: var(--alert); }
+
+/* ---------- 对话引用与检索状态 ---------- */
+
+.retrieval-note { margin: 8px 0 0; font-family: var(--mono); font-size: 11px; }
+.retrieval-note.ok { color: var(--agent); }
+.retrieval-note.warn { color: var(--warn); }
+.retrieval-note.error { color: var(--alert); }
+
+.citations { margin-top: 10px; border-top: 1px solid var(--rule-soft); padding-top: 8px; }
+.citations-head { font-family: var(--mono); font-size: 10.5px; color: var(--muted); letter-spacing: .04em; }
+.citations ol { list-style: none; margin: 6px 0 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.citations li { padding-left: 10px; border-left: 2px solid var(--rule); font-size: 12px; }
+.citation-title { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px; }
+.citation-title strong { font-size: 12.5px; font-weight: 500; }
+.citation-id { font-family: var(--mono); font-size: 10.5px; color: var(--agent); }
+.citation-locator, .citation-score { font-family: var(--mono); font-size: 10.5px; color: var(--muted); }
+.citation-score { margin-left: auto; }
+.citation-snippet { margin: 4px 0 2px; color: var(--ink-soft); font-size: 12px; line-height: 1.6; }
+.citation-source { display: block; font-family: var(--mono); font-size: 10.5px; color: var(--muted); overflow-wrap: anywhere; }
+
+/* ---------- 知识库管理面板 ---------- */
+
+.knowledge { display: flex; flex-direction: column; gap: 26px; }
+.knowledge-section { padding-bottom: 22px; border-bottom: 1px solid var(--rule-soft); }
+.knowledge-section:last-child { border-bottom: 0; }
+.status-line { margin: 0 0 10px; font-size: 13px; }
+.status-line strong { font-weight: 500; }
+.status-line.ok strong { color: var(--agent); }
+.status-line.warn strong { color: var(--warn); }
+.status-line.error strong { color: var(--alert); }
+.knowledge .kv { margin: 0 0 12px; }
+.upload-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.upload-row input[type="file"] { font-size: 12px; }
+.job-card { margin-top: 12px; padding: 10px 12px; background: var(--paper-raised); border: 1px solid var(--rule-soft); border-left: 2px solid var(--warn); }
+.job-line { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.job-id { font-family: var(--mono); font-size: 11px; color: var(--ink-soft); overflow-wrap: anywhere; }
+.job-progress { font-family: var(--mono); font-size: 10.5px; color: var(--muted); }
+.badge.job-ok, .badge.job-ok.ok { color: var(--agent); background: var(--agent-soft); border-color: transparent; }
+.badge.job-warn { color: var(--warn); background: var(--warn-soft); border-color: transparent; }
+.badge.job-error { color: var(--alert); background: var(--alert-soft); border-color: transparent; }
+.badge.job-muted { color: var(--muted); }
+
+.kb-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.kb-table th, .kb-table td { padding: 7px 8px; text-align: left; border-bottom: 1px solid var(--rule-soft); vertical-align: top; }
+.kb-table th { color: var(--muted); font-weight: 500; font-size: 11px; }
+.kb-table td.num { text-align: right; font-family: var(--mono); }
+.kb-table td.mono, .kb-table .mono { font-family: var(--mono); font-size: 10.5px; color: var(--ink-soft); overflow-wrap: anywhere; }
+.doc-id { display: block; font-family: var(--mono); font-size: 10.5px; color: var(--muted); }
+.kb-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+.btn.kb-inline { height: 26px; padding: 0 9px; font-size: 11px; }
+.btn.kb-inline.danger { color: var(--alert); border-color: var(--alert-soft); }
+.btn.kb-inline.danger:hover { border-color: var(--alert); }
+.revision-panel { padding: 8px 0 4px; }
+.revision-list { list-style: none; margin: 6px 0 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.revision-list li { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; font-size: 11.5px; }
+.retrieval-note.muted { color: var(--muted); }
+
+@media (max-width: 760px) {
+  .kb-table { display: block; overflow-x: auto; }
+  .target-cards { grid-template-columns: 1fr; }
+}

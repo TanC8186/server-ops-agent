@@ -1,0 +1,102 @@
+[
+  {
+    "name": "v18.09-release",
+    "zipball_url": "https://api.github.com/repos/docker/docs/zipball/refs/tags/v18.09-release",
+    "tarball_url": "https://api.github.com/repos/docker/docs/tarball/refs/tags/v18.09-release",
+    "commit": {
+      "sha": "357d0111e53cec63236265877d70bd5c705839d4",
+      "url": "https://api.github.com/repos/docker/docs/commits/357d0111e53cec63236265877d70bd5c705839d4"
+    },
+    "node_id": "MDM6UmVmNjU3NzI3MjA6cmVmcy90YWdzL3YxOC4wOS1yZWxlYXNl"
+  },
+  {
+    "name": "v18.03",
+    "zipball_url": "https://api.github.com/repos/docker/docs/zipball/refs/tags/v18.03",
+    "tarball_url": "https://api.github.com/repos/docker/docs/tarball/refs/tags/v18.03",
+    "commit": {
+      "sha": "6919674a271cd9a59dab1d3bfe33e0a3f0131eaa",
+      "url": "https://api.github.com/repos/docker/docs/commits/6919674a271cd9a59dab1d3bfe33e0a3f0131eaa"
+    },
+    "node_id": "MDM6UmVmNjU3NzI3MjA6cmVmcy90YWdzL3YxOC4wMw=="
+  },
+  {
+    "name": "v17.09-release",
+    "zipball_url": "https://api.github.com/repos/docker/docs/zipball/refs/tags/v17.09-release",
+    "tarball_url": "https://api.github.com/repos/docker/docs/tarball/refs/tags/v17.09-release",
+    "commit": {
+      "sha": "5a4a0d4833d8eb7b05c420e5e86b23cd9c385381",
+      "url": "https://api.github.com/repos/docker/docs/commits/5a4a0d4833d8eb7b05c420e5e86b23cd9c385381"
+    },
+    "node_id": "MDM6UmVmNjU3NzI3MjA6cmVmcy90YWdzL3YxNy4wOS1yZWxlYXNl"
+  },
+  {
+    "name": "v17.06-release",
+    "zipball_url": "https://api.github.com/repos/docker/docs/zipball/refs/tags/v17.06-release",
+    "tarball_url": "https://api.github.com/repos/docker/docs/tarball/refs/tags/v17.06-release",
+    "commit": {
+      "sha": "410ed463476fbf1c834e00f332e1fbf6336bdc92",
+      "url": "https://api.github.com/repos/docker/docs/commits/410ed463476fbf1c834e00f332e1fbf6336bdc92"
+    },
+    "node_id": "MDM6UmVmNjU3NzI3MjA6cmVmcy90YWdzL3YxNy4wNi1yZWxlYXNl"
+  },
+  {
+    "name": "v17.03-release",
+    "zipball_url": "https://api.github.com/repos/docker/docs/zipball/refs/tags/v17.03-release",
+    "tarball_url": "https://api.github.com/repos/docker/docs/tarball/refs/tags/v17.03-release",
+    "commit": {
+      "sha": "684d81397b245acbc9634d756f8a3c498d4e1502",
+      "url": "https://api.github.com/repos/docker/docs/commits/684d81397b245acbc9634d756f8a3c498d4e1502"
+    },
+    "node_id": "MDM6UmVmNjU3NzI3MjA6cmVmcy90YWdzL3YxNy4wMy1yZWxlYXNl"
+  },
+  {
+    "name": "v1.13-release",
+    "zipball_url": "https://api.github.com/repos/docker/docs/zipball/refs/tags/v1.13-release",
+    "tarball_url": "https://api.github.com/repos/docker/docs/tarball/refs/tags/v1.13-release",
+    "commit": {
+      "sha": "61e9f0c82f426db5d6946041f55c495f2b06c7e7",
+      "url": "https://api.github.com/repos/docker/docs/commits/61e9f0c82f426db5d6946041f55c495f2b06c7e7"
+    },
+    "node_id": "MDM6UmVmNjU3NzI3MjA6cmVmcy90YWdzL3YxLjEzLXJlbGVhc2U="
+  },
+  {
+    "name": "v1.12-release",
+    "zipball_url": "https://api.github.com/repos/docker/docs/zipball/refs/tags/v1.12-release",
+    "tarball_url": "https://api.github.com/repos/docker/docs/tarball/refs/tags/v1.12-release",
+    "commit": {
+      "sha": "0894595e2b22b9ea4a989ffc9fd2cf75cbe4104c",
+      "url": "https://api.github.com/repos/docker/docs/commits/0894595e2b22b9ea4a989ffc9fd2cf75cbe4104c"
+    },
+    "node_id": "MDM6UmVmNjU3NzI3MjA6cmVmcy90YWdzL3YxLjEyLXJlbGVhc2U="
+  },
+  {
+    "name": "ucp2.1.0-dtr2.2.0",
+    "zipball_url": "https://api.github.com/repos/docker/docs/zipball/refs/tags/ucp2.1.0-dtr2.2.0",
+    "tarball_url": "https://api.github.com/repos/docker/docs/tarball/refs/tags/ucp2.1.0-dtr2.2.0",
+    "commit": {
+      "sha": "925c21a77f45cd1a1b6d92ae42abd1a878664519",
+      "url": "https://api.github.com/repos/docker/docs/commits/925c21a77f45cd1a1b6d92ae42abd1a878664519"
+    },
+    "node_id": "MDM6UmVmNjU3NzI3MjA6cmVmcy90YWdzL3VjcDIuMS4wLWR0cjIuMi4w"
+  },
+  {
+    "name": "ucp2.0.1-dtr2.1.0",
+    "zipball_url": "https://api.github.com/repos/docker/docs/zipball/refs/tags/ucp2.0.1-dtr2.1.0",
+    "tarball_url": "https://api.github.com/repos/docker/docs/tarball/refs/tags/ucp2.0.1-dtr2.1.0",
+    "commit": {
+      "sha": "b1ce89daf250bf58b6938a5aa139e3b97ed3874e",
+      "url": "https://api.github.com/repos/docker/docs/commits/b1ce89daf250bf58b6938a5aa139e3b97ed3874e"
+    },
+    "node_id": "MDM6UmVmNjU3NzI3MjA6cmVmcy90YWdzL3VjcDIuMC4xLWR0cjIuMS4w"
+  },
+  {
+    "name": "archive/v18.09",
+    "zipball_url": "https://api.github.com/repos/docker/docs/zipball/refs/tags/archive/v18.09",
+    "tarball_url": "https://api.github.com/repos/docker/docs/tarball/refs/tags/archive/v18.09",
+    "commit": {
+      "sha": "a8e4da7b4da95fb50753b017c77523794e024140",
+      "url": "https://api.github.com/repos/docker/docs/commits/a8e4da7b4da95fb50753b017c77523794e024140"
+    },
+    "node_id": "MDM6UmVmNjU3NzI3MjA6cmVmcy90YWdzL2FyY2hpdmUvdjE4LjA5"
+  }
+]

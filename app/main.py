@@ -3,17 +3,17 @@
 主应用程序，配置路由、中间件、静态文件等
 """
 
+from contextlib import asynccontextmanager
+
 from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
-from contextlib import asynccontextmanager
-import os
-
-from app.config import config
-from app.core.auth import require_api_key
+from fastapi.staticfiles import StaticFiles
 from loguru import logger
-from app.api import aiops, chat, file, health, runs
+
+from app.api import aiops, chat, file, health, knowledge, runs
+from app.config import config
+from app.core.auth import require_api_key, startup_check
 from app.core.milvus_client import milvus_manager
 
 
@@ -21,6 +21,7 @@ from app.core.milvus_client import milvus_manager
 async def lifespan(app: FastAPI):
     """应用生命周期管理"""
     # 启动时执行
+    startup_check()
     logger.info("=" * 60)
     logger.info(f"🚀 {config.app_name} v{config.app_version} 启动中...")
     logger.info(f"📝 环境: {'开发' if config.debug else '生产'}")
@@ -57,16 +58,10 @@ app = FastAPI(
     lifespan=lifespan
 )
 
-# 配置 CORS
+# 配置 CORS（来源统一来自 Settings，只写在 .env 里也能生效）
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        origin.strip()
-        for origin in os.getenv(
-            "CORS_ORIGINS", "http://localhost:9900,http://127.0.0.1:9900"
-        ).split(",")
-        if origin.strip()
-    ],
+    allow_origins=config.cors_origins,
     allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -85,6 +80,9 @@ app.include_router(
 )
 app.include_router(
     runs.router, prefix="/api", tags=["运行追踪"], dependencies=[Depends(require_api_key)]
+)
+app.include_router(
+    knowledge.router, prefix="/api", tags=["知识库"], dependencies=[Depends(require_api_key)]
 )
 
 from pathlib import Path

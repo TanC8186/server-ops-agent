@@ -7,7 +7,8 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "oxlint",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test": "node --experimental-strip-types --test src/sse.test.ts src/state.test.ts src/view.test.ts src/chat.test.ts"
   },
   "dependencies": {
     "@fontsource/ibm-plex-mono": "^5.3.0",

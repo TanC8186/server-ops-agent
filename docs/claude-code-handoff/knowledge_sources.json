@@ -1,0 +1,1057 @@
+{
+  "schema_version": "1.0",
+  "purpose": "Claude Code 运维知识库种子来源目录；不是已入库数据",
+  "checked_on": "2026-10-26",
+  "source_count": 25,
+  "source_family_count": 9,
+  "defaults": {
+    "original_language": "en",
+    "preserve_original_source": true,
+    "generated_translation_is_secondary": true,
+    "require_os_and_version_metadata": true,
+    "auto_execute_document_commands": false
+  },
+  "sources": [
+    {
+      "id": "RH-01",
+      "title": "Monitoring and managing system status and performance — Overview",
+      "publisher": "Red Hat",
+      "source_url": "https://docs.redhat.com/en/documentation/red_hat_enterprise_linux/9/html/monitoring_and_managing_system_status_and_performance/overview-of-performance-monitoring-options",
+      "source_family": "rhel",
+      "os_family": "linux",
+      "version_scope": "RHEL 9",
+      "topics": [
+        "cpu",
+        "memory",
+        "io",
+        "top",
+        "vmstat",
+        "iostat"
+      ],
+      "ingestion_stage": "core",
+      "sample_question": "哪些只读工具可区分 CPU、内存和 I/O 瓶颈？",
+      "verification": {
+        "checked_on": "2026-10-26",
+        "status": "official_page_opened",
+        "check_method": "web browsing",
+        "content_downloaded": false,
+        "indexed": false
+      },
+      "license": {
+        "identifier": null,
+        "status": "needs_review",
+        "evidence_url": null,
+        "notes": "导入时保留来源、版权与许可；核对选中文件/页面及第三方例外。仓库级许可标记不替代逐文件检查。"
+      },
+      "crawl_policy": {
+        "mode": "explicit_page_only",
+        "max_depth": 0,
+        "do_not_follow_external_links": true
+      },
+      "risk_classification": "contains_reference_commands_and_possible_change_operations; classify_each_section",
+      "future_artifacts": {
+        "snapshot_hash": null,
+        "document_id": null,
+        "active_revision": null
+      }
+    },
+    {
+      "id": "RH-02",
+      "title": "Managing file systems",
+      "publisher": "Red Hat",
+      "source_url": "https://docs.redhat.com/en/documentation/red_hat_enterprise_linux/9/html/managing_file_systems/index",
+      "source_family": "rhel",
+      "os_family": "linux",
+      "version_scope": "RHEL 9",
+      "topics": [
+        "filesystem",
+        "xfs",
+        "ext4",
+        "disk"
+      ],
+      "ingestion_stage": "extension",
+      "sample_question": "文件系统排查需要先确认哪些类型与挂载信息？",
+      "verification": {
+        "checked_on": "2026-10-26",
+        "status": "official_page_opened",
+        "check_method": "web browsing",
+        "content_downloaded": false,
+        "indexed": false
+      },
+      "license": {
+        "identifier": null,
+        "status": "needs_review",
+        "evidence_url": null,
+        "notes": "导入时保留来源、版权与许可；核对选中文件/页面及第三方例外。仓库级许可标记不替代逐文件检查。"
+      },
+      "crawl_policy": {
+        "mode": "entry_point_expand_selected_sections",
+        "max_depth": 1,
+        "do_not_follow_external_links": true
+      },
+      "risk_classification": "contains_reference_commands_and_possible_change_operations; classify_each_section",
+      "future_artifacts": {
+        "snapshot_hash": null,
+        "document_id": null,
+        "active_revision": null
+      }
+    },
+    {
+      "id": "SD-01",
+      "title": "systemctl",
+      "publisher": "systemd",
+      "source_url": "https://www.freedesktop.org/software/systemd/man/latest/systemctl.html",
+      "source_family": "systemd",
+      "os_family": "linux",
+      "version_scope": "页面显示 systemd 262；导入前匹配目标主机版本",
+      "topics": [
+        "service",
+        "failed-unit",
+        "systemctl"
+      ],
+      "ingestion_stage": "core",
+      "sample_question": "如何查看失败服务的状态与属性，而不重启服务？",
+      "verification": {
+        "checked_on": "2026-10-26",
+        "status": "official_page_opened",
+        "check_method": "web browsing",
+        "content_downloaded": false,
+        "indexed": false
+      },
+      "license": {
+        "identifier": "LGPL-2.1-or-later",
+        "status": "per_file_identifier_observed",
+        "evidence_url": "https://github.com/systemd/systemd/blob/main/man/systemctl.xml",
+        "notes": "导入时保留来源、版权与许可；核对选中文件/页面及第三方例外。仓库级许可标记不替代逐文件检查。"
+      },
+      "crawl_policy": {
+        "mode": "explicit_page_only",
+        "max_depth": 0,
+        "do_not_follow_external_links": true
+      },
+      "risk_classification": "contains_reference_commands_and_possible_change_operations; classify_each_section",
+      "future_artifacts": {
+        "snapshot_hash": null,
+        "document_id": null,
+        "active_revision": null
+      }
+    },
+    {
+      "id": "SD-02",
+      "title": "journalctl",
+      "publisher": "systemd",
+      "source_url": "https://www.freedesktop.org/software/systemd/man/latest/journalctl.html",
+      "source_family": "systemd",
+      "os_family": "linux",
+      "version_scope": "页面显示 systemd 262；导入前匹配目标主机版本",
+      "topics": [
+        "logs",
+        "journal",
+        "time-window",
+        "boot"
+      ],
+      "ingestion_stage": "core",
+      "sample_question": "如何按服务与时间窗查询 journal 日志？",
+      "verification": {
+        "checked_on": "2026-10-26",
+        "status": "official_page_opened",
+        "check_method": "web browsing",
+        "content_downloaded": false,
+        "indexed": false
+      },
+      "license": {
+        "identifier": null,
+        "status": "needs_review",
+        "evidence_url": "https://github.com/systemd/systemd/blob/main/man/journalctl.xml",
+        "notes": "导入时保留来源、版权与许可；核对选中文件/页面及第三方例外。仓库级许可标记不替代逐文件检查。"
+      },
+      "crawl_policy": {
+        "mode": "explicit_page_only",
+        "max_depth": 0,
+        "do_not_follow_external_links": true
+      },
+      "risk_classification": "contains_reference_commands_and_possible_change_operations; classify_each_section",
+      "future_artifacts": {
+        "snapshot_hash": null,
+        "document_id": null,
+        "active_revision": null
+      }
+    },
+    {
+      "id": "SD-03",
+      "title": "systemd.resource-control",
+      "publisher": "systemd",
+      "source_url": "https://www.freedesktop.org/software/systemd/man/latest/systemd.resource-control.html",
+      "source_family": "systemd",
+      "os_family": "linux",
+      "version_scope": "页面显示 systemd 262；包含随版本增加的配置",
+      "topics": [
+        "cgroups",
+        "memory",
+        "cpu",
+        "resource-limits"
+      ],
+      "ingestion_stage": "extension",
+      "sample_question": "服务资源限制与主机资源耗尽如何区分？",
+      "verification": {
+        "checked_on": "2026-10-26",
+        "status": "official_page_opened",
+        "check_method": "web browsing",
+        "content_downloaded": false,
+        "indexed": false
+      },
+      "license": {
+        "identifier": null,
+        "status": "needs_review",
+        "evidence_url": null,
+        "notes": "导入时保留来源、版权与许可；核对选中文件/页面及第三方例外。仓库级许可标记不替代逐文件检查。"
+      },
+      "crawl_policy": {
+        "mode": "explicit_page_only",
+        "max_depth": 0,
+        "do_not_follow_external_links": true
+      },
+      "risk_classification": "contains_reference_commands_and_possible_change_operations; classify_each_section",
+      "future_artifacts": {
+        "snapshot_hash": null,
+        "document_id": null,
+        "active_revision": null
+      }
+    },
+    {
+      "id": "LK-01",
+      "title": "Linux memory management — Concepts overview",
+      "publisher": "Linux Kernel",
+      "source_url": "https://docs.kernel.org/admin-guide/mm/concepts.html",
+      "source_family": "linux-kernel",
+      "os_family": "linux",
+      "version_scope": "滚动文档；导入时记录内核文档版本和快照",
+      "topics": [
+        "memory",
+        "page-cache",
+        "reclaim",
+        "oom"
+      ],
+      "ingestion_stage": "core",
+      "sample_question": "内存占用、page cache、回收和 OOM 有什么区别？",
+      "verification": {
+        "checked_on": "2026-10-26",
+        "status": "official_page_opened",
+        "check_method": "web browsing",
+        "content_downloaded": false,
+        "indexed": false
+      },
+      "license": {
+        "identifier": null,
+        "status": "needs_review",
+        "evidence_url": null,
+        "notes": "导入时保留来源、版权与许可；核对选中文件/页面及第三方例外。仓库级许可标记不替代逐文件检查。"
+      },
+      "crawl_policy": {
+        "mode": "explicit_page_only",
+        "max_depth": 0,
+        "do_not_follow_external_links": true
+      },
+      "risk_classification": "contains_reference_commands_and_possible_change_operations; classify_each_section",
+      "future_artifacts": {
+        "snapshot_hash": null,
+        "document_id": null,
+        "active_revision": null
+      }
+    },
+    {
+      "id": "LK-02",
+      "title": "PSI — Pressure Stall Information",
+      "publisher": "Linux Kernel",
+      "source_url": "https://www.kernel.org/doc/html/v6.6/accounting/psi.html",
+      "source_family": "linux-kernel",
+      "os_family": "linux",
+      "version_scope": "Linux v6.6 文档；运行时还需确认 CONFIG_PSI",
+      "topics": [
+        "psi",
+        "cpu",
+        "memory",
+        "io",
+        "pressure"
+      ],
+      "ingestion_stage": "extension",
+      "sample_question": "CPU、内存和 I/O 压力指标分别说明什么？",
+      "verification": {
+        "checked_on": "2026-10-26",
+        "status": "official_page_opened",
+        "check_method": "web browsing",
+        "content_downloaded": false,
+        "indexed": false
+      },
+      "license": {
+        "identifier": null,
+        "status": "needs_review",
+        "evidence_url": "https://github.com/torvalds/linux/blob/v6.6/Documentation/accounting/psi.rst",
+        "notes": "导入时保留来源、版权与许可；核对选中文件/页面及第三方例外。仓库级许可标记不替代逐文件检查。"
+      },
+      "crawl_policy": {
+        "mode": "explicit_page_only",
+        "max_depth": 0,
+        "do_not_follow_external_links": true
+      },
+      "risk_classification": "contains_reference_commands_and_possible_change_operations; classify_each_section",
+      "future_artifacts": {
+        "snapshot_hash": null,
+        "document_id": null,
+        "active_revision": null
+      }
+    },
+    {
+      "id": "NX-01",
+      "title": "NGINX Beginner's Guide",
+      "publisher": "NGINX",
+      "source_url": "https://nginx.org/en/docs/beginners_guide.html",
+      "source_family": "nginx",
+      "os_family": "linux-or-windows",
+      "version_scope": "滚动文档；按 OSS/Plus 与安装版本过滤",
+      "topics": [
+        "nginx",
+        "configuration",
+        "proxy",
+        "service"
+      ],
+      "ingestion_stage": "extension",
+      "sample_question": "如何理解 NGINX 配置与代理链路并定位日志？",
+      "verification": {
+        "checked_on": "2026-10-26",
+        "status": "official_page_opened",
+        "check_method": "web browsing",
+        "content_downloaded": false,
+        "indexed": false
+      },
+      "license": {
+        "identifier": null,
+        "status": "needs_review",
+        "evidence_url": null,
+        "notes": "导入时保留来源、版权与许可；核对选中文件/页面及第三方例外。仓库级许可标记不替代逐文件检查。"
+      },
+      "crawl_policy": {
+        "mode": "explicit_page_only",
+        "max_depth": 0,
+        "do_not_follow_external_links": true
+      },
+      "risk_classification": "contains_reference_commands_and_possible_change_operations; classify_each_section",
+      "future_artifacts": {
+        "snapshot_hash": null,
+        "document_id": null,
+        "active_revision": null
+      }
+    },
+    {
+      "id": "NX-02",
+      "title": "Module ngx_http_proxy_module",
+      "publisher": "NGINX",
+      "source_url": "https://nginx.org/en/docs/http/ngx_http_proxy_module.html",
+      "source_family": "nginx",
+      "os_family": "linux-or-windows",
+      "version_scope": "每条 directive 含版本/商业版条件；必须保留",
+      "topics": [
+        "nginx",
+        "upstream",
+        "502",
+        "504",
+        "timeouts"
+      ],
+      "ingestion_stage": "extension",
+      "sample_question": "上游连接和读取超时各对应什么行为？",
+      "verification": {
+        "checked_on": "2026-10-26",
+        "status": "official_page_opened",
+        "check_method": "web browsing",
+        "content_downloaded": false,
+        "indexed": false
+      },
+      "license": {
+        "identifier": null,
+        "status": "needs_review",
+        "evidence_url": null,
+        "notes": "导入时保留来源、版权与许可；核对选中文件/页面及第三方例外。仓库级许可标记不替代逐文件检查。"
+      },
+      "crawl_policy": {
+        "mode": "explicit_page_only",
+        "max_depth": 0,
+        "do_not_follow_external_links": true
+      },
+      "risk_classification": "contains_reference_commands_and_possible_change_operations; classify_each_section",
+      "future_artifacts": {
+        "snapshot_hash": null,
+        "document_id": null,
+        "active_revision": null
+      }
+    },
+    {
+      "id": "DK-01",
+      "title": "View container logs",
+      "publisher": "Docker",
+      "source_url": "https://docs.docker.com/engine/logging/",
+      "source_family": "docker",
+      "os_family": "linux-or-windows",
+      "version_scope": "Docker Engine 滚动文档；按 Linux/Windows daemon 区分",
+      "topics": [
+        "docker",
+        "logs",
+        "stdout",
+        "logging-driver"
+      ],
+      "ingestion_stage": "core",
+      "sample_question": "为什么 docker logs 没有显示应用日志？",
+      "verification": {
+        "checked_on": "2026-10-26",
+        "status": "official_page_opened",
+        "check_method": "web browsing",
+        "content_downloaded": false,
+        "indexed": false
+      },
+      "license": {
+        "identifier": "Apache-2.0",
+        "status": "repository_or_publisher_license_observed",
+        "evidence_url": "https://github.com/docker/docs/blob/main/LICENSE",
+        "notes": "导入时保留来源、版权与许可；核对选中文件/页面及第三方例外。仓库级许可标记不替代逐文件检查。"
+      },
+      "crawl_policy": {
+        "mode": "explicit_page_only",
+        "max_depth": 0,
+        "do_not_follow_external_links": true
+      },
+      "risk_classification": "contains_reference_commands_and_possible_change_operations; classify_each_section",
+      "future_artifacts": {
+        "snapshot_hash": null,
+        "document_id": null,
+        "active_revision": null
+      }
+    },
+    {
+      "id": "DK-02",
+      "title": "Resource constraints",
+      "publisher": "Docker",
+      "source_url": "https://docs.docker.com/engine/containers/resource_constraints/",
+      "source_family": "docker",
+      "os_family": "linux",
+      "version_scope": "滚动文档；包含 Linux kernel/cgroup 前置条件",
+      "topics": [
+        "docker",
+        "oom",
+        "cpu-limit",
+        "memory-limit"
+      ],
+      "ingestion_stage": "core",
+      "sample_question": "容器内存限制和宿主机 OOM 如何关联？",
+      "verification": {
+        "checked_on": "2026-10-26",
+        "status": "official_page_opened",
+        "check_method": "web browsing",
+        "content_downloaded": false,
+        "indexed": false
+      },
+      "license": {
+        "identifier": "Apache-2.0",
+        "status": "repository_or_publisher_license_observed",
+        "evidence_url": "https://github.com/docker/docs/blob/main/LICENSE",
+        "notes": "导入时保留来源、版权与许可；核对选中文件/页面及第三方例外。仓库级许可标记不替代逐文件检查。"
+      },
+      "crawl_policy": {
+        "mode": "explicit_page_only",
+        "max_depth": 0,
+        "do_not_follow_external_links": true
+      },
+      "risk_classification": "contains_reference_commands_and_possible_change_operations; classify_each_section",
+      "future_artifacts": {
+        "snapshot_hash": null,
+        "document_id": null,
+        "active_revision": null
+      }
+    },
+    {
+      "id": "DK-03",
+      "title": "docker container inspect",
+      "publisher": "Docker",
+      "source_url": "https://docs.docker.com/reference/cli/docker/container/inspect/",
+      "source_family": "docker",
+      "os_family": "linux-or-windows",
+      "version_scope": "Docker CLI 滚动文档；记录客户端/daemon 版本",
+      "topics": [
+        "docker",
+        "inspect",
+        "container-state"
+      ],
+      "ingestion_stage": "core",
+      "sample_question": "如何只读查看容器状态和详细信息？",
+      "verification": {
+        "checked_on": "2026-10-26",
+        "status": "official_page_opened",
+        "check_method": "web browsing",
+        "content_downloaded": false,
+        "indexed": false
+      },
+      "license": {
+        "identifier": "Apache-2.0",
+        "status": "repository_or_publisher_license_observed",
+        "evidence_url": "https://github.com/docker/docs/blob/main/LICENSE",
+        "notes": "导入时保留来源、版权与许可；核对选中文件/页面及第三方例外。仓库级许可标记不替代逐文件检查。"
+      },
+      "crawl_policy": {
+        "mode": "explicit_page_only",
+        "max_depth": 0,
+        "do_not_follow_external_links": true
+      },
+      "risk_classification": "contains_reference_commands_and_possible_change_operations; classify_each_section",
+      "future_artifacts": {
+        "snapshot_hash": null,
+        "document_id": null,
+        "active_revision": null
+      }
+    },
+    {
+      "id": "K8-01",
+      "title": "Debug Pods",
+      "publisher": "Kubernetes",
+      "source_url": "https://kubernetes.io/docs/tasks/debug/debug-application/debug-pods/",
+      "source_family": "kubernetes",
+      "os_family": "linux-or-windows",
+      "version_scope": "滚动文档；按集群 minor 版本冻结，不默认跟随 latest",
+      "topics": [
+        "kubernetes",
+        "pod",
+        "pending",
+        "crashloop"
+      ],
+      "ingestion_stage": "optional",
+      "sample_question": "如何结合 Pod 描述和事件排查启动异常？",
+      "verification": {
+        "checked_on": "2026-10-26",
+        "status": "official_page_opened",
+        "check_method": "web browsing",
+        "content_downloaded": false,
+        "indexed": false
+      },
+      "license": {
+        "identifier": "CC-BY-4.0",
+        "status": "repository_or_publisher_license_observed",
+        "evidence_url": "https://github.com/kubernetes/website/blob/main/LICENSE",
+        "notes": "导入时保留来源、版权与许可；核对选中文件/页面及第三方例外。仓库级许可标记不替代逐文件检查。"
+      },
+      "crawl_policy": {
+        "mode": "explicit_page_only",
+        "max_depth": 0,
+        "do_not_follow_external_links": true
+      },
+      "risk_classification": "contains_reference_commands_and_possible_change_operations; classify_each_section",
+      "future_artifacts": {
+        "snapshot_hash": null,
+        "document_id": null,
+        "active_revision": null
+      }
+    },
+    {
+      "id": "K8-02",
+      "title": "Debug Services",
+      "publisher": "Kubernetes",
+      "source_url": "https://kubernetes.io/docs/tasks/debug/debug-application/debug-service/",
+      "source_family": "kubernetes",
+      "os_family": "linux-or-windows",
+      "version_scope": "滚动文档；按集群 minor 版本冻结",
+      "topics": [
+        "kubernetes",
+        "service",
+        "endpoints",
+        "network"
+      ],
+      "ingestion_stage": "optional",
+      "sample_question": "Pod 正常但 Service 不通时如何逐层排查？",
+      "verification": {
+        "checked_on": "2026-10-26",
+        "status": "official_page_opened",
+        "check_method": "web browsing",
+        "content_downloaded": false,
+        "indexed": false
+      },
+      "license": {
+        "identifier": "CC-BY-4.0",
+        "status": "repository_or_publisher_license_observed",
+        "evidence_url": "https://github.com/kubernetes/website/blob/main/LICENSE",
+        "notes": "导入时保留来源、版权与许可；核对选中文件/页面及第三方例外。仓库级许可标记不替代逐文件检查。"
+      },
+      "crawl_policy": {
+        "mode": "explicit_page_only",
+        "max_depth": 0,
+        "do_not_follow_external_links": true
+      },
+      "risk_classification": "contains_reference_commands_and_possible_change_operations; classify_each_section",
+      "future_artifacts": {
+        "snapshot_hash": null,
+        "document_id": null,
+        "active_revision": null
+      }
+    },
+    {
+      "id": "K8-03",
+      "title": "Debugging DNS Resolution",
+      "publisher": "Kubernetes",
+      "source_url": "https://kubernetes.io/docs/tasks/administer-cluster/dns-debugging-resolution/",
+      "source_family": "kubernetes",
+      "os_family": "linux-or-windows",
+      "version_scope": "滚动文档；按集群 minor 版本冻结",
+      "topics": [
+        "kubernetes",
+        "dns",
+        "coredns",
+        "network"
+      ],
+      "ingestion_stage": "optional",
+      "sample_question": "如何检查集群 DNS 解析链路？",
+      "verification": {
+        "checked_on": "2026-10-26",
+        "status": "official_page_opened",
+        "check_method": "web browsing",
+        "content_downloaded": false,
+        "indexed": false
+      },
+      "license": {
+        "identifier": "CC-BY-4.0",
+        "status": "repository_or_publisher_license_observed",
+        "evidence_url": "https://github.com/kubernetes/website/blob/main/LICENSE",
+        "notes": "导入时保留来源、版权与许可；核对选中文件/页面及第三方例外。仓库级许可标记不替代逐文件检查。"
+      },
+      "crawl_policy": {
+        "mode": "explicit_page_only",
+        "max_depth": 0,
+        "do_not_follow_external_links": true
+      },
+      "risk_classification": "contains_reference_commands_and_possible_change_operations; classify_each_section",
+      "future_artifacts": {
+        "snapshot_hash": null,
+        "document_id": null,
+        "active_revision": null
+      }
+    },
+    {
+      "id": "PM-01",
+      "title": "Querying basics",
+      "publisher": "Prometheus",
+      "source_url": "https://prometheus.io/docs/prometheus/latest/querying/basics/",
+      "source_family": "prometheus",
+      "os_family": "any",
+      "version_scope": "滚动文档；导入时冻结对应 Prometheus 版本",
+      "topics": [
+        "promql",
+        "metrics",
+        "time-series",
+        "labels"
+      ],
+      "ingestion_stage": "extension",
+      "sample_question": "怎样在指定标签和时间窗内解释监控指标？",
+      "verification": {
+        "checked_on": "2026-10-26",
+        "status": "official_page_opened",
+        "check_method": "web browsing",
+        "content_downloaded": false,
+        "indexed": false
+      },
+      "license": {
+        "identifier": "Apache-2.0",
+        "status": "repository_or_publisher_license_observed",
+        "evidence_url": "https://github.com/prometheus/docs/blob/main/LICENSE",
+        "notes": "导入时保留来源、版权与许可；核对选中文件/页面及第三方例外。仓库级许可标记不替代逐文件检查。"
+      },
+      "crawl_policy": {
+        "mode": "explicit_page_only",
+        "max_depth": 0,
+        "do_not_follow_external_links": true
+      },
+      "risk_classification": "contains_reference_commands_and_possible_change_operations; classify_each_section",
+      "future_artifacts": {
+        "snapshot_hash": null,
+        "document_id": null,
+        "active_revision": null
+      }
+    },
+    {
+      "id": "PM-02",
+      "title": "Alerting rules",
+      "publisher": "Prometheus",
+      "source_url": "https://prometheus.io/docs/prometheus/latest/configuration/alerting_rules/",
+      "source_family": "prometheus",
+      "os_family": "any",
+      "version_scope": "滚动文档；保留规则版本与 for/keep_firing_for 条件",
+      "topics": [
+        "alerts",
+        "rules",
+        "pending",
+        "firing"
+      ],
+      "ingestion_stage": "extension",
+      "sample_question": "pending 与 firing 的区别是什么？",
+      "verification": {
+        "checked_on": "2026-10-26",
+        "status": "official_page_opened",
+        "check_method": "web browsing",
+        "content_downloaded": false,
+        "indexed": false
+      },
+      "license": {
+        "identifier": "Apache-2.0",
+        "status": "repository_or_publisher_license_observed",
+        "evidence_url": "https://github.com/prometheus/docs/blob/main/LICENSE",
+        "notes": "导入时保留来源、版权与许可；核对选中文件/页面及第三方例外。仓库级许可标记不替代逐文件检查。"
+      },
+      "crawl_policy": {
+        "mode": "explicit_page_only",
+        "max_depth": 0,
+        "do_not_follow_external_links": true
+      },
+      "risk_classification": "contains_reference_commands_and_possible_change_operations; classify_each_section",
+      "future_artifacts": {
+        "snapshot_hash": null,
+        "document_id": null,
+        "active_revision": null
+      }
+    },
+    {
+      "id": "PM-03",
+      "title": "Alerting overview",
+      "publisher": "Prometheus",
+      "source_url": "https://prometheus.io/docs/alerting/latest/overview/",
+      "source_family": "prometheus",
+      "os_family": "any",
+      "version_scope": "Prometheus/Alertmanager 滚动文档",
+      "topics": [
+        "alertmanager",
+        "routing",
+        "notification"
+      ],
+      "ingestion_stage": "extension",
+      "sample_question": "告警计算和通知分发分别由哪个组件负责？",
+      "verification": {
+        "checked_on": "2026-10-26",
+        "status": "official_page_opened",
+        "check_method": "web browsing",
+        "content_downloaded": false,
+        "indexed": false
+      },
+      "license": {
+        "identifier": "Apache-2.0",
+        "status": "repository_or_publisher_license_observed",
+        "evidence_url": "https://github.com/prometheus/docs/blob/main/LICENSE",
+        "notes": "导入时保留来源、版权与许可；核对选中文件/页面及第三方例外。仓库级许可标记不替代逐文件检查。"
+      },
+      "crawl_policy": {
+        "mode": "explicit_page_only",
+        "max_depth": 0,
+        "do_not_follow_external_links": true
+      },
+      "risk_classification": "contains_reference_commands_and_possible_change_operations; classify_each_section",
+      "future_artifacts": {
+        "snapshot_hash": null,
+        "document_id": null,
+        "active_revision": null
+      }
+    },
+    {
+      "id": "PM-04",
+      "title": "Monitoring Linux host metrics with the Node Exporter",
+      "publisher": "Prometheus",
+      "source_url": "https://prometheus.io/docs/guides/node-exporter/",
+      "source_family": "prometheus",
+      "os_family": "linux",
+      "version_scope": "教程中的示例版本不能替代目标实际版本",
+      "topics": [
+        "node-exporter",
+        "cpu",
+        "memory",
+        "filesystem"
+      ],
+      "ingestion_stage": "extension",
+      "sample_question": "如何将 Linux 主机指标接入 Prometheus？",
+      "verification": {
+        "checked_on": "2026-10-26",
+        "status": "official_page_opened",
+        "check_method": "web browsing",
+        "content_downloaded": false,
+        "indexed": false
+      },
+      "license": {
+        "identifier": "Apache-2.0",
+        "status": "repository_or_publisher_license_observed",
+        "evidence_url": "https://github.com/prometheus/docs/blob/main/LICENSE",
+        "notes": "导入时保留来源、版权与许可；核对选中文件/页面及第三方例外。仓库级许可标记不替代逐文件检查。"
+      },
+      "crawl_policy": {
+        "mode": "explicit_page_only",
+        "max_depth": 0,
+        "do_not_follow_external_links": true
+      },
+      "risk_classification": "contains_reference_commands_and_possible_change_operations; classify_each_section",
+      "future_artifacts": {
+        "snapshot_hash": null,
+        "document_id": null,
+        "active_revision": null
+      }
+    },
+    {
+      "id": "WS-01",
+      "title": "Performance Tuning Guidelines for Windows Server 2022",
+      "publisher": "Microsoft",
+      "source_url": "https://learn.microsoft.com/en-us/windows-server/administration/performance-tuning/",
+      "source_family": "windows",
+      "os_family": "windows",
+      "version_scope": "正文以 Windows Server 2022 为主；保留 Applies to 与更新时间",
+      "topics": [
+        "windows-server",
+        "cpu",
+        "memory",
+        "storage",
+        "network"
+      ],
+      "ingestion_stage": "core",
+      "sample_question": "Windows Server 性能问题需要先收集哪些环境与负载信息？",
+      "verification": {
+        "checked_on": "2026-10-26",
+        "status": "official_page_opened",
+        "check_method": "web browsing",
+        "content_downloaded": false,
+        "indexed": false
+      },
+      "license": {
+        "identifier": "CC-BY-4.0",
+        "status": "repository_or_publisher_license_observed",
+        "evidence_url": "https://github.com/MicrosoftDocs/windowsserverdocs/blob/main/LICENSE",
+        "notes": "导入时保留来源、版权与许可；核对选中文件/页面及第三方例外。仓库级许可标记不替代逐文件检查。"
+      },
+      "crawl_policy": {
+        "mode": "explicit_page_only",
+        "max_depth": 0,
+        "do_not_follow_external_links": true
+      },
+      "risk_classification": "contains_reference_commands_and_possible_change_operations; classify_each_section",
+      "future_artifacts": {
+        "snapshot_hash": null,
+        "document_id": null,
+        "active_revision": null
+      }
+    },
+    {
+      "id": "WS-02",
+      "title": "Get-WinEvent",
+      "publisher": "Microsoft",
+      "source_url": "https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.diagnostics/get-winevent?view=powershell-7.6",
+      "source_family": "windows",
+      "os_family": "windows",
+      "version_scope": "PowerShell 7.6 页面；与主机 Windows PowerShell 5.1 区分",
+      "topics": [
+        "powershell",
+        "event-log",
+        "logs"
+      ],
+      "ingestion_stage": "core",
+      "sample_question": "如何按日志、时间和事件条件查询 Windows 事件？",
+      "verification": {
+        "checked_on": "2026-10-26",
+        "status": "official_page_opened",
+        "check_method": "web browsing",
+        "content_downloaded": false,
+        "indexed": false
+      },
+      "license": {
+        "identifier": "CC-BY-4.0",
+        "status": "repository_or_publisher_license_observed",
+        "evidence_url": "https://github.com/MicrosoftDocs/PowerShell-Docs/blob/main/LICENSE.md",
+        "notes": "导入时保留来源、版权与许可；核对选中文件/页面及第三方例外。仓库级许可标记不替代逐文件检查。"
+      },
+      "crawl_policy": {
+        "mode": "explicit_page_only",
+        "max_depth": 0,
+        "do_not_follow_external_links": true
+      },
+      "risk_classification": "contains_reference_commands_and_possible_change_operations; classify_each_section",
+      "future_artifacts": {
+        "snapshot_hash": null,
+        "document_id": null,
+        "active_revision": null
+      }
+    },
+    {
+      "id": "WS-03",
+      "title": "Get-Counter",
+      "publisher": "Microsoft",
+      "source_url": "https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.diagnostics/get-counter?view=powershell-7.6",
+      "source_family": "windows",
+      "os_family": "windows",
+      "version_scope": "PowerShell 7.6 页面；计数器可受平台与本地化影响",
+      "topics": [
+        "powershell",
+        "performance-counter",
+        "cpu",
+        "memory"
+      ],
+      "ingestion_stage": "core",
+      "sample_question": "如何只读采样 Windows 性能计数器？",
+      "verification": {
+        "checked_on": "2026-10-26",
+        "status": "official_page_opened",
+        "check_method": "web browsing",
+        "content_downloaded": false,
+        "indexed": false
+      },
+      "license": {
+        "identifier": "CC-BY-4.0",
+        "status": "repository_or_publisher_license_observed",
+        "evidence_url": "https://github.com/MicrosoftDocs/PowerShell-Docs/blob/main/LICENSE.md",
+        "notes": "导入时保留来源、版权与许可；核对选中文件/页面及第三方例外。仓库级许可标记不替代逐文件检查。"
+      },
+      "crawl_policy": {
+        "mode": "explicit_page_only",
+        "max_depth": 0,
+        "do_not_follow_external_links": true
+      },
+      "risk_classification": "contains_reference_commands_and_possible_change_operations; classify_each_section",
+      "future_artifacts": {
+        "snapshot_hash": null,
+        "document_id": null,
+        "active_revision": null
+      }
+    },
+    {
+      "id": "WS-04",
+      "title": "Get-Service",
+      "publisher": "Microsoft",
+      "source_url": "https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.management/get-service?view=powershell-7.6",
+      "source_family": "windows",
+      "os_family": "windows",
+      "version_scope": "PowerShell 7.6 页面；命令仅适用于 Windows",
+      "topics": [
+        "powershell",
+        "service",
+        "running",
+        "stopped"
+      ],
+      "ingestion_stage": "core",
+      "sample_question": "如何查询 Windows 服务及依赖状态？",
+      "verification": {
+        "checked_on": "2026-10-26",
+        "status": "official_page_opened",
+        "check_method": "web browsing",
+        "content_downloaded": false,
+        "indexed": false
+      },
+      "license": {
+        "identifier": "CC-BY-4.0",
+        "status": "repository_or_publisher_license_observed",
+        "evidence_url": "https://github.com/MicrosoftDocs/PowerShell-Docs/blob/main/LICENSE.md",
+        "notes": "导入时保留来源、版权与许可；核对选中文件/页面及第三方例外。仓库级许可标记不替代逐文件检查。"
+      },
+      "crawl_policy": {
+        "mode": "explicit_page_only",
+        "max_depth": 0,
+        "do_not_follow_external_links": true
+      },
+      "risk_classification": "contains_reference_commands_and_possible_change_operations; classify_each_section",
+      "future_artifacts": {
+        "snapshot_hash": null,
+        "document_id": null,
+        "active_revision": null
+      }
+    },
+    {
+      "id": "PG-01",
+      "title": "PostgreSQL 17 — The Cumulative Statistics System",
+      "publisher": "PostgreSQL",
+      "source_url": "https://www.postgresql.org/docs/17/monitoring-stats.html",
+      "source_family": "postgresql",
+      "os_family": "any",
+      "version_scope": "PostgreSQL 17；只适用于相应统计视图版本",
+      "topics": [
+        "database",
+        "connections",
+        "activity",
+        "io",
+        "locks"
+      ],
+      "ingestion_stage": "optional",
+      "sample_question": "如何通过统计视图观察数据库活动？",
+      "verification": {
+        "checked_on": "2026-10-26",
+        "status": "official_page_opened",
+        "check_method": "web browsing",
+        "content_downloaded": false,
+        "indexed": false
+      },
+      "license": {
+        "identifier": "PostgreSQL",
+        "status": "repository_or_publisher_license_observed",
+        "evidence_url": "https://www.postgresql.org/about/licence/",
+        "notes": "导入时保留来源、版权与许可；核对选中文件/页面及第三方例外。仓库级许可标记不替代逐文件检查。"
+      },
+      "crawl_policy": {
+        "mode": "explicit_page_only",
+        "max_depth": 0,
+        "do_not_follow_external_links": true
+      },
+      "risk_classification": "contains_reference_commands_and_possible_change_operations; classify_each_section",
+      "future_artifacts": {
+        "snapshot_hash": null,
+        "document_id": null,
+        "active_revision": null
+      }
+    },
+    {
+      "id": "PG-02",
+      "title": "PostgreSQL 17 — Monitoring Disk Usage",
+      "publisher": "PostgreSQL",
+      "source_url": "https://www.postgresql.org/docs/17/diskusage.html",
+      "source_family": "postgresql",
+      "os_family": "any",
+      "version_scope": "PostgreSQL 17；Disk Full Failure 在该页章节中",
+      "topics": [
+        "database",
+        "disk-full",
+        "wal",
+        "capacity"
+      ],
+      "ingestion_stage": "optional",
+      "sample_question": "数据库数据盘和 WAL 盘满时各有什么后果？",
+      "verification": {
+        "checked_on": "2026-10-26",
+        "status": "official_page_opened",
+        "check_method": "web browsing",
+        "content_downloaded": false,
+        "indexed": false
+      },
+      "license": {
+        "identifier": "PostgreSQL",
+        "status": "repository_or_publisher_license_observed",
+        "evidence_url": "https://www.postgresql.org/about/licence/",
+        "notes": "导入时保留来源、版权与许可；核对选中文件/页面及第三方例外。仓库级许可标记不替代逐文件检查。"
+      },
+      "crawl_policy": {
+        "mode": "explicit_page_only",
+        "max_depth": 0,
+        "do_not_follow_external_links": true
+      },
+      "risk_classification": "contains_reference_commands_and_possible_change_operations; classify_each_section",
+      "future_artifacts": {
+        "snapshot_hash": null,
+        "document_id": null,
+        "active_revision": null
+      }
+    }
+  ],
+  "excluded_or_unverified": [
+    {
+      "url": "https://www.postgresql.org/docs/17/disk-full.html",
+      "reason": "本轮打开为404，使用PG-02中Disk Full Failure章节"
+    },
+    {
+      "url": "https://www.gnu.org/software/coreutils/manual/html_node/df-invocation.html",
+      "reason": "本轮抓取超时；不能标记为已核验正文"
+    },
+    {
+      "url": "https://www.gnu.org/software/coreutils/manual/html_node/du-invocation.html",
+      "reason": "本轮抓取超时；不能标记为已核验正文"
+    }
+  ]
+}

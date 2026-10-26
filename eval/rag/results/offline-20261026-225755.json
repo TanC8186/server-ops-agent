@@ -1,0 +1,321 @@
+{
+  "generated_at_utc": "2026-10-26T14:57:55Z",
+  "kind": "offline_dense_baseline",
+  "note": "内存 cosine 检索，不是 Milvus 入库验证；仅证明切分+embedding+检索契约可用，不代表 collection/索引已验收。",
+  "k": 3,
+  "documents": 11,
+  "chunks": 951,
+  "elapsed_seconds": 27.3,
+  "metrics": {
+    "recall_at_k": 1.0,
+    "mrr": 1.0,
+    "no_answer_precision": 0.0,
+    "answerable": 11,
+    "unanswerable": 3
+  },
+  "threshold": 0.35,
+  "rows": [
+    {
+      "id": "q01",
+      "question": "systemctl 如何查看某个服务为什么启动失败？",
+      "expected_source_ids": [
+        "SD-01"
+      ],
+      "answerable": true,
+      "top_source_ids": [
+        "SD-01",
+        "SD-01",
+        "SD-01"
+      ],
+      "top_scores": [
+        0.7026,
+        0.6983,
+        0.6873
+      ],
+      "rank": 1,
+      "reciprocal_rank": 1.0,
+      "hit_at_k": true,
+      "predicted_answerable": true
+    },
+    {
+      "id": "q02",
+      "question": "journalctl 怎样按时间窗口查询日志？",
+      "expected_source_ids": [
+        "SD-02"
+      ],
+      "answerable": true,
+      "top_source_ids": [
+        "SD-02",
+        "SD-02",
+        "SD-01"
+      ],
+      "top_scores": [
+        0.7176,
+        0.6511,
+        0.6432
+      ],
+      "rank": 1,
+      "reciprocal_rank": 1.0,
+      "hit_at_k": true,
+      "predicted_answerable": true
+    },
+    {
+      "id": "q03",
+      "question": "Linux page cache 和 reclaim 与 OOM 有什么关系？",
+      "expected_source_ids": [
+        "LK-01"
+      ],
+      "answerable": true,
+      "top_source_ids": [
+        "LK-01",
+        "LK-01",
+        "LK-01"
+      ],
+      "top_scores": [
+        0.7443,
+        0.7348,
+        0.6094
+      ],
+      "rank": 1,
+      "reciprocal_rank": 1.0,
+      "hit_at_k": true,
+      "predicted_answerable": true
+    },
+    {
+      "id": "q04",
+      "question": "docker 容器的内存限制和 OOM 是怎么工作的？",
+      "expected_source_ids": [
+        "DK-02"
+      ],
+      "answerable": true,
+      "top_source_ids": [
+        "DK-02",
+        "DK-02",
+        "DK-02"
+      ],
+      "top_scores": [
+        0.6962,
+        0.6937,
+        0.6744
+      ],
+      "rank": 1,
+      "reciprocal_rank": 1.0,
+      "hit_at_k": true,
+      "predicted_answerable": true
+    },
+    {
+      "id": "q05",
+      "question": "docker logs 为什么不显示应用日志？",
+      "expected_source_ids": [
+        "DK-01"
+      ],
+      "answerable": true,
+      "top_source_ids": [
+        "DK-01",
+        "SD-01",
+        "SD-01"
+      ],
+      "top_scores": [
+        0.6315,
+        0.6304,
+        0.6239
+      ],
+      "rank": 1,
+      "reciprocal_rank": 1.0,
+      "hit_at_k": true,
+      "predicted_answerable": true
+    },
+    {
+      "id": "q06",
+      "question": "怎么查看容器的详细状态信息？",
+      "expected_source_ids": [
+        "DK-03"
+      ],
+      "answerable": true,
+      "top_source_ids": [
+        "DK-03",
+        "DK-03",
+        "DK-01"
+      ],
+      "top_scores": [
+        0.6678,
+        0.5325,
+        0.521
+      ],
+      "rank": 1,
+      "reciprocal_rank": 1.0,
+      "hit_at_k": true,
+      "predicted_answerable": true
+    },
+    {
+      "id": "q07",
+      "question": "Get-WinEvent 如何按日志名称和时间筛选事件？",
+      "expected_source_ids": [
+        "WS-02"
+      ],
+      "answerable": true,
+      "top_source_ids": [
+        "WS-02",
+        "WS-02",
+        "WS-02"
+      ],
+      "top_scores": [
+        0.6763,
+        0.6488,
+        0.6261
+      ],
+      "rank": 1,
+      "reciprocal_rank": 1.0,
+      "hit_at_k": true,
+      "predicted_answerable": true
+    },
+    {
+      "id": "q08",
+      "question": "Windows 上如何用性能计数器采样 CPU 和内存？",
+      "expected_source_ids": [
+        "WS-03"
+      ],
+      "answerable": true,
+      "top_source_ids": [
+        "WS-03",
+        "WS-03",
+        "WS-03"
+      ],
+      "top_scores": [
+        0.6732,
+        0.6616,
+        0.6497
+      ],
+      "rank": 1,
+      "reciprocal_rank": 1.0,
+      "hit_at_k": true,
+      "predicted_answerable": true
+    },
+    {
+      "id": "q09",
+      "question": "Get-Service 怎么查询服务是否正在运行？",
+      "expected_source_ids": [
+        "WS-04"
+      ],
+      "answerable": true,
+      "top_source_ids": [
+        "WS-04",
+        "WS-04",
+        "WS-04"
+      ],
+      "top_scores": [
+        0.8169,
+        0.7114,
+        0.6676
+      ],
+      "rank": 1,
+      "reciprocal_rank": 1.0,
+      "hit_at_k": true,
+      "predicted_answerable": true
+    },
+    {
+      "id": "q10",
+      "question": "Windows Server 性能调优应该先看哪些指标？",
+      "expected_source_ids": [
+        "WS-01"
+      ],
+      "answerable": true,
+      "top_source_ids": [
+        "WS-01",
+        "WS-01",
+        "WS-01"
+      ],
+      "top_scores": [
+        0.743,
+        0.7102,
+        0.6293
+      ],
+      "rank": 1,
+      "reciprocal_rank": 1.0,
+      "hit_at_k": true,
+      "predicted_answerable": true
+    },
+    {
+      "id": "q11",
+      "question": "RHEL 9 有哪些只读的性能监控工具组合？",
+      "expected_source_ids": [
+        "RH-01"
+      ],
+      "answerable": true,
+      "top_source_ids": [
+        "RH-01",
+        "RH-01",
+        "RH-01"
+      ],
+      "top_scores": [
+        0.6884,
+        0.5861,
+        0.5464
+      ],
+      "rank": 1,
+      "reciprocal_rank": 1.0,
+      "hit_at_k": true,
+      "predicted_answerable": true
+    },
+    {
+      "id": "q12",
+      "question": "某台服务器的 MySQL 复制延迟应该怎么调？",
+      "expected_source_ids": [],
+      "answerable": false,
+      "top_source_ids": [
+        "SD-01",
+        "SD-01",
+        "SD-01"
+      ],
+      "top_scores": [
+        0.5021,
+        0.4976,
+        0.4925
+      ],
+      "rank": null,
+      "reciprocal_rank": 0.0,
+      "hit_at_k": false,
+      "predicted_answerable": true
+    },
+    {
+      "id": "q13",
+      "question": "Kubernetes Ingress 的 TLS 证书怎么自动续期？",
+      "expected_source_ids": [],
+      "answerable": false,
+      "top_source_ids": [
+        "SD-02",
+        "SD-01",
+        "WS-02"
+      ],
+      "top_scores": [
+        0.4866,
+        0.4413,
+        0.4284
+      ],
+      "rank": null,
+      "reciprocal_rank": 0.0,
+      "hit_at_k": false,
+      "predicted_answerable": true
+    },
+    {
+      "id": "q14",
+      "question": "今天公司食堂几点开饭？",
+      "expected_source_ids": [],
+      "answerable": false,
+      "top_source_ids": [
+        "SD-02",
+        "SD-02",
+        "SD-01"
+      ],
+      "top_scores": [
+        0.5699,
+        0.5207,
+        0.4429
+      ],
+      "rank": null,
+      "reciprocal_rank": 0.0,
+      "hit_at_k": false,
+      "predicted_answerable": true
+    }
+  ]
+}

@@ -81,6 +81,21 @@ services:
       dockerfile: Dockerfile
     ports:
       - "9900:9900"
+    # 配置注入契约（P0-02）：
+    # 1) 宿主机 .env 只在运行时通过 env_file 注入，不烤进镜像
+    #    （.dockerignore 已排除 .env）。required: false 表示没有 .env 也能起容器。
+    # 2) 绝不写 `API_KEY=${API_KEY:-}` 这类空默认值：变量未设置时 compose 会把
+    #    空字符串写进容器进程环境，而 pydantic-settings 的进程环境优先于 env_file，
+    #    空值会静默覆盖挂载进来的真实密钥，让鉴权看起来开着其实关着。
+    #    密钥只通过 .env 文件注入；确需用环境变量注入密钥的部署，
+    #    请用下面的透传写法（`- API_KEY`，只写变量名），未设置时不注入空值。
+    # 3) environment 优先级高于 env_file，用来覆盖容器内必须不同的值
+    #    （HOST、Milvus/MCP 的容器网络地址）。
+    # 需要 Docker Compose v2.24+（long syntax 的 required）。老版本请改用
+    # `env_file: [.env]` 并确保 .env 存在。
+    env_file:
+      - path: .env
+        required: false
     environment:
       # ── Milvus（Docker 内部网络地址） ──
       - MILVUS_HOST=milvus
@@ -98,16 +113,27 @@ services:
       # ── Embedding 模型 ──
       - EMBEDDING_PROVIDER=local
       - EMBEDDING_MODEL=sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2
-      - EMBEDDING_API_KEY=
+      # 不要在这里写空 EMBEDDING_API_KEY：空值同样会覆盖 env_file 里的真实值。
+      # 本地 embedding 不需要密钥；需要时只在 .env / 外部注入。
       - HF_ENDPOINT=https://hf-mirror.com
 
       # ── 以下从 .env 或宿主机环境继承 ──
       - LLM_PROVIDER=${LLM_PROVIDER:-anthropic}
-      - LLM_API_KEY=${LLM_API_KEY:-}
+      # 密钥类变量用“透传式”（只写变量名）：存在于宿主环境时传入，
+      # 未设置时不会向容器注入空字符串（否则会覆盖 env_file 里的真实值）。
+      - LLM_API_KEY
       - LLM_BASE_URL=${LLM_BASE_URL:-https://www.autodl.art/api/v1/anthropic}
       - LLM_MODEL=${LLM_MODEL:-claude-sonnet-4-6}
-      - TENCENTCLOUD_SECRET_ID=${TENCENTCLOUD_SECRET_ID:-}
-      - TENCENTCLOUD_SECRET_KEY=${TENCENTCLOUD_SECRET_KEY:-}
+      # 宿主模型服务使用容器可达地址，例如 http://host.docker.internal:8000/v1
+      - LOCAL_LLM_BASE_URL=${LOCAL_LLM_BASE_URL:-}
+      - LOCAL_LLM_MODEL=${LOCAL_LLM_MODEL:-qwen-ops}
+      - LOCAL_LLM_WITH_PARAMS=${LOCAL_LLM_WITH_PARAMS:-False}
+      - LOCAL_LLM_MAX_TOKENS=${LOCAL_LLM_MAX_TOKENS:-768}
+      - DIAGNOSTIC_TIMEOUT_SECONDS=${DIAGNOSTIC_TIMEOUT_SECONDS:-180}
+      - DIAGNOSTIC_TOOL_TIMEOUT_SECONDS=${DIAGNOSTIC_TOOL_TIMEOUT_SECONDS:-20}
+      - DIAGNOSTIC_MAX_TOOL_CALLS=${DIAGNOSTIC_MAX_TOOL_CALLS:-10}
+      - TENCENTCLOUD_SECRET_ID
+      - TENCENTCLOUD_SECRET_KEY
       - TENCENTCLOUD_REGION=${TENCENTCLOUD_REGION:-ap-beijing}
       - SSH_HOST=${SSH_HOST:-}
       - SSH_PORT=${SSH_PORT:-22}
@@ -116,17 +142,74 @@ services:
       - SSH_SERVER_TYPE=${SSH_SERVER_TYPE:-windows}
       # 无云凭证时的合成数据开关；0 = 直接报 unavailable
       - DEMO_MODE=${DEMO_MODE:-0}
-      - API_KEY=${API_KEY:-}
+
+      # 密钥只透传变量名，不写空默认值：宿主 shell 里有 API_KEY 就传入，
+      # 没有就不注入任何值（不会用空串覆盖 .env 里的真实密钥）。
+      # 常规情况下密钥来自上面 env_file 挂载的 .env。
+      - API_KEY
+
+      # ── 监听地址与访问控制 ──
+      # 宿主机运行时默认只绑 127.0.0.1（安全的默认值）；容器内部不同：
+      # 必须显式监听 0.0.0.0，否则端口映射打不进容器。这是容器内的硬性覆盖，
+      # 不会影响宿主机/本地运行的默认值。改端口请同时改上面的 ports。
+      - HOST=0.0.0.0
+      - PORT=9900
+      # 容器用独立变量 CONTAINER_AUTH_MODE 表达“是否对外提供未鉴权服务”，默认
+      # fail closed（deployment）：没有 API_KEY 时 startup_check() 直接拒绝启动。
+      # 不直接引用 AUTH_MODE，是因为 compose 会自动加载 .env 做插值——开发用
+      # .env（AUTH_MODE=dev）会让容器悄悄失去鉴权。environment 优先于 env_file，
+      # 所以这里的默认值无法被 .env 覆盖；要跑未鉴权的演示容器必须显式
+      # `CONTAINER_AUTH_MODE=dev docker compose up`。
+      # 密钥只从 .env / 外部注入，绝不在 compose 里写空默认值。
+      - AUTH_MODE=${CONTAINER_AUTH_MODE:-deployment}
+      # CORS 来源同样来自配置（逗号分隔），默认只允许本机前端，不要用 *
       - CORS_ORIGINS=${CORS_ORIGINS:-http://localhost:9900,http://127.0.0.1:9900}
     volumes:
       # 挂载 HuggingFace 模型缓存（避免重复下载）
       - ${HF_CACHE_DIR:-~/.cache/huggingface}:/root/.cache/huggingface:rw
       # 挂载 SSH 私钥（如不需要 SSH 功能可删除此行）
       - ${SSH_KEY_FILE:-/dev/null}:/app/ssh_key.pem:ro
+      # ── 命名卷：容器重建后数据仍在 ──
+      # uploads/：上传的原始文档（app/api/file.py 的 ./uploads）
+      - oncall-uploads:/app/uploads
+      # logs/：应用日志与 logs/traces/*.jsonl（app/observability.py）
+      - oncall-logs:/app/logs
+      # eval/results/：评测产物（scripts/run_eval.py、/api/runs/eval/results）
+      - oncall-eval-results:/app/eval/results
+      # data/：embedding 描述符等知识库元数据（vector_store_manager.DESCRIPTOR_FILE）
+      # 描述符丢失会让已有 collection 被判为 invalid_index，必须持久化。
+      - oncall-data:/app/data
     depends_on:
       milvus:
         condition: service_healthy
+    # 容器健康状态以 /health 为准：该接口在 Milvus/RAG 故障时仍返回 200，
+    # 表示"进程可用、能力可能降级"；只有进程本身不可用时才 unhealthy。
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - >-
+          import urllib.request;
+          urllib.request.urlopen('http://127.0.0.1:9900/health', timeout=3)
+      interval: 30s
+      timeout: 5s
+      start_period: 40s
+      retries: 3
+    stop_grace_period: 20s
     restart: unless-stopped
+
+volumes:
+  # 四个命名卷都由 Docker 管理，`docker compose down -v` 会连同数据一起删除；
+  # 普通 `docker compose down` 保留。备份/恢复步骤见 docs/DEPLOYMENT.md。
+  oncall-uploads:
+    name: oncall-agent-uploads
+  oncall-logs:
+    name: oncall-agent-logs
+  oncall-eval-results:
+    name: oncall-agent-eval-results
+  oncall-data:
+    name: oncall-agent-data
 
 networks:
   default:

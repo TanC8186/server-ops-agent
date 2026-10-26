@@ -19,6 +19,7 @@ from app.observability import trace_event
 
 from .local_prompt import build_system_prompt, catalog_from_tools, compact_catalog
 from .plan_schema import normalize_plan
+from .runtime_tools import validate_args
 
 
 # 小模型常见的"意思对、名字错"。显式映射优先于模糊匹配：
@@ -137,29 +138,27 @@ def _service_from_step(step: dict) -> str:
 
 def _plan_is_valid(steps: list[dict], tools: list) -> bool:
     valid_tools = {tool.name: tool for tool in tools}
-    if not any(step.get("tool") == "list_all_services" for step in steps):
+    tool_steps = [step for step in steps if step.get("kind") == "tool"]
+    if not tool_steps or len(steps) > 6 or tool_steps[0].get("tool") != "list_all_services":
         return False
     for step in steps:
-        if step.get("kind") != "tool" or step.get("_invalid"):
+        if step.get("_invalid"):
+            return False
+        if step.get("kind") != "tool":
             continue
         tool = valid_tools.get(step.get("tool", ""))
         if tool is None:
             return False
-        schema = getattr(tool, "args_schema", None)
-        if isinstance(schema, dict):
-            properties = schema.get("properties", {})
-        elif hasattr(schema, "model_json_schema"):
-            properties = schema.model_json_schema().get("properties", {})
-        else:
-            properties = {}
-        allowed = set(properties)
-        if allowed and set(step.get("args") or {}) - allowed:
+        try:
+            validate_args(tool, step.get("args") or {})
+        except (ValueError, TypeError):
             return False
     return True
 
 
 async def try_local_plan(
-    symptom: str, service: str, tools: list, run_id: str = ""
+    symptom: str, service: str, tools: list, run_id: str = "", *,
+    allow_cloud_fallback: bool = True,
 ) -> dict[str, Any] | None:
     """尝试用本地模型生成计划；不可用/不合法时返回 None。"""
     if not config.local_llm_base_url:
@@ -185,33 +184,41 @@ async def try_local_plan(
     ]
 
     try:
-        client = AsyncOpenAI(
+        async with AsyncOpenAI(
             base_url=config.local_llm_base_url,
             api_key="EMPTY",
             timeout=60,
-        )
-        response = await client.chat.completions.create(
-            model=config.local_llm_model,
-            messages=messages,
-            temperature=0.0,
-            max_tokens=1200,
-            response_format={"type": "json_object"},
-        )
+            max_retries=0,
+        ) as client:
+            response = await client.chat.completions.create(
+                model=config.local_llm_model,
+                messages=messages,
+                temperature=0.0,
+                max_tokens=config.local_llm_max_tokens,
+                response_format={"type": "json_object"},
+            )
         payload = json.loads(response.choices[0].message.content or "{}")
+        if not isinstance(payload, dict) or not isinstance(payload.get("plan"), list):
+            raise ValueError("本地模型未输出计划对象")
+        usage = getattr(response, "usage", None)
+        trace_event(run_id, "local_model_usage",
+                    input_tokens=getattr(usage, "prompt_tokens", None),
+                    output_tokens=getattr(usage, "completion_tokens", None))
     except Exception as exc:  # noqa: BLE001 - 本地失败必须静默回退
-        logger.warning(f"本地 planner 调用失败，回退云端: {exc}")
-        trace_event(run_id, "planner_route", backend="cloud", reason="local_error")
+        logger.warning(f"本地 planner 调用失败，{'回退云端' if allow_cloud_fallback else '停止本地诊断'}: {exc}")
+        trace_event(run_id, "planner_route", backend="cloud" if allow_cloud_fallback else "local",
+                    reason="local_error", fallback_allowed=allow_cloud_fallback)
         return None
 
     steps = normalize_plan(payload.get("plan", []))
     steps = repair_tool_names(steps, tools)
     steps = repair_args(steps, tools, service)
     if not steps or not _plan_is_valid(steps, tools):
-        logger.info("本地 planner 输出未通过工具校验，回退云端")
+        logger.info("本地 planner 输出未通过工具校验，{}", "回退云端" if allow_cloud_fallback else "停止本地诊断")
         trace_event(
             run_id,
             "planner_route",
-            backend="cloud",
+            backend="cloud" if allow_cloud_fallback else "local",
             reason="invalid_plan",
             severity=payload.get("severity"),
             category=payload.get("category"),

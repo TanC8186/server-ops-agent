@@ -1,0 +1,231 @@
+{
+  "schema_version": "1.0",
+  "captured_at_utc": "2026-10-25T18:33:00.810744+00:00",
+  "workspace": "E:\\On_Call_Agent\\on_call_agent",
+  "git_base_commit": "fca7f1c4572547e884382cb79082484ff99eceb4",
+  "scope": "Current dirty working tree reviewed; hashes identify reviewed files but are not a recoverable backup or patch.",
+  "worktree_status": [
+    " M .env.example",
+    " M README.md",
+    " M app/agent/aiops/local_planner.py",
+    " M app/agent/aiops/local_prompt.py",
+    " M app/api/aiops.py",
+    " M app/api/runs.py",
+    " M app/config.py",
+    " M app/core/llm_factory.py",
+    " M app/models/aiops.py",
+    " M app/observability.py",
+    " M app/services/aiops_service.py",
+    " M docker-compose.yml",
+    " M pyproject.toml",
+    " M servers/ssh_server.py",
+    " M uv.lock",
+    " M web/src/App.tsx",
+    " M web/src/ChatPanel.tsx",
+    " M web/src/api.ts",
+    " M web/src/markdown.ts",
+    " M web/src/styles.css",
+    "?? app/agent/aiops/cloud_multi.py",
+    "?? app/agent/aiops/local_runtime.py",
+    "?? app/agent/aiops/runtime_tools.py",
+    "?? app/services/diagnostic_runtime.py",
+    "?? docs/DUAL_MODE.md",
+    "?? docs/PROJECT_REVIEW_2026-10-26.md",
+    "?? docs/claude-code-handoff/CLAUDE_CODE_TASK.md",
+    "?? docs/claude-code-handoff/ENTERPRISE_REVIEW.md",
+    "?? docs/claude-code-handoff/RAG_CORPUS_PLAN.md",
+    "?? docs/claude-code-handoff/knowledge_sources.json",
+    "?? docs/screenshots/dual-mode.png",
+    "?? tests/test_cloud_multi.py",
+    "?? tests/test_execution_modes_api.py",
+    "?? tests/test_local_runtime.py"
+  ],
+  "source_files": [
+    {
+      "path": "Dockerfile",
+      "sha256": "d58714b5f0a9ed28350809541782c6172e55daefe8bd331bea3e43f1a69d461d",
+      "bytes": 1155
+    },
+    {
+      "path": "app/agent/aiops/cloud_multi.py",
+      "sha256": "3f4e0d69fc64bd671b63e0a04d0821ba86f89ae7380110ceb50dcf42c785477a",
+      "bytes": 21064
+    },
+    {
+      "path": "app/agent/aiops/local_runtime.py",
+      "sha256": "f5cded747a18f271d844fe6a87c3fd16e19dcf8e770676c6763d50e6a45d0a16",
+      "bytes": 5085
+    },
+    {
+      "path": "app/agent/aiops/runtime_tools.py",
+      "sha256": "64d9d95f3cb039faae57fe9eb2c2e7dd05c2cbe3b4e3a2096cec23b2259f56c1",
+      "bytes": 9682
+    },
+    {
+      "path": "app/api/chat.py",
+      "sha256": "98f68d44ab35343e6d05b949602ba6c4a9854b3af57b6f6a4ae1cd04437525d1",
+      "bytes": 6853
+    },
+    {
+      "path": "app/api/file.py",
+      "sha256": "9aff5a8458a640d953f9b2b1fdad2a50119ff4d4a08d932286effe14179f4f3d",
+      "bytes": 5229
+    },
+    {
+      "path": "app/api/health.py",
+      "sha256": "f7b2bc2852f2e7de8c43dc8430427e46193ed3f222104750872991611c3a6880",
+      "bytes": 1894
+    },
+    {
+      "path": "app/api/runs.py",
+      "sha256": "7ad4abda7282461a6712e5afa364fe5d61e8ee9579bae2f1882890a42e473111",
+      "bytes": 4021
+    },
+    {
+      "path": "app/config.py",
+      "sha256": "aa2a5737c02bd41dc0f566e03f7d54a5d912097e1a72c78a3eddba6cbe23faa9",
+      "bytes": 4064
+    },
+    {
+      "path": "app/core/auth.py",
+      "sha256": "75e35e941a0e40b1b508e24cb79fa8827dcdbc4b44d6c539a7e98d97a6d85369",
+      "bytes": 501
+    },
+    {
+      "path": "app/core/milvus_client.py",
+      "sha256": "6733cd4cbe45a1e98978d26e7166ca99e7cf82af209cafff0ff6ab4ce9a8f1e4",
+      "bytes": 10928
+    },
+    {
+      "path": "app/observability.py",
+      "sha256": "2962b8ba5ec2ab87642eadc1d28cb345d656b4c866792b33dfbbf7e2eddb841f",
+      "bytes": 1245
+    },
+    {
+      "path": "app/services/aiops_service.py",
+      "sha256": "483fd048e35787dee3ab7ebf2c3243e3afda2cadda5bd5e6682bd118f30bdbc6",
+      "bytes": 14462
+    },
+    {
+      "path": "app/services/diagnostic_runtime.py",
+      "sha256": "ac8a2a894ee3f4d09217597e713c254a6cc5ffc8bf4b65576b246a8d96cd2174",
+      "bytes": 3760
+    },
+    {
+      "path": "app/services/document_splitter_service.py",
+      "sha256": "99a05c4040de7bf424771e4804deeb781dc4a2f2c924cba9cde878dd20196fe2",
+      "bytes": 6084
+    },
+    {
+      "path": "app/services/rag_agent_service.py",
+      "sha256": "9e408451adeba67742283696248d4335bb762d9b0111e134d859d9d81a83f3b2",
+      "bytes": 10238
+    },
+    {
+      "path": "app/services/vector_embedding_service.py",
+      "sha256": "d493da01f8c9f10a3fb184b88a3c52b51afb0c9d07ace7e628e91e7b3e23a939",
+      "bytes": 6260
+    },
+    {
+      "path": "app/services/vector_index_service.py",
+      "sha256": "4c4dfe484ac552ca2c8462f38514f37978f2866dddfb71a41b8ffb024262cad4",
+      "bytes": 6090
+    },
+    {
+      "path": "app/services/vector_store_manager.py",
+      "sha256": "b2f47aa76e6e6aec06cea0b208eb4dfac30c366e2379f3cc5b93bc4924f93e12",
+      "bytes": 4161
+    },
+    {
+      "path": "app/tools/knowledge_tool.py",
+      "sha256": "7f0c1b983bcaa255c12e81c6400c3ec1e0d0c6e51245f2a83bbdbfdc1487052e",
+      "bytes": 2709
+    },
+    {
+      "path": "docker-compose.yml",
+      "sha256": "72c06b7a39870ca8b6ef3a0e6520b01192cbc7f79446aec1463c736c4710ad2d",
+      "bytes": 5498
+    },
+    {
+      "path": "docker-entrypoint.sh",
+      "sha256": "03191454a14c91f7ac2f425f4338ac95a40ae38084187cccbfe288c33b932ada",
+      "bytes": 1399
+    },
+    {
+      "path": "pyproject.toml",
+      "sha256": "8d955d16ca954bfeb978eb7352bab7b36c26fc17e306c35d38b851d47166f668",
+      "bytes": 4975
+    },
+    {
+      "path": "servers/cls_server.py",
+      "sha256": "5557134bf9f08a17dd30476cd35a727a9182ff72b0bad5f4b4e24a014f6c75c9",
+      "bytes": 23851
+    },
+    {
+      "path": "servers/monitor_server.py",
+      "sha256": "5c83de877ab332c59f900eb9b76065ad77810286351ea9bf056f4a1eceb8e9d5",
+      "bytes": 37403
+    },
+    {
+      "path": "servers/ssh_server.py",
+      "sha256": "3105d1a53efcfb18df7f25b0b624b9b5771dcd4f0c1996a2ee3e787d1537c2bf",
+      "bytes": 13816
+    },
+    {
+      "path": "servers/web_server.py",
+      "sha256": "c8ad7357532066b315ac6382830aa70798e5e817906e44bd2275058afbda3b52",
+      "bytes": 713
+    },
+    {
+      "path": "tests/test_chunking.py",
+      "sha256": "74c211470702291e92308a16c3b23de31bc5c3abb841d396edf4acc8d5f289f3",
+      "bytes": 2180
+    },
+    {
+      "path": "tests/test_execution_modes_api.py",
+      "sha256": "ff70676d64a65df0be8a170989f20e72a501483375736dc88dfa3a359b8c8266",
+      "bytes": 5063
+    },
+    {
+      "path": "uv.lock",
+      "sha256": "52177d62e15e55fa7280b966ede126c56fa8c5f160384463ee0b74d7c05fb779",
+      "bytes": 737048
+    },
+    {
+      "path": "web/src/App.tsx",
+      "sha256": "12c74db7084b95671e81a27042dc7fec4bc4459ebeff1a17907eb4a4c88c3fc6",
+      "bytes": 27354
+    },
+    {
+      "path": "web/src/ChatPanel.tsx",
+      "sha256": "ee10278c74f967da03b74d13e43262f12e74e44b3a2b3394bd25c8d7422cddf1",
+      "bytes": 4738
+    },
+    {
+      "path": "web/src/api.ts",
+      "sha256": "81d1405e6230f1af0a04e7fedd7dba77fea755e9a36a670aa2d149a8841ea381",
+      "bytes": 7514
+    },
+    {
+      "path": "web/src/chat.ts",
+      "sha256": "afd5011b22dc6c91b106b8e505c3030f05315abe777deaf574743e2b4f98b530",
+      "bytes": 2620
+    },
+    {
+      "path": "web/src/markdown.ts",
+      "sha256": "b8c97c9b0e9cdcefd2752f17b697c9fd0d9d3342e6c3811440fee2c8434811de",
+      "bytes": 3036
+    },
+    {
+      "path": "web/src/styles.css",
+      "sha256": "277445e3d1f9530d18df3fb1e7e8da336ab9adef2a06630136f584094a412bed",
+      "bytes": 16676
+    }
+  ],
+  "review_delivery": {
+    "application_code_changes_this_review": false,
+    "manuals_downloaded_or_indexed_this_review": false,
+    "new_full_browser_audit_performed": false,
+    "prior_unit_test_count_is_not_end_to_end_acceptance": true
+  }
+}

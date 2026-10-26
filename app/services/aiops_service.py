@@ -1,397 +1,120 @@
+"""AIOps 诊断服务：HTTP 层到请求级诊断运行时的唯一入口。
+
+历史上的 Plan-Execute-Replan LangGraph 分支已被移除。原因是
+``AIOpsRequest.execution_mode`` 为必选（默认 ``local``），``service.diagnose``
+收到的模式永远不是 ``None``，因此旧图在 HTTP 上不可达；它的 ``plan`` /
+``diagnosis`` 事件契约也已与真实运行时不符。
+
+当前契约：
+
+- ``diagnose`` / ``execute`` 默认 ``execution_mode="local"``，并直接转发给
+  ``app.services.diagnostic_runtime.run_diagnostic``。
+- 事件由运行时的统一信封规范化（``schema_version/event_id/seq/run_id/
+  session_id/execution_mode/type/ts/payload``），本模块不重写事件形状。
+- 每次运行的状态由运行时按 ``run_id`` 隔离；本服务无进程级图、checkpointer
+  或跨请求缓存。
 """
-通用 Plan-Execute-Replan 服务
-编排 LangGraph 状态图：编译工作流、流式执行、事件格式化
-"""
 
-import time
-import uuid
-from typing import AsyncGenerator, Dict, Any
-from langgraph.graph import StateGraph, END
-from langgraph.checkpoint.memory import MemorySaver
-from loguru import logger
+from __future__ import annotations
 
-from app.agent.aiops import PlanExecuteState, planner, executor, replanner, verifier
-from app.observability import trace_event
+import inspect
+from collections.abc import AsyncGenerator
+from typing import Any
+
+from app.services.diagnostic_runtime import run_diagnostic
+
+#: 未提供症状时使用的默认排查任务。
+DEFAULT_DIAGNOSIS_TASK = "请检查目标服务的运行状态，查询指标和日志，并基于证据给出排查建议。"
 
 
-# 节点名称常量
-NODE_PLANNER = "planner"
-NODE_EXECUTOR = "executor"
-NODE_REPLANNER = "replanner"
-NODE_VERIFIER = "verifier"
+def _supported_kwargs(target, **kwargs: Any) -> dict[str, Any]:
+    """按目标函数的真实签名裁剪关键字参数。
+
+    ``run_diagnostic`` 可能被旧版本或测试替身替换（没有 ``target_choice`` /
+    ``request_context`` 形参）；多传一个可选字段不应该变成 TypeError。
+    """
+    try:
+        parameters = inspect.signature(target).parameters
+    except (TypeError, ValueError):
+        return dict(kwargs)
+    if any(p.kind is inspect.Parameter.VAR_KEYWORD for p in parameters.values()):
+        return dict(kwargs)
+    return {key: value for key, value in kwargs.items() if key in parameters}
 
 
 class AIOpsService:
-    """通用 Plan-Execute-Replan 服务"""
-
-    def __init__(self):
-        """初始化服务"""
-        self.checkpointer = MemorySaver()
-        self.graph = self._build_graph()
-        logger.info("Plan-Execute-Replan Service 初始化完成")
-
-    def _build_graph(self):
-        """构建 Plan-Execute-Replan 工作流"""
-        logger.info("构建工作流图...")
-
-        # 创建状态图
-        workflow = StateGraph(PlanExecuteState)
-
-        # 添加节点
-        workflow.add_node(NODE_PLANNER, planner)      # 制定计划
-        workflow.add_node(NODE_EXECUTOR, executor)  # 执行步骤
-        workflow.add_node(NODE_VERIFIER, verifier)  # 校验证据
-        workflow.add_node(NODE_REPLANNER, replanner)  # 评估 / replan
-
-        # 设置入口点
-        workflow.set_entry_point(NODE_PLANNER)
-
-        # 定义边
-        workflow.add_edge(NODE_PLANNER, NODE_EXECUTOR)     # planner -> executor
-        workflow.add_edge(NODE_EXECUTOR, NODE_VERIFIER)    # executor -> verifier
-        workflow.add_edge(NODE_VERIFIER, NODE_REPLANNER)   # verifier -> replanner
-
-        # replanner 的条件边
-        def should_continue(state: PlanExecuteState) -> str:
-            """判断是否继续执行"""
-            # 如果已经生成了最终响应，结束
-            if state.get("response"):
-                logger.info("已生成最终响应，结束流程")
-                return END
-
-            # 如果还有计划步骤，继续执行
-            plan = state.get("plan", [])
-            if plan:
-                logger.info(f"继续执行，剩余 {len(plan)} 个步骤")
-                return NODE_EXECUTOR
-
-            # 计划为空但没有响应，返回 replanner 生成响应
-            logger.info("计划执行完毕，生成最终响应")
-            return END
-
-        workflow.add_conditional_edges(
-            NODE_REPLANNER,
-            should_continue,
-            {
-                NODE_EXECUTOR: NODE_EXECUTOR,
-                END: END
-            }
-        )
-
-        # 编译工作流
-        compiled_graph = workflow.compile(checkpointer=self.checkpointer)
-
-        logger.info("工作流图构建完成")
-        return compiled_graph
+    """把诊断请求转发给请求级运行时；不持有跨请求状态。"""
 
     async def execute(
         self,
         user_input: str,
-        session_id: str = "default"
-    ) -> AsyncGenerator[Dict[str, Any], None]:
-        """
-        执行 Plan-Execute-Replan 流程
+        session_id: str = "default",
+        execution_mode: str = "local",
+        service_name: str | None = None,
+        target_choice: str | None = None,
+        target_candidate_id: str | None = None,
+        request_context: dict | None = None,
+    ) -> AsyncGenerator[dict[str, Any], None]:
+        """执行一次诊断并流式返回运行时事件。
 
         Args:
-            user_input: 用户的任务描述
-            session_id: 会话ID
+            user_input: 用户任务/症状描述，作为诊断任务文本。
+            session_id: 会话 ID，仅用于追踪，不参与状态复用。
+            execution_mode: ``local`` 或 ``cloud_multi``；默认 ``local``。
+            service_name: 可选的目标服务名；多候选中未指定时运行时会要求选择。
+            target_choice: 用户在候选卡片里的显式选择，与 ``service_name`` 同义。
+            target_candidate_id: 服务端签发的稳定候选 ID；同名多实例必须用它绑定。
+            request_context: 协议预留的请求上下文；其中可包含 ``target_choice``。
 
         Yields:
-            Dict[str, Any]: 流式事件
+            Dict[str, Any]: 规范化后的运行时事件（status/tool_step/report/
+            complete/error 等）。终态为 ``complete`` 或 ``error``。
         """
-        logger.info(f"[会话 {session_id}] 开始执行任务: {user_input}")
-
-        run_id = uuid.uuid4().hex
-        started_at = time.monotonic()
-        trace_event(
-            run_id, "run_start", session_id=session_id, input_chars=len(user_input)
+        kwargs = _supported_kwargs(
+            run_diagnostic,
+            service_name=service_name,
+            target_choice=target_choice,
+            target_candidate_id=target_candidate_id,
+            request_context=request_context,
         )
-        logger.info(f"[run {run_id}] 会话 {session_id} 开始执行")
-
-        try:
-
-            # 初始化状态：past_steps 是普通 channel，传空列表会覆盖上一次 run 的值
-            initial_state: PlanExecuteState = {
-                "run_id": run_id,
-                "input": user_input,
-                "plan": [],
-                "past_steps": [],
-                "needs_replan": False,
-                "replan_count": 0,
-                "severity": "",
-                "category": "",
-                "response": ""
-            }
-
-            # 流式执行工作流
-            config_dict = {
-                "configurable": {
-                    "thread_id": session_id
-                }
-            }
-
-            async for event in self.graph.astream(
-                input=initial_state,
-                config=config_dict,
-                stream_mode="updates"
-            ):
-                # 解析事件
-                for node_name, node_output in event.items():
-                    trace_event(
-                        run_id,
-                        "node",
-                        node=node_name,
-                        output_keys=sorted(node_output.keys())
-                        if isinstance(node_output, dict)
-                        else None,
-                    )
-                    logger.info(f"节点 '{node_name}' 输出事件")
-
-                    # 根据节点类型生成不同的事件
-                    if node_name == NODE_PLANNER:
-                        yield self._format_planner_event(node_output)
-
-                    elif node_name == NODE_EXECUTOR:
-                        yield self._format_executor_event(node_output)
-
-                    elif node_name == NODE_VERIFIER:
-                        yield {
-                            "type": "status",
-                            "stage": "verifier",
-                            "message": "上一步未产生可用证据，准备 replan"
-                            if (node_output or {}).get("needs_replan")
-                            else "证据校验通过",
-                        }
-
-                    elif node_name == NODE_REPLANNER:
-                        yield self._format_replanner_event(node_output)
-
-            # 获取最终状态
-            final_state = self.graph.get_state(config_dict)
-            final_response = ""
-
-            # 安全地获取响应（处理 values 可能为 None 的情况）
-            if final_state and final_state.values:
-                final_response = final_state.values.get("response", "")
-
-            trace_event(
-                run_id,
-                "run_complete",
-                response_chars=len(final_response or ""),
-                duration_ms=round((time.monotonic() - started_at) * 1000),
-            )
-
-            # 发送完成事件
-            yield {
-                "type": "complete",
-                "stage": "complete",
-                "message": "任务执行完成",
-                "run_id": run_id,
-                "response": final_response
-            }
-
-            logger.info(f"[会话 {session_id}] 任务执行完成")
-
-        except Exception as e:
-            trace_event(
-                run_id,
-                "run_error",
-                error=type(e).__name__,
-                message=str(e)[:500],
-                duration_ms=round((time.monotonic() - started_at) * 1000),
-            )
-            logger.error(f"[会话 {session_id}] 任务执行失败: {e}", exc_info=True)
-            yield {
-                "type": "error",
-                "stage": "error",
-                "run_id": run_id,
-                "message": f"任务执行出错: {str(e)}"
-            }
+        async for event in run_diagnostic(user_input, session_id, execution_mode, **kwargs):
+            yield event
 
     async def diagnose(
         self,
-        session_id: str = "default"
-    ) -> AsyncGenerator[Dict[str, Any], None]:
-        """
-        AIOps 诊断接口（兼容旧接口）
+        session_id: str = "default",
+        execution_mode: str = "local",
+        symptom: str | None = None,
+        service_name: str | None = None,
+        target_choice: str | None = None,
+        target_candidate_id: str | None = None,
+        request_context: dict | None = None,
+    ) -> AsyncGenerator[dict[str, Any], None]:
+        """按症状执行 AIOps 诊断，事件原样透传运行时输出。
 
         Args:
-            session_id: 会话ID
+            session_id: 会话 ID。
+            execution_mode: ``local`` 或 ``cloud_multi``；默认 ``local``。
+            symptom: 用户症状描述；为空时使用默认排查任务。
+            service_name: 可选目标服务名。
+            target_choice: 用户在候选卡片里的显式选择；与 ``service_name`` 同义。
+            target_candidate_id: 服务端签发的稳定候选 ID（同名多实例必须用它）。
+            request_context: 协议预留的请求上下文；其中可包含 ``target_choice``。
 
         Yields:
-            Dict[str, Any]: 诊断过程的流式事件
+            Dict[str, Any]: 运行时事件；``complete`` 事件携带 ``response`` 报告。
         """
-        # 使用固定的 AIOps 任务描述
-        from textwrap import dedent
-        aiops_task = dedent("""诊断当前系统是否存在告警，如果存在告警请详细分析告警原因并生成诊断报告，诊断报告输出格式要求：
-                ```
-                # 告警分析报告
-
-                ---
-
-                ## 📋 活跃告警清单
-
-                | 告警名称 | 级别 | 目标服务 | 首次触发时间 | 最新触发时间 | 状态 |
-                |---------|------|----------|-------------|-------------|------|
-                | [告警1名称] | [级别] | [服务名] | [时间] | [时间] | 活跃 |
-                | [告警2名称] | [级别] | [服务名] | [时间] | [时间] | 活跃 |
-
-                ---
-
-                ## 🔍 告警根因分析1 - [告警名称]
-
-                ### 告警详情
-                - **告警级别**: [级别]
-                - **受影响服务**: [服务名]
-                - **持续时间**: [X分钟]
-
-                ### 症状描述
-                [根据监控指标描述症状]
-
-                ### 日志证据
-                [引用查询到的关键日志]
-
-                ### 根因结论
-                [基于证据得出的根本原因]
-
-                ---
-
-                ## 🛠️ 处理方案执行1 - [告警名称]
-
-                ### 已执行的排查步骤
-                1. [步骤1]
-                2. [步骤2]
-
-                ### 处理建议
-                [给出具体的处理建议]
-
-                ### 预期效果
-                [说明预期的效果]
-
-                ---
-
-                ## 🔍 告警根因分析2 - [告警名称]
-                [如果有第2个告警，重复上述格式]
-
-                ---
-
-                ## 📊 结论
-
-                ### 整体评估
-                [总结所有告警的整体情况]
-
-                ### 关键发现
-                - [发现1]
-                - [发现2]
-
-                ### 后续建议
-                1. [建议1]
-                2. [建议2]
-
-                ### 风险评估
-                [评估当前风险等级和影响范围]
-                ```
-
-                **重要提醒**：
-                - 最终输出必须是纯 Markdown 文本，不要包含 JSON 结构
-                - 所有内容必须基于工具查询的真实数据，严禁编造
-                - 如果某个步骤失败，在结论中如实说明，不要跳过""")
-
-        async for event in self.execute(aiops_task, session_id):
-            # 转换事件格式以兼容旧的 API
-            if event.get("type") == "complete":
-                # 将 response 包装为 diagnosis 格式
-                yield {
-                    "type": "complete",
-                    "stage": "diagnosis_complete",
-                    "message": "诊断流程完成",
-                    "diagnosis": {
-                        "status": "completed",
-                        "report": event.get("response", "")
-                    }
-                }
-            else:
-                yield event
-
-    def _format_planner_event(self, state: Dict | None) -> Dict:
-        """格式化 Planner 节点事件"""
-        if not state:
-            return {
-                "type": "status",
-                "stage": "planner",
-                "message": "规划节点执行中"
-            }
-
-        plan = state.get("plan", [])
-        plan_text = [
-            item.get("description", str(item)) if isinstance(item, dict) else str(item)
-            for item in plan
-        ]
-
-        return {
-            "type": "plan",
-            "stage": "plan_created",
-            "message": f"执行计划已制定，共 {len(plan)} 个步骤",
-            "plan": plan_text,
-            "plan_steps": plan,
-        }
-
-    def _format_executor_event(self, state: Dict | None) -> Dict:
-        """格式化 Executor 节点事件"""
-        if not state:
-            return {
-                "type": "status",
-                "stage": "executor",
-                "message": "执行节点运行中"
-            }
-
-        plan = state.get("plan", [])
-        past_steps = state.get("past_steps", [])
-
-        if past_steps:
-            last_step, _ = past_steps[-1]
-            return {
-                "type": "step_complete",
-                "stage": "step_executed",
-                "message": f"步骤执行完成 ({len(past_steps)}/{len(past_steps) + len(plan)})",
-                "current_step": last_step,
-                "remaining_steps": len(plan)
-            }
-        else:
-            return {
-                "type": "status",
-                "stage": "executor",
-                "message": "开始执行步骤"
-            }
-
-    def _format_replanner_event(self, state: Dict | None) -> Dict:
-        """格式化 Replanner 节点事件"""
-        if not state:
-            return {
-                "type": "status",
-                "stage": "replanner",
-                "message": "评估节点运行中"
-            }
-
-        response = state.get("response", "")
-        plan = state.get("plan", [])
-
-        if response:
-            # 已生成最终响应
-            return {
-                "type": "report",
-                "stage": "final_report",
-                "message": "最终报告已生成",
-                "report": response
-            }
-        else:
-            # 重新规划
-            return {
-                "type": "status",
-                "stage": "replanner",
-                "message": f"评估完成，{'继续执行剩余步骤' if plan else '准备生成最终响应'}",
-                "remaining_steps": len(plan)
-            }
+        task = (symptom or DEFAULT_DIAGNOSIS_TASK).strip() or DEFAULT_DIAGNOSIS_TASK
+        async for event in self.execute(
+            task,
+            session_id,
+            execution_mode=execution_mode,
+            service_name=service_name,
+            target_choice=target_choice,
+            target_candidate_id=target_candidate_id,
+            request_context=request_context,
+        ):
+            yield event
 
 
 # 全局单例

@@ -13,6 +13,11 @@ class ChatRequest(BaseModel):
 
     id: str = Field(..., description="会话 ID", alias="Id")
     question: str = Field(..., description="用户问题", alias="Question")
+    run_id: str | None = Field(
+        default=None,
+        description="追问某次诊断时的 run_id；服务端会校验它属于当前会话",
+        max_length=64,
+    )
 
 
 class ClearRequest(BaseModel):

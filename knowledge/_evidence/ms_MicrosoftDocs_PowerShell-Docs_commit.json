@@ -1,0 +1,101 @@
+{
+  "sha": "a3de8f22552170e70852470d46cd52cd9ca471ec",
+  "node_id": "C_kwDOAqWqd9oAKGEzZGU4ZjIyNTUyMTcwZTcwODUyNDcwZDQ2Y2Q1MmNkOWNhNDcxZWM",
+  "commit": {
+    "author": {
+      "name": "Sean Wheeler",
+      "email": "sean.wheeler@microsoft.com",
+      "date": "2026-09-24T20:47:26Z"
+    },
+    "committer": {
+      "name": "GitHub",
+      "email": "noreply@github.com",
+      "date": "2026-09-24T20:47:26Z"
+    },
+    "message": "Fix broken markdown links (#13303)\n\n* Fix broken markdown links\n\n* fix link",
+    "tree": {
+      "sha": "c2df51780644d493f1dfb1ceb0f53cd0b8c8a193",
+      "url": "https://api.github.com/repos/MicrosoftDocs/PowerShell-Docs/git/trees/c2df51780644d493f1dfb1ceb0f53cd0b8c8a193"
+    },
+    "url": "https://api.github.com/repos/MicrosoftDocs/PowerShell-Docs/git/commits/a3de8f22552170e70852470d46cd52cd9ca471ec",
+    "comment_count": 0,
+    "verification": {
+      "verified": true,
+      "reason": "valid",
+      "signature": "-----BEGIN PGP SIGNATURE-----\n\nwsFcBAABCAAQBQJqtYxeCRC1aQ7uu5UhlAAA6/MQAElfygz0HnmQIuvDh/tqHq5p\n0fGwNKyVthf57YVHkXhpQlWLbPfahTPYc55FNh2pClWQQGfvZ7wPOvfyNSBNu4I2\nG0F+tWO+o6tEpNHYP/ufLgTsg+sW8cX9wSfLMh8WV78b9TTLi3yRhn4RiNZAC9x/\nRMcPPXltQNILYbtY/5pGgsU0RAl9VcEYxhGdVGcBOkoDYXElfmfVuVa7dy2JBFYV\nlNVqUVEOQ0MWk5UxvFlKcSDWRsSr88s7TL0anrFHtzc17JfxFgOmFI22XGEhRk/e\nJutzpFjN+lWDslq9zcXBKzv7GzGTanyiQ7CUJw8UE95F3RvMDBv7F4L0sjCULJFc\nGd0Ec5Lop6RL6XiVKZKvAAMNDik71zDUtF8C5gs7MTQ2DoEqwkJh/bEFhALUC+UU\ndq+UfB90zWVc2PambLCOefbwH2Y4GFbk8PSU/a7UoWo0xEX+c9c8vBXyohC4MX3t\nb9GpoYUwMonpgAx+dp+r/x50Y6z5fZgq7eXFqBgqOXQh7UZ3VuaXdjMrvLcm+wng\n9xr4wXE802nQJ3UfEccipIyImCPT+EWHK3mc8Pl8H0FILeTO5tRK5skICOnNf8YE\nMzlGQf/fmWq1K59Thcux1WsKKk1kokLNiqUgXfN1BKlEdzGlmHVGXXWPQgUSHi7i\n2KPIB8/VM5esZC+IrfHR\n=SYLz\n-----END PGP SIGNATURE-----\n",
+      "payload": "tree c2df51780644d493f1dfb1ceb0f53cd0b8c8a193\nparent 6fca6da560b58acafbc95d860d4bbdc1e6a91de6\nauthor Sean Wheeler <sean.wheeler@microsoft.com> 1790282846 -0500\ncommitter GitHub <noreply@github.com> 1790282846 -0500\n\nFix broken markdown links (#13303)\n\n* Fix broken markdown links\n\n* fix link",
+      "verified_at": "2026-09-24T20:47:26Z"
+    }
+  },
+  "url": "https://api.github.com/repos/MicrosoftDocs/PowerShell-Docs/commits/a3de8f22552170e70852470d46cd52cd9ca471ec",
+  "html_url": "https://github.com/MicrosoftDocs/PowerShell-Docs/commit/a3de8f22552170e70852470d46cd52cd9ca471ec",
+  "comments_url": "https://api.github.com/repos/MicrosoftDocs/PowerShell-Docs/commits/a3de8f22552170e70852470d46cd52cd9ca471ec/comments",
+  "author": {
+    "login": "sdwheeler",
+    "id": 19415881,
+    "node_id": "MDQ6VXNlcjE5NDE1ODgx",
+    "avatar_url": "https://avatars.githubusercontent.com/u/19415881?v=4",
+    "gravatar_id": "",
+    "url": "https://api.github.com/users/sdwheeler",
+    "html_url": "https://github.com/sdwheeler",
+    "followers_url": "https://api.github.com/users/sdwheeler/followers",
+    "following_url": "https://api.github.com/users/sdwheeler/following{/other_user}",
+    "gists_url": "https://api.github.com/users/sdwheeler/gists{/gist_id}",
+    "starred_url": "https://api.github.com/users/sdwheeler/starred{/owner}{/repo}",
+    "subscriptions_url": "https://api.github.com/users/sdwheeler/subscriptions",
+    "organizations_url": "https://api.github.com/users/sdwheeler/orgs",
+    "repos_url": "https://api.github.com/users/sdwheeler/repos",
+    "events_url": "https://api.github.com/users/sdwheeler/events{/privacy}",
+    "received_events_url": "https://api.github.com/users/sdwheeler/received_events",
+    "type": "User",
+    "user_view_type": "public",
+    "site_admin": false
+  },
+  "committer": {
+    "login": "web-flow",
+    "id": 19864447,
+    "node_id": "MDQ6VXNlcjE5ODY0NDQ3",
+    "avatar_url": "https://avatars.githubusercontent.com/u/19864447?v=4",
+    "gravatar_id": "",
+    "url": "https://api.github.com/users/web-flow",
+    "html_url": "https://github.com/web-flow",
+    "followers_url": "https://api.github.com/users/web-flow/followers",
+    "following_url": "https://api.github.com/users/web-flow/following{/other_user}",
+    "gists_url": "https://api.github.com/users/web-flow/gists{/gist_id}",
+    "starred_url": "https://api.github.com/users/web-flow/starred{/owner}{/repo}",
+    "subscriptions_url": "https://api.github.com/users/web-flow/subscriptions",
+    "organizations_url": "https://api.github.com/users/web-flow/orgs",
+    "repos_url": "https://api.github.com/users/web-flow/repos",
+    "events_url": "https://api.github.com/users/web-flow/events{/privacy}",
+    "received_events_url": "https://api.github.com/users/web-flow/received_events",
+    "type": "User",
+    "user_view_type": "public",
+    "site_admin": false
+  },
+  "parents": [
+    {
+      "sha": "6fca6da560b58acafbc95d860d4bbdc1e6a91de6",
+      "url": "https://api.github.com/repos/MicrosoftDocs/PowerShell-Docs/commits/6fca6da560b58acafbc95d860d4bbdc1e6a91de6",
+      "html_url": "https://github.com/MicrosoftDocs/PowerShell-Docs/commit/6fca6da560b58acafbc95d860d4bbdc1e6a91de6"
+    }
+  ],
+  "stats": {
+    "total": 18,
+    "additions": 9,
+    "deletions": 9
+  },
+  "files": [
+    {
+      "sha": "b39cf7151914c39bc42c700289c46b9588a1b3e4",
+      "filename": "reference/docs-conceptual/security/app-control/how-to-use-app-control.md",
+      "status": "modified",
+      "additions": 9,
+      "deletions": 9,
+      "changes": 18,
+      "blob_url": "https://github.com/MicrosoftDocs/PowerShell-Docs/blob/a3de8f22552170e70852470d46cd52cd9ca471ec/reference%2Fdocs-conceptual%2Fsecurity%2Fapp-control%2Fhow-to-use-app-control.md",
+      "raw_url": "https://github.com/MicrosoftDocs/PowerShell-Docs/raw/a3de8f22552170e70852470d46cd52cd9ca471ec/reference%2Fdocs-conceptual%2Fsecurity%2Fapp-control%2Fhow-to-use-app-control.md",
+      "contents_url": "https://api.github.com/repos/MicrosoftDocs/PowerShell-Docs/contents/reference%2Fdocs-conceptual%2Fsecurity%2Fapp-control%2Fhow-to-use-app-control.md?ref=a3de8f22552170e70852470d46cd52cd9ca471ec",
+      "patch": "@@ -1,6 +1,6 @@\n ---\n description: This article explains how to configure and use App Control to secure PowerShell.\n-ms.date: 09/03/2026\n+ms.date: 09/24/2026\n title: How to use App Control to secure PowerShell\n ---\n # How to use App Control to secure PowerShell\n@@ -99,7 +99,7 @@ For testing, you just need to create a default policy and a self signed code sig\n    > [!NOTE]\n    > You must copy some policy definitions to a subfolder such as\n    > `C:\\Windows\\System32\\CodeIntegrity\\CiPolicies`. For more information, see\n-   > [App Control Admin Tips & Known Issues][03].\n+   > [App Control Admin Tips & Known Issues][01].\n \n 1. Disable the App Control policy\n \n@@ -233,11 +233,11 @@ example shows the `<AppSettings>` XML with both settings enabled.\n \n ## Further reading\n \n-- [App Control Admin Tips & Known Issues][03]\n-- [Understand App Control script enforcement][02]\n-- [Create an App Control policy for fully managed devices][01]\n+- [Create an App Control policy for fully managed devices][02]\n+- [Understand App Control script enforcement][03]\n+- [App Control Admin Tips & Known Issues][04]\n \n-<!-- link references -->\n-[01]: /windows/security/application-security/application-control/app-control-for-business/design/create-App Control-policy-for-fully-managed-devices\n-[02]: /windows/security/application-security/application-control/app-control-for-business/design/script-enforcement\n-[03]: /windows/security/application-security/application-control/app-control-for-business/operations/known-issues\n+<!-- updated link references -->\n+[02]: /windows/security/application-security/application-control/app-control-for-business/design/create-appcontrol-policy-for-fully-managed-devices\n+[03]: /windows/security/application-security/application-control/app-control-for-business/design/script-enforcement\n+[04]: /windows/security/application-security/application-control/app-control-for-business/operations/known-issues"
+    }
+  ]
+}

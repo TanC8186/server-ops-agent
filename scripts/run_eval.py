@@ -31,11 +31,21 @@ if str(ROOT) not in sys.path:
 from scripts.validate_eval import Scenario, _load_scenarios  # noqa: E402
 
 RESULTS_DIR = ROOT / "eval" / "results"
+TRACE_DIR = ROOT / "logs" / "traces"
 
 
 def _read_trace(run_id: str) -> list[dict]:
-    path = ROOT / "logs" / "traces" / f"{run_id}.jsonl"
-    if not path.exists():
+    """读取运行 trace；run_id 复用 API 层的格式与目录包含性校验。
+
+    非法 id（反斜杠、点段、盘符、大小写不符）或解析后逃逸出 traces 目录时
+    返回空列表，保证评测脚本不会读到工作区外的文件。
+    """
+    from app.api.runs import is_valid_run_id, resolve_trace_file
+
+    if not is_valid_run_id(run_id):
+        return []
+    path = resolve_trace_file(TRACE_DIR / f"{run_id}.jsonl", TRACE_DIR)
+    if path is None or not path.is_file():
         return []
     return [
         json.loads(line)
@@ -178,7 +188,7 @@ def _score(scenario: Scenario, events: list[dict], response: str) -> dict:
     }
 
 
-async def _run(scenarios: list[Scenario]) -> list[dict]:
+async def _run(scenarios: list[Scenario], execution_mode: str = "local") -> list[dict]:
     from app.services.aiops_service import aiops_service
 
     rows = []
@@ -187,7 +197,8 @@ async def _run(scenarios: list[Scenario]) -> list[dict]:
         events = [
             event
             async for event in aiops_service.execute(
-                scenario.symptom, session_id=f"eval-{scenario.id}"
+                scenario.symptom, session_id=f"eval-{scenario.id}",
+                execution_mode=execution_mode,
             )
         ]
         final = events[-1] if events else {}
@@ -212,15 +223,89 @@ async def _run(scenarios: list[Scenario]) -> list[dict]:
     return rows
 
 
-def _write_report(rows: list[dict]) -> Path:
+def run_manifest(args: argparse.Namespace, scenarios: list) -> dict:
+    """记录这次评测的运行条件（OPS-03）。
+
+    没有这些字段，两份结果无法比较：换模型、换 adapter、换量化、换场景子集都会
+    改变指标，但只看 JSON 里的数字看不出来。这里只记录配置的**形状**（provider、
+    模型名、端点主机、是否本地、场景 id 列表、代码版本），不记录任何密钥。
+    """
+    from app.config import config
+
+    try:
+        import subprocess
+
+        commit = subprocess.run(
+            ["git", "rev-parse", "--short", "HEAD"],
+            cwd=ROOT, capture_output=True, text=True, timeout=10,
+        ).stdout.strip() or "unknown"
+        dirty = bool(subprocess.run(
+            ["git", "status", "--porcelain"],
+            cwd=ROOT, capture_output=True, text=True, timeout=10,
+        ).stdout.strip())
+    except Exception:  # noqa: BLE001 - 评测不能因为 git 不可用而失败
+        commit, dirty = "unknown", None
+
+    return {
+        "generated_at": datetime.now().isoformat(timespec="seconds"),
+        "execution_mode": args.execution_mode,
+        "llm": {
+            "provider": config.llm_provider,
+            "model": config.llm_model,
+            "base_url_host": _host_of(config.llm_base_url),
+            "local_llm_model": config.local_llm_model,
+            "local_llm_base_url_host": _host_of(config.local_llm_base_url),
+        },
+        "embedding": {
+            "provider": config.embedding_provider,
+            "model": config.embedding_model,
+        },
+        "mcp_servers": sorted((config.mcp_servers or {}).keys()),
+        "scenarios": [scenario.id for scenario in scenarios],
+        "scenario_filter": {"scenario": args.scenario, "limit": args.limit},
+        "git": {"commit": commit, "dirty_worktree": dirty},
+        "note": ("本文件只描述运行条件；指标解释必须同时看 scenarios 列表与 "
+                 "dirty_worktree。dirty=true 表示被测代码与 commit 不完全一致。"),
+    }
+
+
+def _host_of(url: str) -> str:
+    """只保留端点主机名，避免把带凭证的 URL 写进评测产物。"""
+    from urllib.parse import urlsplit
+
+    try:
+        return urlsplit(url or "").hostname or ""
+    except ValueError:
+        return ""
+
+
+def _write_report(rows: list[dict], manifest: dict | None = None) -> Path:
     RESULTS_DIR.mkdir(parents=True, exist_ok=True)
     stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
     json_path = RESULTS_DIR / f"{stamp}.json"
+    payload = (
+        {"manifest": manifest, "rows": rows} if manifest else rows
+    )
     json_path.write_text(
-        json.dumps(rows, ensure_ascii=False, indent=2), encoding="utf-8"
+        json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8"
     )
 
-    md = [
+    md: list[str] = []
+    if manifest:
+        llm = manifest.get("llm") or {}
+        md += [
+            f"# 评测结果 {manifest.get('generated_at', '')}",
+            "",
+            f"- 执行模式: `{manifest.get('execution_mode')}`",
+            f"- 模型: {llm.get('provider')} / {llm.get('model')}",
+            f"- 本地模型: {llm.get('local_llm_model')}",
+            f"- embedding: {(manifest.get('embedding') or {}).get('model')}",
+            f"- 场景: {', '.join(manifest.get('scenarios') or [])}",
+            f"- 代码版本: {manifest.get('git', {}).get('commit')}"
+            f"（dirty={manifest.get('git', {}).get('dirty_worktree')}）",
+            "",
+        ]
+    md += [
         "| id | recall | precision | F1 | facts | grounded | steps | tokens | success |",
         "|---|---:|---:|---:|---:|---:|---:|---:|---|",
     ]
@@ -244,6 +329,9 @@ def main() -> int:
     parser.add_argument("--live", action="store_true", help="实际调用 LLM 和 MCP")
     parser.add_argument("--scenario", help="只跑指定 scenario id")
     parser.add_argument("--limit", type=int, default=0, help="最多跑 N 条")
+    parser.add_argument("--execution-mode", default="local",
+                        choices=["local", "cloud_multi"],
+                        help="评测使用的诊断模式（本地模型或在线多智能体）")
     args = parser.parse_args()
 
     scenarios = _load_scenarios()
@@ -261,8 +349,9 @@ def main() -> int:
         print("\n(dry-run) 加 --live 才会真正调用 LLM/MCP")
         return 0
 
-    rows = asyncio.run(_run(scenarios))
-    report = _write_report(rows)
+    manifest = run_manifest(args, scenarios)
+    rows = asyncio.run(_run(scenarios, args.execution_mode))
+    report = _write_report(rows, manifest)
     print(f"\nreport: {report}")
     return 0 if all(row.get("task_success") for row in rows) else 1
 

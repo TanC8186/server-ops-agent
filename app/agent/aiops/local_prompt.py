@@ -73,7 +73,9 @@ def catalog_from_tools(tools: list) -> dict:
         if not hasattr(tool, "name"):
             continue
         schema = getattr(tool, "args_schema", None)
-        parameters = schema if isinstance(schema, dict) else {}
+        parameters = schema if isinstance(schema, dict) else (
+            schema.model_json_schema() if hasattr(schema, "model_json_schema") else {}
+        )
         catalog["tools"][tool.name] = {
             "description": getattr(tool, "description", "") or "",
             "parameters": parameters,

@@ -3,7 +3,6 @@
 接入真实腾讯云 CLS API，提供日志查询、检索和分析功能。
 """
 
-import os
 import sys
 import logging
 import functools
@@ -12,12 +11,15 @@ from typing import Dict, Any, Optional
 from datetime import datetime, timedelta
 from pathlib import Path
 
-from dotenv import load_dotenv
 from fastmcp import FastMCP
 
-# 加载 .env 配置
-_ENV_PATH = Path(__file__).resolve().parent.parent / ".env"
-load_dotenv(_ENV_PATH)
+# 兼容两种入口：`python servers/cls_server.py` 与 `import servers.cls_server`。
+if __package__ in (None, ""):
+    _PROJECT_ROOT = Path(__file__).resolve().parent.parent
+    if str(_PROJECT_ROOT) not in sys.path:
+        sys.path.insert(0, str(_PROJECT_ROOT))
+
+from servers._config import read_env, read_env_bool
 
 from tencentcloud.common import credential
 from tencentcloud.common.exception.tencent_cloud_sdk_exception import TencentCloudSDKException
@@ -31,11 +33,12 @@ logging.basicConfig(
 logger = logging.getLogger("CLS_MCP_Server")
 
 # ── 腾讯云凭证 ──────────────────────────────────────────────────
-SECRET_ID = os.getenv("TENCENTCLOUD_SECRET_ID", "")
-SECRET_KEY = os.getenv("TENCENTCLOUD_SECRET_KEY", "")
-DEFAULT_REGION = os.getenv("TENCENTCLOUD_REGION", "ap-beijing")
+# 只读配置：进程环境优先，其次 env 文件；绝不写入 os.environ。
+SECRET_ID = read_env("TENCENTCLOUD_SECRET_ID", "")
+SECRET_KEY = read_env("TENCENTCLOUD_SECRET_KEY", "")
+DEFAULT_REGION = read_env("TENCENTCLOUD_REGION", "ap-beijing")
 USE_REAL_API = bool(SECRET_ID and SECRET_KEY)
-DEMO_MODE = os.getenv("DEMO_MODE", "0").lower() in ("1", "true", "yes")
+DEMO_MODE = read_env_bool("DEMO_MODE", False)
 
 if USE_REAL_API:
     _cred = credential.Credential(SECRET_ID, SECRET_KEY)
@@ -104,6 +107,104 @@ _REGION_MAP = {
     "弗吉尼亚":   {"region_code": "na-ashburn",        "region_name": "弗吉尼亚"},
     "法兰克福":   {"region_code": "eu-frankfurt",      "region_name": "法兰克福"},
 }
+
+
+# ── 底层结果状态聚合 ────────────────────────────────────────────
+# 包装工具（search_service_logs / analyze_log_pattern）必须把底层的
+# error / ok=False / demo 状态原样传给上层，否则 AccessDenied 会被
+# 误判成“没有错误日志”。这里统一做状态与来源的归一化。
+
+#: 失败的底层状态集合。
+_FAILED_STATUSES = frozenset({"error", "timeout", "unavailable", "unsupported"})
+
+#: 视为“查询成功（可能零命中）”的底层状态集合。
+_SUCCESS_STATUSES = frozenset({"ok", "empty", "partial"})
+
+
+def _default_source() -> str:
+    """未显式标注来源时的推断值。"""
+    if USE_REAL_API:
+        return "tencent_cloud"
+    if DEMO_MODE:
+        return "demo"
+    return "unavailable"
+
+
+def _payload_source(payload: Dict[str, Any], default: Optional[str] = None) -> str:
+    """从底层 payload 抽取 source（支持 list 或逗号分隔字符串）。"""
+    raw = payload.get("source") or payload.get("source_kind")
+    if isinstance(raw, (list, tuple, set)):
+        parts = [str(item).strip() for item in raw]
+    elif raw:
+        parts = [item.strip() for item in str(raw).split(",")]
+    else:
+        parts = []
+    parts = [item for item in parts if item]
+    return ",".join(parts) if parts else (default or _default_source())
+
+
+def _is_demo_payload(payload: Dict[str, Any], source: str) -> bool:
+    if payload.get("demo_mode") is True or payload.get("demo") is True:
+        return True
+    return "demo" in {part.strip() for part in source.split(",")}
+
+
+def _merge_sources(sources: list) -> str:
+    """合并多个来源；含 demo 时 demo 排在最前（如 "demo,tencent_cloud"）。"""
+    parts: list[str] = []
+    for source in sources:
+        for part in str(source or "").split(","):
+            part = part.strip()
+            if part and part not in parts:
+                parts.append(part)
+    if "demo" in parts:
+        parts.remove("demo")
+        parts.insert(0, "demo")
+    return ",".join(parts) if parts else "unknown"
+
+
+def _payload_error(payload: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    """归一化底层 error 字段为 dict；没有错误返回 None。"""
+    error = payload.get("error")
+    if isinstance(error, dict):
+        return dict(error)
+    if error:
+        return {"message": str(error)[:500]}
+    return None
+
+
+def _payload_status(payload: Dict[str, Any]) -> str:
+    """推断 search_log / search_topic 返回的状态。
+
+    判定顺序与 app.core.tool_contract.classify_payload 保持一致：
+    显式 status > ok=False > error（有数据则 partial）> 是否有命中。
+    """
+    explicit = payload.get("status")
+    if isinstance(explicit, str) and explicit in (
+        "ok", "empty", "partial", "error", "timeout", "unavailable", "unsupported"
+    ):
+        return explicit
+    if payload.get("ok") is False or payload.get("success") is False:
+        return "error"
+    logs = payload.get("logs")
+    has_rows = isinstance(logs, list) and bool(logs)
+    if payload.get("error"):
+        return "partial" if has_rows else "error"
+    return "ok" if has_rows else "empty"
+
+
+def _error_message(error: Optional[Dict[str, Any]]) -> str:
+    """从错误 dict 中取可读信息。"""
+    if not error:
+        return ""
+    message = error.get("message") or error.get("code") or ""
+    return str(message)[:300]
+
+
+def _error_code(error: Optional[Dict[str, Any]], fallback: str) -> str:
+    if error and error.get("code"):
+        return str(error["code"])[:80]
+    return fallback
 
 
 # ╔══════════════════════════════════════════════════════════════════╗
@@ -527,18 +628,7 @@ def search_service_logs(
     if start_time is None:
         start_time = now_ms - 15 * 60 * 1000  # 默认 15 分钟
 
-    # 步骤1：根据服务名查找 topic
-    topic_result = search_topic_by_service_name(service_name, region_code=region_code)
-    topics = topic_result.get("topics", [])
-    if not topics:
-        return {
-            "total": 0,
-            "logs": [],
-            "error": f"未找到服务 '{service_name}' 的日志主题",
-            "message": f"错误: 未找到服务 '{service_name}' 的日志主题"
-        }
-
-    # 步骤2：构建查询语句
+    # 步骤2：构建查询语句（失败返回时也要带上，保持字段稳定）
     query_parts = []
     if log_level:
         query_parts.append(f"level:{log_level}")
@@ -546,37 +636,177 @@ def search_service_logs(
         query_parts.append(keyword)
     query_str = " AND ".join(query_parts) if query_parts else None
 
-    # 步骤3：对每个匹配的 topic 执行搜索
+    query_info = {
+        "service_name": service_name,
+        "log_level": log_level,
+        "keyword": keyword,
+        "query_string": query_str,
+    }
+    time_info = {"start_time": start_time, "end_time": end_time}
+
+    # 步骤1：根据服务名查找 topic
+    topic_result = search_topic_by_service_name(service_name, region_code=region_code)
+    topic_source = _payload_source(topic_result)
+    topic_error = _payload_error(topic_result)
+    topic_status = topic_result.get("status")
+    topic_failed = (
+        topic_result.get("ok") is False
+        or topic_result.get("success") is False
+        or topic_status in _FAILED_STATUSES
+        or topic_error is not None
+        or (topic_source == "unavailable" and not topic_result.get("topics"))
+    )
+
+    if topic_failed:
+        # 主题查询本身失败（权限不足 / 未配置 / API 错误）：
+        # 绝不能包装成“未找到主题 + 0 条”的成功形状。
+        error = {
+            "code": _error_code(topic_error, "topic_query_failed"),
+            "message": _error_message(topic_error) or "日志主题查询失败",
+        }
+        return {
+            "ok": False,
+            "status": "error",
+            "source": topic_source,
+            "demo": _is_demo_payload(topic_result, topic_source),
+            "total": 0,
+            "logs": [],
+            "query": query_info,
+            "time_range": time_info,
+            "subqueries": [],
+            "error": error,
+            "message": f"日志主题查询失败: {error['message']}",
+        }
+
+    topics = topic_result.get("topics") or []
+    if not topics:
+        # 查询成功但确实没有匹配的主题：这是 empty，不是 error。
+        return {
+            "ok": True,
+            "status": "empty",
+            "source": topic_source,
+            "demo": _is_demo_payload(topic_result, topic_source),
+            "total": 0,
+            "logs": [],
+            "query": query_info,
+            "time_range": time_info,
+            "subqueries": [],
+            "message": f"未找到服务 '{service_name}' 的日志主题",
+        }
+
+    # 步骤3：对每个匹配的 topic 执行搜索，逐个保留状态
     all_logs = []
+    subqueries = []
+    failed = []
+    sources = [topic_source]
     for topic in topics:
+        topic_id = topic.get("topic_id")
         log_result = search_log(
-            topic_id=topic["topic_id"],
+            topic_id=topic_id,
             start_time=start_time,
             end_time=end_time,
             query=query_str,
             limit=limit,
             region_code=region_code or topic.get("region_code")
         )
-        if log_result.get("logs"):
+        log_status = _payload_status(log_result)
+        log_error = _payload_error(log_result)
+        log_source = _payload_source(log_result, topic.get("source") or topic_source)
+        sources.append(log_source)
+
+        entry = {
+            "topic_id": topic_id,
+            "topic_name": topic.get("topic_name"),
+            "ok": log_status in _SUCCESS_STATUSES,
+            "status": log_status,
+            "source": log_source,
+            "count": log_result.get("total", len(log_result.get("logs") or [])),
+        }
+        if log_status in _FAILED_STATUSES or log_status == "partial":
+            entry["error"] = log_error or {
+                "code": log_status,
+                "message": f"主题 {topic_id} 查询未完全成功",
+            }
+        subqueries.append(entry)
+
+        if log_status in _FAILED_STATUSES:
+            failed.append(entry)
+        elif log_result.get("logs"):
             all_logs.extend(log_result["logs"])
 
     # 截断到 limit
     all_logs = all_logs[:limit]
 
-    return {
+    source = _merge_sources(sources)
+    demo = "demo" in {part.strip() for part in source.split(",")}
+    payload: Dict[str, Any] = {
         "total": len(all_logs),
         "logs": all_logs,
-        "query": {
-            "service_name": service_name,
-            "log_level": log_level,
-            "keyword": keyword,
-            "query_string": query_str,
-        },
-        "time_range": {
-            "start_time": start_time,
-            "end_time": end_time,
-        },
-        "message": f"成功查询 {len(all_logs)} 条日志"
+        "query": query_info,
+        "time_range": time_info,
+        "source": source,
+        "demo": demo,
+        "subqueries": subqueries,
+    }
+
+    if failed and len(failed) == len(subqueries):
+        # 全部主题失败：这是 error，不是 total=0 的成功。
+        first = failed[0]
+        first_error = first.get("error") or {}
+        error = {
+            "code": _error_code(first_error, "search_failed"),
+            "message": _error_message(first_error) or "所有日志主题查询失败",
+        }
+        return {
+            **payload,
+            "ok": False,
+            "status": "error",
+            "demo": demo or any(
+                _is_demo_payload(item, item.get("source", "")) for item in subqueries
+            ),
+            "error": error,
+            "message": f"查询失败: {error['message']}",
+        }
+
+    if failed or any(entry["status"] == "partial" for entry in subqueries):
+        # 部分成功或子查询自身部分成功：ok=True 但必须暴露 partial 与失败明细。
+        degraded = failed or [e for e in subqueries if e["status"] == "partial"]
+        messages = [
+            _error_message(item.get("error")) or f"{item.get('topic_id')} 查询失败"
+            for item in degraded
+        ]
+        error = {
+            "code": "partial",
+            "message": f"{len(degraded)}/{len(subqueries)} 个主题查询未完全成功: "
+                       + "; ".join(messages)[:300],
+        }
+        return {
+            **payload,
+            "ok": True,
+            "status": "partial",
+            "error": error,
+            "partial_errors": [
+                {"topic_id": item.get("topic_id"), "error": item.get("error")}
+                for item in degraded
+            ],
+            "message": f"部分成功: 成功查询 {len(all_logs)} 条日志，"
+                       f"{len(degraded)}/{len(subqueries)} 个主题查询未完全成功",
+        }
+
+    if not all_logs:
+        # 全部成功但零命中：empty，明确不是 error。
+        return {
+            **payload,
+            "ok": True,
+            "status": "empty",
+            "message": f"成功查询 0 条日志（服务 '{service_name}' 在该时间范围内无匹配日志）",
+        }
+
+    return {
+        **payload,
+        "ok": True,
+        "status": "ok",
+        "message": f"成功查询 {len(all_logs)} 条日志",
     }
 
 
@@ -614,6 +844,12 @@ def analyze_log_pattern(
         "total_count": 0,
     }
 
+    subqueries = []
+    sources = []
+    level_errors: Dict[str, Any] = {}
+    failed_levels: list[str] = []
+    partial_levels: list[str] = []
+
     for level in ["ERROR", "WARN", "INFO"]:
         result = search_service_logs(
             service_name=service_name,
@@ -626,6 +862,32 @@ def analyze_log_pattern(
         count = result.get("total", 0)
         analysis["level_summary"][level] = count
         analysis["total_count"] += count
+
+        level_status = _payload_status(result)
+        level_source = _payload_source(result)
+        sources.append(level_source)
+        entry = {
+            "level": level,
+            "ok": level_status in _SUCCESS_STATUSES,
+            "status": level_status,
+            "source": level_source,
+            "count": count,
+        }
+        if level_status in _FAILED_STATUSES:
+            failed_levels.append(level)
+            entry["error"] = _payload_error(result) or {
+                "code": level_status,
+                "message": f"{level} 级别日志查询失败",
+            }
+            level_errors[level] = entry["error"]
+        elif level_status == "partial":
+            partial_levels.append(level)
+            entry["error"] = _payload_error(result) or {
+                "code": "partial",
+                "message": f"{level} 级别日志部分成功",
+            }
+            level_errors[level] = entry["error"]
+        subqueries.append(entry)
 
         if level == "ERROR" and result.get("logs"):
             # 提取错误消息模式
@@ -647,10 +909,75 @@ def analyze_log_pattern(
             k: round(v / total * 100, 1) for k, v in analysis["level_summary"].items()
         }
 
-    analysis["message"] = (
-        f"共分析 {total} 条日志: "
-        + ", ".join(f"{k}={v}" for k, v in analysis["level_summary"].items())
-    )
+    source = _merge_sources(sources)
+    demo = any(
+        _is_demo_payload(item, item.get("source", "")) for item in subqueries
+    ) or "demo" in {part.strip() for part in source.split(",")}
+
+    analysis["source"] = source
+    analysis["demo"] = demo
+    analysis["subqueries"] = subqueries
+
+    if len(failed_levels) == len(subqueries):
+        # 三个级别全部失败：这是 error，不能包装成 total=0 的成功。
+        first_level = failed_levels[0]
+        first_error = level_errors.get(first_level) or {}
+        error = {
+            "code": _error_code(first_error, "search_failed"),
+            "message": _error_message(first_error) or "所有级别的日志查询均失败",
+        }
+        analysis.update({
+            "ok": False,
+            "status": "error",
+            "error": error,
+            "message": f"日志分析失败: {error['message']}",
+        })
+        return analysis
+
+    if failed_levels or partial_levels:
+        # 部分成功：保留已有的 level_summary/level_percent，同时暴露失败明细。
+        messages = [
+            f"{level}: {_error_message(level_errors.get(level)) or '查询失败'}"
+            for level in failed_levels + partial_levels
+        ]
+        analysis.update({
+            "ok": True,
+            "status": "partial",
+            "error": {
+                "code": "partial",
+                "message": "部分级别查询失败: " + "; ".join(messages)[:300],
+            },
+            "partial_errors": [
+                {"level": level, "error": level_errors.get(level)}
+                for level in failed_levels + partial_levels
+            ],
+            "message": (
+                f"部分成功: 共分析 {total} 条日志: "
+                + ", ".join(f"{k}={v}" for k, v in analysis["level_summary"].items())
+            ),
+        })
+        return analysis
+
+    if total == 0:
+        # 三个级别都查询成功但零命中：empty，明确不是 error。
+        analysis.update({
+            "ok": True,
+            "status": "empty",
+            "message": (
+                "成功分析 0 条日志（该时间范围内无匹配日志）: "
+                + ", ".join(f"{k}={v}" for k, v in analysis["level_summary"].items())
+            ),
+        })
+        return analysis
+
+    analysis.update({
+        "ok": True,
+        "status": "ok",
+        "message": (
+            f"共分析 {total} 条日志: "
+            + ", ".join(f"{k}={v}" for k, v in analysis["level_summary"].items())
+        ),
+    })
     return analysis
 
 

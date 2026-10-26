@@ -19,12 +19,19 @@ from typing import Dict, Any, Optional, List
 from pathlib import Path
 
 import paramiko
-from dotenv import load_dotenv
 from fastmcp import FastMCP
 
-# 加载 .env 配置
-_ENV_PATH = Path(__file__).resolve().parent.parent / ".env"
-load_dotenv(_ENV_PATH)
+# 兼容两种入口：`python servers/ssh_server.py`（sys.path[0] 是 servers/，项目根
+# 不在路径上）与 `import servers.ssh_server`（项目根已在路径上）。
+if __package__ in (None, ""):
+    _PROJECT_ROOT = Path(__file__).resolve().parent.parent
+    if str(_PROJECT_ROOT) not in sys.path:
+        sys.path.insert(0, str(_PROJECT_ROOT))
+
+from servers._config import read_env, read_env_int
+
+# 配置由 servers._config 只读提供（进程环境优先，其次 env 文件），
+# 这里不再调用 load_dotenv，避免把 .env 里的密钥写进 os.environ。
 
 # 配置日志
 logging.basicConfig(
@@ -34,13 +41,14 @@ logging.basicConfig(
 logger = logging.getLogger("SSH_MCP_Server")
 
 # ── SSH 配置（不提供默认主机：缺失时工具直接报配置错误） ──────────
-SSH_HOST = os.getenv("SSH_HOST", "")
-SSH_PORT = int(os.getenv("SSH_PORT", "22"))
-SSH_USER = os.getenv("SSH_USER", "Administrator")
-SSH_KEY_FILE = os.getenv("SSH_KEY_FILE", str(Path.home() / ".ssh" / "AgentTest.pem"))
+# 通过 servers._config 只读读取：进程环境优先，其次 env 文件，绝不写入 os.environ。
+SSH_HOST = read_env("SSH_HOST", "")
+SSH_PORT = read_env_int("SSH_PORT", 22)
+SSH_USER = read_env("SSH_USER", "Administrator")
+SSH_KEY_FILE = read_env("SSH_KEY_FILE", str(Path.home() / ".ssh" / "AgentTest.pem"))
 
 # 远程服务器类型（auto / windows / linux）
-SERVER_TYPE = os.getenv("SSH_SERVER_TYPE", "windows")
+SERVER_TYPE = read_env("SSH_SERVER_TYPE", "windows")
 
 mcp = FastMCP("SSH")
 
@@ -327,9 +335,15 @@ def check_disk_usage(path: str = "C:/") -> Dict[str, Any]:
         Dict: 磁盘使用信息
     """
     if SERVER_TYPE == "windows":
-        cmd = f"wmic logicaldisk where \"DeviceID='{path[0]}:'\" get DeviceID,Size,FreeSpace,FileSystem /format:list"
+        if not re.fullmatch(r"[A-Za-z]:[/\\]?", path):
+            raise ValueError("磁盘路径必须是盘符，例如 C:/")
+        cmd = f"wmic logicaldisk where \"DeviceID='{path[0].upper()}:'\" get DeviceID,Size,FreeSpace,FileSystem /format:list"
     else:
-        cmd = f"df -h {path}"
+        if not path.startswith("/") or len(path) > 512 or any(
+            char in path for char in (*_DANGEROUS_CHARS, "\x00")
+        ):
+            raise ValueError("磁盘路径必须是无 shell 元字符的绝对路径")
+        cmd = f"df -h -- {shlex.quote(path)}"
     results = _exec_readonly([cmd])
     return {
         "server_type": SERVER_TYPE,

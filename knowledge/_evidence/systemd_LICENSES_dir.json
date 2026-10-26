@@ -1,0 +1,194 @@
+[
+  {
+    "name": "BSD-2-Clause.txt",
+    "path": "LICENSES/BSD-2-Clause.txt",
+    "sha": "b0e20f53822fdf3b85f379ce9c85c81eefb428a2",
+    "size": 1287,
+    "url": "https://api.github.com/repos/systemd/systemd/contents/LICENSES/BSD-2-Clause.txt?ref=main",
+    "html_url": "https://github.com/systemd/systemd/blob/main/LICENSES/BSD-2-Clause.txt",
+    "git_url": "https://api.github.com/repos/systemd/systemd/git/blobs/b0e20f53822fdf3b85f379ce9c85c81eefb428a2",
+    "download_url": "https://raw.githubusercontent.com/systemd/systemd/main/LICENSES/BSD-2-Clause.txt",
+    "type": "file",
+    "_links": {
+      "self": "https://api.github.com/repos/systemd/systemd/contents/LICENSES/BSD-2-Clause.txt?ref=main",
+      "git": "https://api.github.com/repos/systemd/systemd/git/blobs/b0e20f53822fdf3b85f379ce9c85c81eefb428a2",
+      "html": "https://github.com/systemd/systemd/blob/main/LICENSES/BSD-2-Clause.txt"
+    }
+  },
+  {
+    "name": "BSD-3-Clause.txt",
+    "path": "LICENSES/BSD-3-Clause.txt",
+    "sha": "b9e779f92c476a392ff2f7558fccf1b831daee3c",
+    "size": 1562,
+    "url": "https://api.github.com/repos/systemd/systemd/contents/LICENSES/BSD-3-Clause.txt?ref=main",
+    "html_url": "https://github.com/systemd/systemd/blob/main/LICENSES/BSD-3-Clause.txt",
+    "git_url": "https://api.github.com/repos/systemd/systemd/git/blobs/b9e779f92c476a392ff2f7558fccf1b831daee3c",
+    "download_url": "https://raw.githubusercontent.com/systemd/systemd/main/LICENSES/BSD-3-Clause.txt",
+    "type": "file",
+    "_links": {
+      "self": "https://api.github.com/repos/systemd/systemd/contents/LICENSES/BSD-3-Clause.txt?ref=main",
+      "git": "https://api.github.com/repos/systemd/systemd/git/blobs/b9e779f92c476a392ff2f7558fccf1b831daee3c",
+      "html": "https://github.com/systemd/systemd/blob/main/LICENSES/BSD-3-Clause.txt"
+    }
+  },
+  {
+    "name": "CC0-1.0.txt",
+    "path": "LICENSES/CC0-1.0.txt",
+    "sha": "0e259d42c996742e9e3cba14c677129b2c1b6311",
+    "size": 7048,
+    "url": "https://api.github.com/repos/systemd/systemd/contents/LICENSES/CC0-1.0.txt?ref=main",
+    "html_url": "https://github.com/systemd/systemd/blob/main/LICENSES/CC0-1.0.txt",
+    "git_url": "https://api.github.com/repos/systemd/systemd/git/blobs/0e259d42c996742e9e3cba14c677129b2c1b6311",
+    "download_url": "https://raw.githubusercontent.com/systemd/systemd/main/LICENSES/CC0-1.0.txt",
+    "type": "file",
+    "_links": {
+      "self": "https://api.github.com/repos/systemd/systemd/contents/LICENSES/CC0-1.0.txt?ref=main",
+      "git": "https://api.github.com/repos/systemd/systemd/git/blobs/0e259d42c996742e9e3cba14c677129b2c1b6311",
+      "html": "https://github.com/systemd/systemd/blob/main/LICENSES/CC0-1.0.txt"
+    }
+  },
+  {
+    "name": "LGPL-2.0-or-later.txt",
+    "path": "LICENSES/LGPL-2.0-or-later.txt",
+    "sha": "758b60195a260e450faf693892d221e66ddfca5b",
+    "size": 24838,
+    "url": "https://api.github.com/repos/systemd/systemd/contents/LICENSES/LGPL-2.0-or-later.txt?ref=main",
+    "html_url": "https://github.com/systemd/systemd/blob/main/LICENSES/LGPL-2.0-or-later.txt",
+    "git_url": "https://api.github.com/repos/systemd/systemd/git/blobs/758b60195a260e450faf693892d221e66ddfca5b",
+    "download_url": "https://raw.githubusercontent.com/systemd/systemd/main/LICENSES/LGPL-2.0-or-later.txt",
+    "type": "file",
+    "_links": {
+      "self": "https://api.github.com/repos/systemd/systemd/contents/LICENSES/LGPL-2.0-or-later.txt?ref=main",
+      "git": "https://api.github.com/repos/systemd/systemd/git/blobs/758b60195a260e450faf693892d221e66ddfca5b",
+      "html": "https://github.com/systemd/systemd/blob/main/LICENSES/LGPL-2.0-or-later.txt"
+    }
+  },
+  {
+    "name": "Linux-syscall-note.txt",
+    "path": "LICENSES/Linux-syscall-note.txt",
+    "sha": "fcd056364e0932c32eff7392930a301fd7be9837",
+    "size": 638,
+    "url": "https://api.github.com/repos/systemd/systemd/contents/LICENSES/Linux-syscall-note.txt?ref=main",
+    "html_url": "https://github.com/systemd/systemd/blob/main/LICENSES/Linux-syscall-note.txt",
+    "git_url": "https://api.github.com/repos/systemd/systemd/git/blobs/fcd056364e0932c32eff7392930a301fd7be9837",
+    "download_url": "https://raw.githubusercontent.com/systemd/systemd/main/LICENSES/Linux-syscall-note.txt",
+    "type": "file",
+    "_links": {
+      "self": "https://api.github.com/repos/systemd/systemd/contents/LICENSES/Linux-syscall-note.txt?ref=main",
+      "git": "https://api.github.com/repos/systemd/systemd/git/blobs/fcd056364e0932c32eff7392930a301fd7be9837",
+      "html": "https://github.com/systemd/systemd/blob/main/LICENSES/Linux-syscall-note.txt"
+    }
+  },
+  {
+    "name": "MIT-0.txt",
+    "path": "LICENSES/MIT-0.txt",
+    "sha": "396fc0020204f88dd8103b84e0452f38d59885ed",
+    "size": 915,
+    "url": "https://api.github.com/repos/systemd/systemd/contents/LICENSES/MIT-0.txt?ref=main",
+    "html_url": "https://github.com/systemd/systemd/blob/main/LICENSES/MIT-0.txt",
+    "git_url": "https://api.github.com/repos/systemd/systemd/git/blobs/396fc0020204f88dd8103b84e0452f38d59885ed",
+    "download_url": "https://raw.githubusercontent.com/systemd/systemd/main/LICENSES/MIT-0.txt",
+    "type": "file",
+    "_links": {
+      "self": "https://api.github.com/repos/systemd/systemd/contents/LICENSES/MIT-0.txt?ref=main",
+      "git": "https://api.github.com/repos/systemd/systemd/git/blobs/396fc0020204f88dd8103b84e0452f38d59885ed",
+      "html": "https://github.com/systemd/systemd/blob/main/LICENSES/MIT-0.txt"
+    }
+  },
+  {
+    "name": "MIT.txt",
+    "path": "LICENSES/MIT.txt",
+    "sha": "2071b23b0e08594ea6bc99ac71129ef992abf498",
+    "size": 1078,
+    "url": "https://api.github.com/repos/systemd/systemd/contents/LICENSES/MIT.txt?ref=main",
+    "html_url": "https://github.com/systemd/systemd/blob/main/LICENSES/MIT.txt",
+    "git_url": "https://api.github.com/repos/systemd/systemd/git/blobs/2071b23b0e08594ea6bc99ac71129ef992abf498",
+    "download_url": "https://raw.githubusercontent.com/systemd/systemd/main/LICENSES/MIT.txt",
+    "type": "file",
+    "_links": {
+      "self": "https://api.github.com/repos/systemd/systemd/contents/LICENSES/MIT.txt?ref=main",
+      "git": "https://api.github.com/repos/systemd/systemd/git/blobs/2071b23b0e08594ea6bc99ac71129ef992abf498",
+      "html": "https://github.com/systemd/systemd/blob/main/LICENSES/MIT.txt"
+    }
+  },
+  {
+    "name": "OFL-1.1.txt",
+    "path": "LICENSES/OFL-1.1.txt",
+    "sha": "33f36665a25ea5c28e238df7d6eeaa3471b62b56",
+    "size": 4598,
+    "url": "https://api.github.com/repos/systemd/systemd/contents/LICENSES/OFL-1.1.txt?ref=main",
+    "html_url": "https://github.com/systemd/systemd/blob/main/LICENSES/OFL-1.1.txt",
+    "git_url": "https://api.github.com/repos/systemd/systemd/git/blobs/33f36665a25ea5c28e238df7d6eeaa3471b62b56",
+    "download_url": "https://raw.githubusercontent.com/systemd/systemd/main/LICENSES/OFL-1.1.txt",
+    "type": "file",
+    "_links": {
+      "self": "https://api.github.com/repos/systemd/systemd/contents/LICENSES/OFL-1.1.txt?ref=main",
+      "git": "https://api.github.com/repos/systemd/systemd/git/blobs/33f36665a25ea5c28e238df7d6eeaa3471b62b56",
+      "html": "https://github.com/systemd/systemd/blob/main/LICENSES/OFL-1.1.txt"
+    }
+  },
+  {
+    "name": "README.md",
+    "path": "LICENSES/README.md",
+    "sha": "ce8bf4e5f97ba764d09434b4e0974cd19dcec2c2",
+    "size": 4206,
+    "url": "https://api.github.com/repos/systemd/systemd/contents/LICENSES/README.md?ref=main",
+    "html_url": "https://github.com/systemd/systemd/blob/main/LICENSES/README.md",
+    "git_url": "https://api.github.com/repos/systemd/systemd/git/blobs/ce8bf4e5f97ba764d09434b4e0974cd19dcec2c2",
+    "download_url": "https://raw.githubusercontent.com/systemd/systemd/main/LICENSES/README.md",
+    "type": "file",
+    "_links": {
+      "self": "https://api.github.com/repos/systemd/systemd/contents/LICENSES/README.md?ref=main",
+      "git": "https://api.github.com/repos/systemd/systemd/git/blobs/ce8bf4e5f97ba764d09434b4e0974cd19dcec2c2",
+      "html": "https://github.com/systemd/systemd/blob/main/LICENSES/README.md"
+    }
+  },
+  {
+    "name": "alg-sha1-public-domain.txt",
+    "path": "LICENSES/alg-sha1-public-domain.txt",
+    "sha": "1f146cc1b12694a96b5c6bacbf8249fb81fcc4e0",
+    "size": 423,
+    "url": "https://api.github.com/repos/systemd/systemd/contents/LICENSES/alg-sha1-public-domain.txt?ref=main",
+    "html_url": "https://github.com/systemd/systemd/blob/main/LICENSES/alg-sha1-public-domain.txt",
+    "git_url": "https://api.github.com/repos/systemd/systemd/git/blobs/1f146cc1b12694a96b5c6bacbf8249fb81fcc4e0",
+    "download_url": "https://raw.githubusercontent.com/systemd/systemd/main/LICENSES/alg-sha1-public-domain.txt",
+    "type": "file",
+    "_links": {
+      "self": "https://api.github.com/repos/systemd/systemd/contents/LICENSES/alg-sha1-public-domain.txt?ref=main",
+      "git": "https://api.github.com/repos/systemd/systemd/git/blobs/1f146cc1b12694a96b5c6bacbf8249fb81fcc4e0",
+      "html": "https://github.com/systemd/systemd/blob/main/LICENSES/alg-sha1-public-domain.txt"
+    }
+  },
+  {
+    "name": "lookup3-public-domain.txt",
+    "path": "LICENSES/lookup3-public-domain.txt",
+    "sha": "5eb8cd6f4729cbc925a2179d79dc322cbddf19b3",
+    "size": 52,
+    "url": "https://api.github.com/repos/systemd/systemd/contents/LICENSES/lookup3-public-domain.txt?ref=main",
+    "html_url": "https://github.com/systemd/systemd/blob/main/LICENSES/lookup3-public-domain.txt",
+    "git_url": "https://api.github.com/repos/systemd/systemd/git/blobs/5eb8cd6f4729cbc925a2179d79dc322cbddf19b3",
+    "download_url": "https://raw.githubusercontent.com/systemd/systemd/main/LICENSES/lookup3-public-domain.txt",
+    "type": "file",
+    "_links": {
+      "self": "https://api.github.com/repos/systemd/systemd/contents/LICENSES/lookup3-public-domain.txt?ref=main",
+      "git": "https://api.github.com/repos/systemd/systemd/git/blobs/5eb8cd6f4729cbc925a2179d79dc322cbddf19b3",
+      "html": "https://github.com/systemd/systemd/blob/main/LICENSES/lookup3-public-domain.txt"
+    }
+  },
+  {
+    "name": "murmurhash2-public-domain.txt",
+    "path": "LICENSES/murmurhash2-public-domain.txt",
+    "sha": "c9b70e7afe2f9ace1dbc2c535a83135bef744a5c",
+    "size": 138,
+    "url": "https://api.github.com/repos/systemd/systemd/contents/LICENSES/murmurhash2-public-domain.txt?ref=main",
+    "html_url": "https://github.com/systemd/systemd/blob/main/LICENSES/murmurhash2-public-domain.txt",
+    "git_url": "https://api.github.com/repos/systemd/systemd/git/blobs/c9b70e7afe2f9ace1dbc2c535a83135bef744a5c",
+    "download_url": "https://raw.githubusercontent.com/systemd/systemd/main/LICENSES/murmurhash2-public-domain.txt",
+    "type": "file",
+    "_links": {
+      "self": "https://api.github.com/repos/systemd/systemd/contents/LICENSES/murmurhash2-public-domain.txt?ref=main",
+      "git": "https://api.github.com/repos/systemd/systemd/git/blobs/c9b70e7afe2f9ace1dbc2c535a83135bef744a5c",
+      "html": "https://github.com/systemd/systemd/blob/main/LICENSES/murmurhash2-public-domain.txt"
+    }
+  }
+]

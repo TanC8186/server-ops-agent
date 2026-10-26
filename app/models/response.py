@@ -19,7 +19,7 @@ class SessionInfoResponse(BaseModel):
 
     session_id: str = Field(..., description="会话 ID")
     message_count: int = Field(..., description="消息数量")
-    history: List[Dict[str, str]] = Field(..., description="历史消息列表")
+    history: List[Dict[str, Any]] = Field(..., description="历史消息列表（含引用与检索状态）")
 
 
 class ApiResponse(BaseModel):

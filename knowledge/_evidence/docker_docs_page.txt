@@ -1,0 +1,691 @@
+ View container logs | Docker Docs 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+
+ 
+ Get started Guides Manuals Reference 
+ 
+ 
+ Gordon Gordon, your AI assistant for Docker docs 
+ 
+ Search { if (theme === 'auto') document.firstElementChild.className = e.matches ? 'dark' : 'light'; };
+ mql.addEventListener('change', handler);
+ $watch('theme', val => applyTheme(val));
+ return () => mql.removeEventListener('change', handler);
+ " @click="theme = (theme === 'light' ? 'dark' : theme === 'dark' ? 'auto' : 'light')">
+ 
+ 
+ 
+ 
+ !m.isStreaming)
+
+ // Watch for store changes to focus input
+ this.$watch('$store.gordon.isOpen', (isOpen) => {
+ if (isOpen) {
+ this.$nextTick(() => {
+ this.$refs.input?.focus()
+ })
+ }
+ })
+
+ // Watch for query from store and populate input
+ this.$watch('$store.gordon.query', (query) => {
+ if (query) {
+ this.currentQuestion = query
+ const shouldAutoSubmit = this.$store.gordon.autoSubmit
+ this.$nextTick(() => {
+ if (shouldAutoSubmit) {
+ this.askQuestion()
+ } else {
+ this.$refs.input?.focus()
+ this.$refs.input?.select()
+ }
+ })
+ // Clear the store query and autoSubmit flag after using them
+ this.$store.gordon.query = ''
+ this.$store.gordon.autoSubmit = false
+ }
+ })
+ },
+
+ getTurnCount() {
+ return this.messages.filter(m => m.role === 'user').length
+ },
+
+ getRemainingTurns() {
+ return this.maxTurnsPerThread - this.getTurnCount()
+ },
+
+ isThreadLimitReached() {
+ return this.getTurnCount() >= this.maxTurnsPerThread
+ },
+
+ shouldShowCountdown() {
+ const remaining = this.getRemainingTurns()
+ return remaining > 0 && remaining {
+ if (this.$refs.input) {
+ this.$refs.input.style.height = 'auto'
+ }
+ })
+ this.isLoading = true
+ this.error = null
+
+ // Add placeholder for assistant response
+ const responseIndex = this.messages.length
+ this.messages.push({
+ role: 'assistant',
+ content: '',
+ isStreaming: true,
+ questionAnswerId: null,
+ feedback: null,
+ copied: false
+ })
+
+ this.$nextTick(() => {
+ this.$refs.messagesContainer?.scrollTo({
+ top: this.$refs.messagesContainer.scrollHeight,
+ behavior: 'smooth'
+ })
+ })
+
+ try {
+ await this.streamGordonResponse(responseIndex)
+ } catch (err) {
+ // Only set error if messages weren't cleared
+ if (this.messages.length > 0) {
+ if (err.message === 'RATE_LIMIT_EXCEEDED') {
+ this.error = 'You\'ve exceeded your question quota for the day. Please come back tomorrow.'
+ } else {
+ this.error = 'Failed to get response. Please try again.'
+ }
+ }
+ console.error('Gordon API error:', err)
+ // Only try to remove message if it still exists
+ if (this.messages[responseIndex]) {
+ this.messages.splice(responseIndex, 1)
+ }
+ } finally {
+ this.isLoading = false
+ }
+ },
+
+ getSessionId() {
+ let sessionId = sessionStorage.getItem('gordon-session-id')
+ if (!sessionId) {
+ sessionId = `docs-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+ sessionStorage.setItem('gordon-session-id', sessionId)
+ }
+ return sessionId
+ },
+
+ async streamGordonResponse(responseIndex) {
+
+ // Build API request from messages, excluding the streaming placeholder
+ // The placeholder is at responseIndex, so we take everything before it
+ const conversationMessages = this.messages.slice(0, responseIndex).map((msg, i) => {
+ const message = {
+ role: msg.role,
+ content: msg.content
+ }
+
+ // Add copilot_references to the last message (most recent user question)
+ if (i === responseIndex - 1) {
+ message.copilot_references = [
+ {
+ data: {
+ origin: 'docs-website',
+ email: 'docs@docker.com',
+ uuid: this.getSessionId(),
+ action: 'AskGordon',
+ ...(this.includePageContext && {
+ page_url: window.location.href,
+ page_title: "View container logs"
+ })
+ }
+ }
+ ]
+ }
+
+ return message
+ })
+
+ const isNewConversation = !this.threadId
+ const payload = {
+ messages: conversationMessages,
+ ...(this.threadId && { thread_uuid: this.threadId })
+ }
+
+ const response = await fetch(window.GORDON_BASE_URL + '/public/ask', {
+ method: 'POST',
+ headers: { 'Content-Type': 'application/json' },
+ body: JSON.stringify(payload)
+ })
+
+ if (!response.ok) {
+ if (response.status === 429) {
+ throw new Error('RATE_LIMIT_EXCEEDED')
+ }
+ throw new Error(`HTTP ${response.status}: ${response.statusText}`)
+ }
+
+ const reader = response.body.getReader()
+ const decoder = new TextDecoder()
+
+ while (true) {
+ const { done, value } = await reader.read()
+ if (done) break
+
+ const chunk = decoder.decode(value, { stream: true })
+ const lines = chunk.split('\n')
+
+ for (const line of lines) {
+ if (!line.trim() || !line.startsWith('data: ')) continue
+
+ const data = line.slice(6)
+ if (data === '[DONE]') continue
+
+ try {
+ const parsed = JSON.parse(data)
+
+ // Capture thread_id for new conversations
+ if (parsed.thread_id) {
+ if (isNewConversation) {
+ this.threadId = parsed.thread_id // $persist auto-saves to sessionStorage
+ } else if (parsed.thread_id !== this.threadId) {
+ console.warn('Backend returned unexpected thread_id:', parsed.thread_id)
+ }
+ continue
+ }
+
+ // Capture question_answer_id for feedback
+ if (parsed.question_answer_id) {
+ this.messages[responseIndex].questionAnswerId = parsed.question_answer_id
+ continue
+ }
+
+ if (parsed.choices && parsed.choices[0]?.delta?.content) {
+ const content = parsed.choices[0].delta.content
+ this.messages[responseIndex].content += content
+
+ this.$nextTick(() => {
+ const container = this.$refs.messagesContainer
+ if (container) {
+ const isNearBottom = container.scrollHeight - container.scrollTop - container.clientHeight {
+ setTimeout(() => {
+ message.copied = false
+ }, 2000)
+ })
+ } catch (err) {
+ console.error('Failed to copy:', err)
+ }
+ }
+ }" x-cloak @keydown.escape.window=$store.gordon.close()> 
+ 0">Start a new chat 
+ What can I help you with? I'm Gordon, your AI assistant for Docker and documentation
+questions. Try asking Get started with Docker 
+ Docker Hardened Images 
+ MCP Toolkit 
+ Create an org 0" class="relative flex flex-col gap-4"> 
+ 
+ 
+ Was this helpful? 
+ 
+ Helpful 
+ 
+ 
+ 
+ Not quite 
+ 
+ 
+ Copy 
+ 
+remaining in this thread. You've reached the maximum of
+ questions per thread. For
+better answer quality, start a new thread. 
+Start a new thread 
+ 
+ When enabled, Gordon considers the current page you're viewing
+to provide more relevant answers. Share feedback Answers are generated based on the documentation. {
+ const container = $el; // The div with overflow
+ const item = document.getElementById('sidebar-current-page')
+ if (item) {
+ const containerTop = container.scrollTop;
+ const containerBottom = containerTop + container.clientHeight;
+
+ const itemTop = item.offsetTop - container.offsetTop;
+ const itemBottom = itemTop + item.offsetHeight;
+
+ // Scroll only if the item is out of view
+ if (itemBottom > containerBottom - 200) {
+ container.scrollTop = itemTop - (container.clientHeight / 2 - item.offsetHeight / 2);
+ }
+ }
+ })" class="bg-background-toc dark:bg-background-toc fixed top-0 z-40 hidden h-screen w-full flex-none overflow-x-hidden overflow-y-auto md:sticky md:top-16 md:z-auto md:block md:h-[calc(100vh-64px)] md:w-[320px]" :class="{ 'hidden': ! $store.showSidebar }"> 
+ 
+ Back 
+ Manuals 
+ 
+ 
+ Get started 
+ Guides 
+ Reference AI and agents Overview Docker Agentic Platform
+ Experimental 
+ 
+ Sign up Get started Kits Sandboxes MCP Secrets Policies FAQ Release notes Docker Sandboxes 
+ 
+ Install Get started locally Usage Cloud sandboxes 
+ 
+ Local and cloud Use cloud sandboxes Environment files Credentials Network policy Move a sandbox Agents 
+ 
+ Claude Code Codex Copilot Cursor Devin Docker Agent Droid Gemini Kiro OpenCode Shell Workflows 
+ 
+ Git workflows Local development Authenticate tools Agent skills CI and headless Configuration 
+ 
+ Settings Credentials Models Environment files
+ Experimental GPU passthrough Upstream proxy Registry mirror Integrations 
+ 
+ VS Code Cursor Claude Desktop ChatGPT T3 Code Orca MCP gateway Kits 
+ 
+ Use kits Author kits 
+ 
+ Compose a kit set Base images Build an agent workload Build a tool mixin Authoring patterns Capability support Build and distribute kits Kits v2 Architecture Security model 
+ 
+ Isolation layers Defaults Governance 
+ 
+ Policy concepts Access controls 
+ 
+ Local policy Org policies Network access Filesystem access MCP access Audit logs 
+ 
+ Local audit logs Configure delivery View and export SIEM forwarding Record reference Monitor and enforce 
+ 
+ Monitoring policies Sign-in enforcement Reference 
+ 
+ API reference MCP policy Troubleshooting FAQ Release notes Sandboxes API and SDK 
+ 
+ Install the SDK Get started API concepts Authentication and authorization Errors and retries Compute sizes and limits Cookbook API reference Model Runner 
+ 
+ Get started with DMR DMR REST API Configuration options DMR examples IDE and tool integrations Open WebUI integration Inference engines Gordon 
+ 
+ Use cases 
+Concepts 
+ 
+ Capabilities Data privacy 
+How-to guides 
+ 
+ Docker Desktop CLI Permissions Configure tools Usage limits Docker Agent 
+ 
+ 
+Getting Started 
+ 
+ Introduction Installation Set Up a Model Quick Start 
+Core Concepts 
+ 
+ Agents Models Tools Multi-Agent Agent Distribution 
+Configuration 
+ 
+ Overview HCL Configuration Agent Config Model Config Tool Config Custom Commands Hooks Permissions Budget Ignoring files Sandbox Mode Structured Output Flavors Model Routing User Settings 
+Built-in Tools 
+ 
+ Filesystem Shell Background Jobs Script Open URL Fetch A2A Handoff Transfer Task Background Agents Memory RAG MCP Catalog Git MCP Scheduler Think Webhook Plan Session Plan Todo Tasks User Prompt Model Picker Session Context LSP OpenAPI API 
+Features 
+ 
+ Terminal UI Kanban Board Snapshots Sessions CLI Reference MCP Mode Coding Harnesses A2A Protocol ACP API Server Chat Server Evaluation Skills Code Mode Remote MCP Servers 
+Model Providers 
+ 
+ Overview Anthropic AWS Bedrock Baseten Cerebras ChatGPT (OpenAI account) Cloudflare AI Gateway Cloudflare Workers AI DeepSeek Docker Model Runner Fireworks AI GitHub Copilot Google Gemini Groq Hugging Face Local Models MiniMax Mistral Moonshot AI Nebius OpenAI OpenCode Go OpenCode Zen OpenRouter OVHcloud Together AI Vercel AI Gateway xAI (Grok) Provider Definitions NVIDIA NIM 
+Guides 
+ 
+ Tips & Best Practices Thinking / Reasoning Managing Secrets Go SDK Managing Context & Compaction Running Agents Headless & in CI 
+Community 
+ 
+ Contributing Troubleshooting Telemetry OpenTelemetry Tracing Docker Skills 
+ 
+ Install Application development Docker Desktop 
+ 
+ 
+Setup 
+ 
+ 
+Install 
+ 
+ Mac Mac permission requirements Windows Windows permission requirements Linux 
+ 
+ Ubuntu Debian Fedora Arch RHEL VM or VDI environments Explore Docker Desktop 
+ 
+ Containers Images Volumes Builds Kubernetes Logs Resource Saver mode 
+Features and capabilities 
+ 
+ MCP Catalog and Toolkit
+ Beta 
+ 
+ Get started Catalog Profiles Toolkit UI Use with CLI Dynamic discovery Gateway FAQs Networking 
+ 
+ How-tos GPU support USB/IP support Synchronized file shares containerd image store Wasm workloads
+ Beta Docker Desktop CLI Virtual Machine Manager
+ Updated WSL 
+ 
+ Best practices Custom kernels Use WSL 
+Settings and maintenance 
+ 
+ Change settings Backup and restore data 
+Troubleshoot and support 
+ 
+ Troubleshoot and diagnose 
+ 
+ Common topics 
+FAQs 
+ 
+ General Mac Windows Linux Releases Give feedback Uninstall Release notes 
+Enterprise 
+ 
+ Deploy Docker Desktop 
+ 
+ MSI installer PKG installer MS Store Deploy with Intune Deploy with Jamf Pro Microsoft Dev Box FAQs Allowlist Enforce sign-in 
+ 
+ Configure Hardened Docker Desktop 
+ 
+ Enhanced Container Isolation 
+ 
+ Enable ECI Configure advanced settings Limitations FAQs Settings Management 
+ 
+ Use a JSON file Use Docker Home Desktop settings reporting Settings reference Air-gapped containers Registry Access Management Image Access Management Namespace access Manage unassociated machines Docker Engine 
+ 
+ Install 
+ 
+ Ubuntu Debian RHEL Fedora Raspberry Pi OS (32-bit / armhf) CentOS Binaries Post-installation steps Storage 
+ 
+ Volumes Bind mounts tmpfs mounts Image mounts Storage drivers 
+ 
+ Select a storage driver BTRFS storage driver Device Mapper storage driver (deprecated) OverlayFS storage driver VFS storage driver windowsfilter storage driver ZFS storage driver containerd image store Networking 
+ 
+ Docker with iptables Docker with nftables Packet filtering and firewalls Port publishing and mapping Network drivers 
+ 
+ Bridge network driver Host network driver IPvlan network driver Macvlan network driver None network driver Overlay network driver CA certificates Legacy container links 
+Containers 
+ 
+ Start containers automatically Run multiple processes in a container Resource constraints GPU access Runtime metrics Running containers 
+CLI 
+ 
+ Completion Proxy configuration Filter commands Format command and log output OpenTelemetry for the Docker CLI Daemon 
+ 
+ Start the daemon Use IPv6 networking Daemon proxy configuration Embedded containerd
+ Experimental Live restore Alternative container runtimes Collect Docker metrics with Prometheus Configure remote access for Docker daemon Read the daemon logs Troubleshooting the Docker daemon 
+Manage resources 
+ 
+ Docker contexts Docker object labels Prune unused Docker objects Logs and metrics 
+ 
+ Configure logging drivers Customize log driver output 
+Logging drivers 
+ 
+ Amazon CloudWatch Logs logging driver ETW logging driver Fluentd logging driver Google Cloud Logging driver Graylog Extended Format logging driver Journald logging driver JSON File logging driver Local file logging driver Splunk logging driver Syslog logging driver Use a logging driver plugin Use docker logs with remote logging drivers Security 
+ 
+ Rootless mode 
+ 
+ UID/GID mapping Tips Troubleshooting Antivirus software and Docker AppArmor security profiles for Docker Content trust in Docker 
+ 
+ Automation with content trust Delegations for content trust Deploy Notary Server with Compose Manage keys for content trust Play in a content trust sandbox Docker security non-events Isolate containers with a user namespace Protect the Docker daemon socket Seccomp security profiles for Docker Verify repository client with certificates Swarm mode 
+ 
+ Administer and maintain a swarm of Docker Engines Deploy a stack to a swarm Deploy services to a swarm Getting started with Swarm mode 
+ 
+ Create a swarm Add nodes to the swarm Deploy a service to the swarm Inspect a service on the swarm Scale the service in the swarm Delete the service running on the swarm Apply rolling updates to a service Drain a node on the swarm 
+How swarm works 
+ 
+ How nodes work How services work Manage swarm security with public key infrastructure (PKI) Swarm task states Join nodes to a swarm Lock your swarm to protect its encryption key Manage nodes in a swarm Manage sensitive data with Docker secrets Manage swarm service networks Raft consensus in swarm mode Run Docker Engine in swarm mode Store configuration data using Docker Configs Swarm mode key concepts Use Swarm mode routing mesh Deprecated features Docker Engine plugins 
+ 
+ Access authorization plugin Docker log driver plugins Docker network driver plugins Docker Plugin API Docker volume plugins Plugin Config Version 1 of Plugin V2 Use Docker Engine plugins 
+Release notes 
+ 
+ Engine v29 Engine v28 Engine v27 Engine v26.1 Engine v26.0 Engine v25.0 Engine v24.0 Engine v23.0 Engine v20.10 Engine v19.03 Engine v18.09 Engine v18.06 Engine v18.05 Engine v18.04 Engine v18.03 Engine v18.02 Engine v18.01 Engine v17.12 Engine v17.11 Engine v17.10 Engine v17.09 Engine v17.07 Engine v17.06 Engine v17.05 Engine v17.04 Engine v17.03 Prior releases Docker Offload 
+ 
+ Quickstart About Configure Usage Optimize usage Troubleshoot Give feedback Docker Build 
+ 
+ 
+Core concepts 
+ 
+ Docker Build Overview Dockerfile overview Build context Build checks 
+Building 
+ 
+ Multi-stage Variables Secrets Multi-platform Export binaries Container Device Interface (CDI) Best practices Base images Builders 
+ 
+ Build drivers 
+ 
+ Cloud driver Docker container driver Docker driver Kubernetes driver Remote driver Manage builders Bake 
+ 
+ Introduction Targets Inheritance Variables Expressions Functions Matrix targets Contexts Bake file reference Bake standard library functions Building with Bake from a Compose file Overriding configurations Remote Bake file definition Cache 
+ 
+ Build cache invalidation Build garbage collection Cache storage backends 
+ 
+ Amazon S3 cache Azure Blob Storage cache GitHub Actions cache Inline cache Local cache Registry cache Optimize cache usage in builds CI 
+ 
+ GitHub Actions 
+ 
+ Annotations Attestations Build checks Build secrets Build summary BuildKit configuration Cache management Copy image between registries Export to Docker GitHub Builder
+ New 
+ 
+ Architecture Build workflow Bake workflow Local registry Multi-platform image Named contexts Push to multiple registries Reproducible builds Share image between jobs Tags and labels Test before push Update Docker Hub description Validating builds
+ Experimental 
+ 
+ Introduction Usage Image validation Git validation Templates & examples Testing Debugging Input reference Built-in functions 
+Metadata 
+ 
+ Annotations Build attestations 
+ 
+ Image attestation storage Provenance attestations SBOM attestations SLSA definitions Exporters 
+ 
+ Image and registry exporters Local and tar exporters OCI and Docker exporters BuildKit 
+ 
+ buildkitd.toml Configure BuildKit Custom Dockerfile syntax Dockerfile release notes 
+Debugging 
+ 
+ OpenTelemetry support Build release notes Docker Build Cloud 
+ 
+ Setup Usage Continuous integration Optimization Builder settings Release notes Docker Compose 
+ 
+ 
+Introduction to Compose 
+ 
+ How Compose works Why use Compose? History and development Install 
+ 
+ Plugin Standalone (Legacy) Uninstall Quickstart 
+How-tos 
+ 
+ Specify a project name Use service profiles Use AI models in Compose Control startup order Use environment variables 
+ 
+ Set environment variables Environment variables precedence Pre-defined environment variables Interpolation Best practices Build dependent images Use Compose Watch Secrets in Compose Networking Use multiple Compose files 
+ 
+ Merge Extend Include Enable GPU support Use Compose in production OCI artifact applications Use lifecycle hooks Use init containers
+ New Use provider services Compose Bridge 
+ 
+ Usage Customize Use Model Runner Compose SDK Trust model for Compose files 
+Support and feedback 
+ 
+ FAQs Give feedback Release notes Docker Extensions 
+ 
+ Marketplace extensions Non-marketplace extensions Configure a private marketplace Settings and feedback Extensions SDK 
+ 
+ The build and publish process Quickstart 
+Part one: Build 
+ 
+ Create a simple extension Create an advanced frontend extension Add a backend to your extension Part two: Publish 
+ 
+ Add labels Validate Package and release your extension Share your extension Publish in the Marketplace Build multi-arch extensions Architecture 
+ 
+ Metadata Security Design and UI styling 
+ 
+ Guidelines Docker design principles MUI best practices 
+Developer Guides 
+ 
+ Authentication Interacting with Kubernetes Invoke host binaries Use the Docker socket 
+Developer SDK tools 
+ 
+ Test and debug Continuous Integration (CI) CLI reference 
+Extension APIs 
+ 
+ Dashboard Docker Extension Backend Extension UI API Navigation Deprecated products and features Release lifecycle Supply chain security Docker Hardened Images 
+ 
+ Quickstart Explore 
+ 
+ Hardened images Build process Image types Scanner integrations Image testing Responsibility overview EU data residency Malware scanning Security concepts 
+ 
+ Attestations CIS Benchmark Code signing CVEs Distroless images FIPS glibc and musl Hardening Image digests Image provenance Immutability SBOMs SLSA Software Supply Chain Security SSDLC STIG VEX Migration 
+ 
+ Migration checklist AI-assisted migration
+ Experimental Migrate from Alpine or Debian Migrate from Ubuntu Migrate from Wolfi Migration examples 
+ 
+ Go Python Node.js .NET Java How-tos 
+ 
+ Search and evaluate Mirror a repository Customize an image or chart Create and build an image Use an image Use a Helm chart Use hardened packages Verify an image or chart Scan an image Query VEX suppressions via API Apply image policies Troubleshoot Use DHI Select & Enterprise Tools 
+ 
+ Docker Hub CLI MCP server Terraform API 
+Release notes 
+ 
+ CLI release notes Platform release notes Resources and feedback Docker Hub 
+ 
+ Quickstart Library 
+ 
+ Search Trusted content Generative AI Mirror Repositories 
+ 
+ Create 
+Manage 
+ 
+ Repository information Access Images 
+ 
+ Tags Immutable tags Image Management Software artifacts Push images Move images Bulk migrate images Image security insights Webhooks Automated builds
+ Deprecated 
+ 
+ Migrate Set up Link accounts Automated repository tests Advanced options Manage autobuilds Troubleshoot Trusted content 
+ 
+ Docker Official Images Docker Verified Publisher Program Docker-Sponsored Open Source Program Insights and analytics Export repositories Archive Delete Settings Usage and limits 
+ 
+ Pulls Optimize usage Hub MCP server Troubleshoot Release notes Docker Scout 
+ 
+ Install Quickstart 
+Explore 
+ 
+ Dashboard Docker Scout image analysis Docker Scout metrics exporter Image details view Manage vulnerability exceptions 
+How-tos 
+ 
+ Create an exception using the GUI Create an exception using the VEX Docker Scout environment variables Docker Scout SBOMs Use Scout with different artifact types 
+Deep dive 
+ 
+ Advisory database sources and matching service Data collection and storage in Docker Scout Policy Evaluation 
+ 
+ Evaluate policies Integrations 
+ 
+ Container registries Continuous Integration 
+ 
+ Azure DevOps Pipelines Circle CI GitHub Actions GitLab CI/CD Jenkins Integrating Docker Scout with environments 
+ 
+ Generic (CLI) 
+Release notes 
+ 
+ CLI release notes Platform release notes Accounts and admin Accounts 
+ 
+ Individual 
+ 
+ Setup Manage Deactivate Organization 
+ 
+ Setup 
+ 
+ Create Convert account Onboard Manage 
+ 
+ Information Members Teams Licenses Seats Products Deactivation Activity logs Insights Company 
+ 
+ Setup Manage Subscription and billing 
+ 
+ Plans 
+ 
+ Docker Docker Agentic Platform Gordon Docker Hardened Images AI Governance Docker Verified Publisher Manage 
+ 
+ Plans Payment methods 3D Secure Billing details Invoice history Taxes Docker Desktop license agreement Security 
+ 
+ Announcements Access tokens 
+ 
+ Personal access tokens Organization access tokens Reference Authentication 
+ 
+ Single sign-on 
+ 
+ Setup Manage connections Troubleshoot Two-factor authentication 
+ 
+ Manage Recover your account OIDC connections 
+ 
+ Create and manage Rulesets and subject claims Troubleshoot Provision 
+ 
+ Add and manage domains SCIM 
+ 
+ Set up Group mapping Migrate Just-in-Time Auto-provision Troubleshoot Roles and permissions 
+ 
+ Core roles Custom roles 
+ 
+ Manage Permissions reference FAQs 
+ 
+ Accounts Security Subscription and billing Platform Support Release notes Home 
+ / 
+ Manuals 
+ / 
+ Docker Engine 
+ / 
+ Logs and metrics View container logs 
+ 
+ Ask Gordon 
+ 
+ 
+ 
+ 
+ Copy Markdown 
+ 
+ 
+ 
+ View Markdown Table of contents Next steps The docker logs command shows information logged by a running container. The
+ docker service logs command shows information logged by all containers
+participating in a service. The information that's logged and the format of the
+log depends almost entirely on the container's endpoint command. By default, docker logs or docker service logs shows the command's output
+just as it would appear if you ran the command interactively in a terminal. Unix
+and Linux commands typically open three I/O streams when they run, called
+ STDIN , STDOUT , and STDERR . STDIN is the command's input stream, which
+may include input from the keyboard or input from another command. STDOUT is
+usually a command's normal output, and STDERR is typically used to output
+error messages. By default, docker logs shows the command's STDOUT and
+ STDERR . To read more about I/O and Linux, see the
+ Linux Documentation Project article on I/O redirection . In some cases, docker logs may not show useful information unless you take
+additional steps. If you use a logging driver which sends logs to a file, an
+external host, a database, or another logging back-end, and have "dual logging" 
+disabled, docker logs may not show useful information. If your image runs a non-interactive process such as a web server or a
+database, that application may send its output to log files instead of STDOUT 
+and STDERR . In the first case, your logs are processed in other ways and you may choose not
+to use docker logs . In the second case, the official nginx image shows one
+workaround, and the official Apache httpd image shows another. The official nginx image creates a symbolic link from /var/log/nginx/access.log 
+to /dev/stdout , and creates another symbolic link
+from /var/log/nginx/error.log to /dev/stderr , overwriting the log files and
+causing logs to be sent to the relevant special device instead. See the
+ Dockerfile . The official httpd driver changes the httpd application's configuration to
+write its normal output directly to /proc/self/fd/1 (which is STDOUT ) and
+its errors to /proc/self/fd/2 (which is STDERR ). See the
+ Dockerfile . Next steps Configure logging drivers . Write a
+ Dockerfile . 
+ Edit this page 
+ Request changes Table of contents Next steps 
+ 
+ 
+ 
+ Product offerings 
+ Pricing 
+ About us 
+ llms.txt 
+ llms-full.txt 
+Cookies Settings
+ 
+ | 
+ Terms of Use 
+ | 
+ Status 
+ | 
+ Legal Copyright © 2013-2026 Docker Inc. All rights reserved. Automated traffic detection 

@@ -1,0 +1,101 @@
+{
+  "sha": "1d503f8b7c2b2008da6cbc08bb5be163666c84bf",
+  "node_id": "C_kwDOA-ucsNoAKDFkNTAzZjhiN2MyYjIwMDhkYTZjYmMwOGJiNWJlMTYzNjY2Yzg0YmY",
+  "commit": {
+    "author": {
+      "name": "Alexa Kristensen",
+      "email": "81787716+akristen@users.noreply.github.com",
+      "date": "2026-10-23T15:35:50Z"
+    },
+    "committer": {
+      "name": "GitHub",
+      "email": "noreply@github.com",
+      "date": "2026-10-23T15:35:50Z"
+    },
+    "message": "Add Manage licenses to Organization management permissions (#26426)\n\nAdds a Manage licenses row to the Organization management table on the\ncore roles page (Member/Editor ❌, Owner ✅).\n\n---------\n\nCo-authored-by: Cursor <cursoragent@cursor.com>",
+    "tree": {
+      "sha": "701c992c4b6d1c0408db90aed907abf3ce779d9f",
+      "url": "https://api.github.com/repos/docker/docs/git/trees/701c992c4b6d1c0408db90aed907abf3ce779d9f"
+    },
+    "url": "https://api.github.com/repos/docker/docs/git/commits/1d503f8b7c2b2008da6cbc08bb5be163666c84bf",
+    "comment_count": 0,
+    "verification": {
+      "verified": true,
+      "reason": "valid",
+      "signature": "-----BEGIN PGP SIGNATURE-----\n\nwsFcBAABCAAQBQJq237WCRC1aQ7uu5UhlAAAmesQAHMB75xAPINb4vaYeeqvXTWC\ntLIPnpUnZwP02UD/cZnrhKGt4x8lqO2LuNahXRMDjLqOKl7mOXMUcmqKLG9AC/3i\n95cbJ/d8o4SpqRJEmj019FZCCYglKWUFoPdl9/hdNwujYXsigaQiA99CbCVb3IV4\ni/pRikt4XLBlnOq3BifuN8qx5zHoRL2ZZm649jFeB31DEf8/uCyXFZDSUopPNyOD\nW/eAIZ234mSHE8bUYarsIZYLHCuNkr/nir7k1Ng+qFyjWIc3TUMGoFuyJqS4FYUM\naz5nIYOgDzdsp4Vuoxnmfnj+Buy2dJ1N1Kv/2y/mO3yABpA3KYijFzwsM8STzGN8\nMePHel1A6mbP02tvbgK7M5s+K0dssjZiM/jFmBwaBtZz37m7cSsMrf1sOVztvEKr\ntYfyy7zCzNpzw+J/C6MZn2XGXjfW113kusr+1jVDd3hBdghddk6hkEwyrpq+LBMZ\naJvfcJDAt6kmmRfYMDRMNvYNW2l+mmqv55peBipsXSFb5uWXT+7UIA3KJxJlysFE\n2UGRzy17VzGjyQsrjuDSg+WMFEHDBw/VrkOlfI23htYXRqq4PQjb8wzHQItjtA9m\npYupx2+n7106XBMi+q0a3P8O2atcepBeLDoBg7pHOyb2ppVbZj6E3jBs+iehOSOo\n+dA1d45u1bverxRDO00s\n=nwoD\n-----END PGP SIGNATURE-----\n",
+      "payload": "tree 701c992c4b6d1c0408db90aed907abf3ce779d9f\nparent b71dd84bd258a6af8cf32d2454e9ad6631235329\nauthor Alexa Kristensen <81787716+akristen@users.noreply.github.com> 1792769750 -0500\ncommitter GitHub <noreply@github.com> 1792769750 -0500\n\nAdd Manage licenses to Organization management permissions (#26426)\n\nAdds a Manage licenses row to the Organization management table on the\ncore roles page (Member/Editor ❌, Owner ✅).\n\n---------\n\nCo-authored-by: Cursor <cursoragent@cursor.com>",
+      "verified_at": "2026-10-23T15:35:51Z"
+    }
+  },
+  "url": "https://api.github.com/repos/docker/docs/commits/1d503f8b7c2b2008da6cbc08bb5be163666c84bf",
+  "html_url": "https://github.com/docker/docs/commit/1d503f8b7c2b2008da6cbc08bb5be163666c84bf",
+  "comments_url": "https://api.github.com/repos/docker/docs/commits/1d503f8b7c2b2008da6cbc08bb5be163666c84bf/comments",
+  "author": {
+    "login": "akristen",
+    "id": 81787716,
+    "node_id": "MDQ6VXNlcjgxNzg3NzE2",
+    "avatar_url": "https://avatars.githubusercontent.com/u/81787716?v=4",
+    "gravatar_id": "",
+    "url": "https://api.github.com/users/akristen",
+    "html_url": "https://github.com/akristen",
+    "followers_url": "https://api.github.com/users/akristen/followers",
+    "following_url": "https://api.github.com/users/akristen/following{/other_user}",
+    "gists_url": "https://api.github.com/users/akristen/gists{/gist_id}",
+    "starred_url": "https://api.github.com/users/akristen/starred{/owner}{/repo}",
+    "subscriptions_url": "https://api.github.com/users/akristen/subscriptions",
+    "organizations_url": "https://api.github.com/users/akristen/orgs",
+    "repos_url": "https://api.github.com/users/akristen/repos",
+    "events_url": "https://api.github.com/users/akristen/events{/privacy}",
+    "received_events_url": "https://api.github.com/users/akristen/received_events",
+    "type": "User",
+    "user_view_type": "public",
+    "site_admin": false
+  },
+  "committer": {
+    "login": "web-flow",
+    "id": 19864447,
+    "node_id": "MDQ6VXNlcjE5ODY0NDQ3",
+    "avatar_url": "https://avatars.githubusercontent.com/u/19864447?v=4",
+    "gravatar_id": "",
+    "url": "https://api.github.com/users/web-flow",
+    "html_url": "https://github.com/web-flow",
+    "followers_url": "https://api.github.com/users/web-flow/followers",
+    "following_url": "https://api.github.com/users/web-flow/following{/other_user}",
+    "gists_url": "https://api.github.com/users/web-flow/gists{/gist_id}",
+    "starred_url": "https://api.github.com/users/web-flow/starred{/owner}{/repo}",
+    "subscriptions_url": "https://api.github.com/users/web-flow/subscriptions",
+    "organizations_url": "https://api.github.com/users/web-flow/orgs",
+    "repos_url": "https://api.github.com/users/web-flow/repos",
+    "events_url": "https://api.github.com/users/web-flow/events{/privacy}",
+    "received_events_url": "https://api.github.com/users/web-flow/received_events",
+    "type": "User",
+    "user_view_type": "public",
+    "site_admin": false
+  },
+  "parents": [
+    {
+      "sha": "b71dd84bd258a6af8cf32d2454e9ad6631235329",
+      "url": "https://api.github.com/repos/docker/docs/commits/b71dd84bd258a6af8cf32d2454e9ad6631235329",
+      "html_url": "https://github.com/docker/docs/commit/b71dd84bd258a6af8cf32d2454e9ad6631235329"
+    }
+  ],
+  "stats": {
+    "total": 1,
+    "additions": 1,
+    "deletions": 0
+  },
+  "files": [
+    {
+      "sha": "88cdc65f9098a39b04129539ab64b78dd4b41261",
+      "filename": "content/manuals/security/roles-and-permissions/core-roles.md",
+      "status": "modified",
+      "additions": 1,
+      "deletions": 0,
+      "changes": 1,
+      "blob_url": "https://github.com/docker/docs/blob/1d503f8b7c2b2008da6cbc08bb5be163666c84bf/content%2Fmanuals%2Fsecurity%2Froles-and-permissions%2Fcore-roles.md",
+      "raw_url": "https://github.com/docker/docs/raw/1d503f8b7c2b2008da6cbc08bb5be163666c84bf/content%2Fmanuals%2Fsecurity%2Froles-and-permissions%2Fcore-roles.md",
+      "contents_url": "https://api.github.com/repos/docker/docs/contents/content%2Fmanuals%2Fsecurity%2Froles-and-permissions%2Fcore-roles.md?ref=1d503f8b7c2b2008da6cbc08bb5be163666c84bf",
+      "patch": "@@ -99,6 +99,7 @@ Use team permissions for that.\n | View billing history                                              | ❌     | ❌     | ✅    |\n | Manage subscriptions                                              | ❌     | ❌     | ✅    |\n | Manage seats                                                      | ❌     | ❌     | ✅    |\n+| Manage licenses                                                   | ❌     | ❌     | ✅    |\n | Upgrade and downgrade plans                                       | ❌     | ❌     | ✅    |\n \n > [!TIP]"
+    }
+  ]
+}

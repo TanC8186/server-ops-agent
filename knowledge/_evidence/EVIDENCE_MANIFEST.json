@@ -1,0 +1,238 @@
+{
+ "captured_on": "2026-10-26",
+ "note": "raw evidence fetched per task allowlist",
+ "files": {
+  "dk_resource_constraints.md": {
+   "sha256": "9da4d895066037917254a089996e2e0de047187734ac922381d7f3b6f4aed53e",
+   "bytes": 18023
+  },
+  "docker_LICENSE.txt": {
+   "sha256": "089009c932d3cc296355e429fa9d6faf80ac89597da866e2424b4ea09add64b1",
+   "bytes": 11309
+  },
+  "docker_LICENSE_pinned.txt": {
+   "sha256": "089009c932d3cc296355e429fa9d6faf80ac89597da866e2424b4ea09add64b1",
+   "bytes": 11309
+  },
+  "docker_NOTICE": {
+   "sha256": "d5558cd419c8d46bdc958064cb97f963d1ea793866414c025906ec15033512ed",
+   "bytes": 14
+  },
+  "docker_README.md": {
+   "sha256": "7dc75f7e46ca270d70a314a14ff213141941ea44c8cf5a462576b7665bba57bd",
+   "bytes": 1619
+  },
+  "docker_blob_LICENSE.html": {
+   "sha256": "192fcfade76a719896929f3b0b96c3aa8a3f2fea8d0aa67ab5aeb9e996600110",
+   "bytes": 292937
+  },
+  "docker_docs_page.html": {
+   "sha256": "20a091077a483346b01628f492468fd39cdbc00a22bb724956f0bb449dd5d4d0",
+   "bytes": 519417
+  },
+  "docker_docs_page.txt": {
+   "sha256": "7bedc3ceea8a4e22a574f1932ebdab96732dd3c57633c03b0520caf8c4e37af0",
+   "bytes": 25999
+  },
+  "docker_logging_index.md": {
+   "sha256": "32fbe7f71e4700fbc62843741f3e7df76041a3a4a3e0b23a4a5ee54cb1a611a9",
+   "bytes": 2901
+  },
+  "docker_main_commit.json": {
+   "sha256": "1b60a0f1534b6905bd89498c5aa66ebb2bb23e2524d256aa6a2ba0958691540c",
+   "bytes": 6690
+  },
+  "docker_tags.json": {
+   "sha256": "9bb8d18bd435b39928b7a74c52823de1ba251286fd9637caa7339b9995498ea0",
+   "bytes": 4851
+  },
+  "k_concepts.rst": {
+   "sha256": "6721e17b647ca044ba0350008de7fdf27e852c22c134a4156191bc8f7bc9d29a",
+   "bytes": 10787
+  },
+  "k_docguide_index.rst": {
+   "sha256": "f2b5a99e2c378bee1ccf005cf2075bbca0091806101251e5c3466eca6273b303",
+   "bytes": 248
+  },
+  "k_index_rst": {
+   "sha256": "26555fe5d299b21160924a5bde6dbed45dd5cd6ef1caa57ef8c04541c53e7d84",
+   "bytes": 3598
+  },
+  "k_process_index.rst": {
+   "sha256": "d951c17bd1db1e9b973438f372307531c95571662c15ddeefc3227f80aca0e67",
+   "bytes": 2540
+  },
+  "k_psi.rst": {
+   "sha256": "11c6b7129103b4547c31895cb1cfc0ff75b741c95a24bfcaeb01dece37b82692",
+   "bytes": 6792
+  },
+  "k_psi_v66.html": {
+   "sha256": "7f1f465d02fcfcea6b52acfe79466649ba3d57fb37fc66bb1719f79e0e097017",
+   "bytes": 19111
+  },
+  "k_tag_v66.json": {
+   "sha256": "b8985255ef7d3cc4dd9ff902c60a23b4f6e6ce00af004c504365a210b11a4465",
+   "bytes": 362
+  },
+  "kernel_concepts.html": {
+   "sha256": "25b25737d41b604cdfac5fc6e17c2dd92ee02ef36e60780e0f4c819ff1590555",
+   "bytes": 24531
+  },
+  "kernel_doc_index.html": {
+   "sha256": "90114396b603caa65d2d9603a22a9c85605b730ca8b9352d91059d6e3db83b04",
+   "bytes": 18371
+  },
+  "linux_COPYING": {
+   "sha256": "fb5a425bd3b3cd6071a3a9aff9909a859e7c1158d54d32e07658398cd67eb6a0",
+   "bytes": 496
+  },
+  "linux_LICENSES_preferred_GPL-2.0": {
+   "sha256": "8780e78a1a737e127f25a65f6d95269bffd36158dc261114de7859b490bfc5aa",
+   "bytes": 18600
+  },
+  "linux_license-rules.rst": {
+   "sha256": "635a61aa47349007033c64fcdf403d33be35040b62284494bbbd4a9b546ec06d",
+   "bytes": 18477
+  },
+  "ms_MicrosoftDocs_PowerShell-Docs_commit.json": {
+   "sha256": "6c54aa176c8f739b0f2e22f8074c746afb57594a63ebdb08766aeedc1e036207",
+   "bytes": 7937
+  },
+  "ms_MicrosoftDocs_PowerShell-Docs_live.json": {
+   "sha256": "a01f24fd70bdce936538da9e15e2448a31fef745792371bcddaeb4daffe185b9",
+   "bytes": 20294
+  },
+  "ms_MicrosoftDocs_windowsserverdocs_commit.json": {
+   "sha256": "7ef9161acc28f894d669763abd50a8847c64cd41e046c013be899f064f532a15",
+   "bytes": 38473
+  },
+  "ms_gitservice.html": {
+   "sha256": "ddf653d52d75d36974a8b9dc9e8d5515e970c59830dac29fa3f1e2e2ff3f19d8",
+   "bytes": 79534
+  },
+  "ms_ws01.html": {
+   "sha256": "21ff1cdd13413816166addffd15ce22be4e5448b8f1ec1c5e2d373606cc087d5",
+   "bytes": 52937
+  },
+  "psh_ThirdPartyNotices.md": {
+   "sha256": "91d33e2b778b36ae8188207b8a8352249c35d0da0115aba9461633f98a8c2ed9",
+   "bytes": 1287
+  },
+  "psh_live_LICENSE.md": {
+   "sha256": "e09e0a96f6abe2e9acd2c611a97c8d5da5b88b924b08927c7515359e3107e26c",
+   "bytes": 17716
+  },
+  "pshdocs_LICENSE-CODE.md": {
+   "sha256": "adbda6ffa243c17838b6391c5c19747d407053759dbacd1fc236767bda0f83b0",
+   "bytes": 1082
+  },
+  "pshdocs_LICENSE.md": {
+   "sha256": "e09e0a96f6abe2e9acd2c611a97c8d5da5b88b924b08927c7515359e3107e26c",
+   "bytes": 17716
+  },
+  "pshdocs_README.md": {
+   "sha256": "c02ad45c76b7c096eba7c6856e7f4905a36a74885afa0a124bb00706e2d8e811",
+   "bytes": 3500
+  },
+  "pshdocs_getservice.md": {
+   "sha256": "898f0d4581c1d59a273a9ff140d2948781f297edc0cbda07cc906bd7711205c4",
+   "bytes": 11554
+  },
+  "rhel_full.html": {
+   "sha256": "f2f98a69cf34a474bb247d7ef2be6c1d7a9b8cfe1573ea126abca32a09edbf05",
+   "bytes": 846928
+  },
+  "rhel_full.txt": {
+   "sha256": "6610907b66d6b948fc8deb6815f6283cf8cb93e1257fe7b69aababbc21df482e",
+   "bytes": 27705
+  },
+  "rhel_global_legal.html": {
+   "sha256": "d701b8900046ff22b86d52540b65ace6b21f69089164b3f31b6a5009236e0ce7",
+   "bytes": 335509
+  },
+  "rhel_legal_notice_rh01.html": {
+   "sha256": "ebe0455f7f94f1696a6d150566812e2a478bac577f077a29ef7b62a031fde200",
+   "bytes": 836307
+  },
+  "rhel_legal_notice_rh01.txt": {
+   "sha256": "2ae24c9073d232d9cb27c677cfb0c7247424019ae00343633498f560690fb654",
+   "bytes": 25103
+  },
+  "rhel_legal_notice_rh02.html": {
+   "sha256": "504ec2b602b39e9e78795176d1870aad1be5f54582071aa665d71a8ca8c4047e",
+   "bytes": 587654
+  },
+  "systemd_262_systemctl.html": {
+   "sha256": "f95e4bc82edf115aa4736ec9c9871cb1fd7f8c4cbe1b9be4f7790ab02c000d6f",
+   "bytes": 201971
+  },
+  "systemd_LICENSE.LGPL2.1.txt": {
+   "sha256": "6d9bb3b7fc818a8facc4cc296060a0883fef8710d6498f86165335846e82ee9d",
+   "bytes": 26518
+  },
+  "systemd_LICENSES_LGPL2.0orlater.txt": {
+   "sha256": "c7e6735d511987e7ed4c4a08b335d578335088e06225955ec8944973dbc0640c",
+   "bytes": 24838
+  },
+  "systemd_LICENSES_README.md": {
+   "sha256": "a817486a61df66ef79f96032763c861abd0edf4199cf39a7b1515a7e29f6e6d0",
+   "bytes": 4206
+  },
+  "systemd_LICENSES_dir.json": {
+   "sha256": "4a14ef83bdf1f42eb5102c2a4f3aeb05e5ec5c16231238bea8f9372e08463b3e",
+   "bytes": 11024
+  },
+  "systemd_journalctl.xml": {
+   "sha256": "d54bbede45d5b1e3dc856da9624649ef8cb0829731597c212be303a76a1edbdd",
+   "bytes": 61619
+  },
+  "systemd_man_html_in": {
+   "sha256": "c145fc9b00263cf06ee59579071384e4090566fe3b973a87f1dca97b8c5f5855",
+   "bytes": 615
+  },
+  "systemd_man_systemctl.html": {
+   "sha256": "f95e4bc82edf115aa4736ec9c9871cb1fd7f8c4cbe1b9be4f7790ab02c000d6f",
+   "bytes": 201971
+  },
+  "systemd_man_systemctl.txt": {
+   "sha256": "7e8b059a89ff7620fe8e3ae6f536408d867797e95270c7c58d1a535957095b99",
+   "bytes": 102876
+  },
+  "systemd_man_systemctl.xml": {
+   "sha256": "416a047f7f9e542e73b6ddbd133318986f42434605fb97df65f80a86063659e6",
+   "bytes": 167732
+  },
+  "systemd_resourcectl.xml": {
+   "sha256": "3a1ceeb24069b3307156d70759b74df89744b27e9e5c1cf40733c7fb4c38b4b2",
+   "bytes": 110237
+  },
+  "systemd_tag_v262.json": {
+   "sha256": "437155b1e35e586f314227751a1ce7e5e06ac7e5e0b1ea446dcc928f1344ad75",
+   "bytes": 364
+  },
+  "systemd_v262_systemctl.xml": {
+   "sha256": "caca7b87ae3bc8730b070a38d814c698acf82c596df9cb47a58fc7510c7b765c",
+   "bytes": 165132
+  },
+  "ws_ThirdPartyNotices": {
+   "sha256": "cd91209120ebd78a2887939f5c6311e99d63a7e5c7aa940acdb7c16d39296658",
+   "bytes": 1285
+  },
+  "ws_perf_index.md": {
+   "sha256": "1fb13339adea53a9a291d879eb335ea1babb114c414215013603422dba18eca4",
+   "bytes": 3783
+  },
+  "wsdocs_CONTRIBUTING.md": {
+   "sha256": "96d2d0e1f075da69e8c717c4b821f376056a6733341d6ce1ef0d131cb618319f",
+   "bytes": 6325
+  },
+  "wsdocs_LICENSE": {
+   "sha256": "9bbc1ea9fe5c96df01b311a2ac864d5b18fc87b9948bfd14770e4b44db755ee9",
+   "bytes": 18653
+  },
+  "wsdocs_README.md": {
+   "sha256": "286606cbd10a3dc1e3c391c0d315f00dc48882f90ff086a465ecf889590082e7",
+   "bytes": 5683
+  }
+ }
+}

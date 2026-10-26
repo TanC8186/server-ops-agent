@@ -31,6 +31,20 @@ web (React + Vite)  ──SSE──▶  FastAPI (:9900)
 
 ## 快速开始
 
+### 双模式诊断入口
+
+首页可选择 **本地端侧**（`local`）或 **在线多智能体**（`cloud_multi`），并输入症状与目标服务。
+
+- 本地端侧：一个 Qwen 本地服务生成计划，程序执行只读工具并输出证据报告；本地模型失败时停止，不会调用在线 LLM 或远程 embedding。
+- 在线多智能体：API 模型分别承担 Supervisor、指标专科、日志专科、Reviewer；专科拥有独立上下文和工具权限，汇合证据后生成报告，无需在本机加载多个模型。
+- 两种模式共享服务发现、参数验证、工具预算和证据记录；模式随请求传入，不能通过切换界面改变另一运行的配置。
+- “本地”限定模型推理路径；MCP 仍可连接远程监控、日志与 SSH。界面的“已配置”不等于模型连通性验证通过。
+
+配置 `LOCAL_LLM_BASE_URL` / `LOCAL_LLM_MODEL` 后可使用本地模式；在线模式使用 `LLM_*`。
+模式、运行方法、8GB 显存边界与后续实验见 [双模式说明](docs/DUAL_MODE.md)。
+
+以下历史模型指标来自旧评测；新增双模式没有据此宣称诊断准确率或吞吐提升。
+
 ```bash
 # 1. 依赖
 uv venv && uv pip install -e ".[dev]"
@@ -54,11 +68,37 @@ cd web && npm install && npm run build && cd ..
 
 ## 验证
 
+后端（Python 3.11–3.13，Windows 用 `.venv`）：
+
 ```bash
-.venv/Scripts/python.exe -m pytest tests/ -q          # 回归测试
+.venv/Scripts/python.exe -m pytest tests -p no:cacheprovider -q -o addopts=""   # 回归测试
+.venv/Scripts/python.exe -m ruff check servers/ app/ scripts/ --select F821,F811,F841
 .venv/Scripts/python.exe scripts/validate_eval.py     # 场景 ↔ 工具注册表 ↔ 文档
-.venv/Scripts/python.exe scripts/run_eval.py --live   # 真跑评测，输出 eval/results/*.md
 ```
+
+前端（**Node v22.17.0**；`.ts` 测试文件需要 `--experimental-strip-types`，
+已写进 `web/package.json` 的 `test` 脚本，不要直接 `node --test src/*.ts`）：
+
+```bash
+cd web
+npm run build      # tsc -b && vite build
+npm run lint       # oxlint
+npm test           # node --experimental-strip-types --test src/*.test.ts
+```
+
+知识库语料（M3）与离线检索基线（不依赖 Milvus）：
+
+```bash
+.venv/Scripts/python.exe scripts/fetch_corpus.py --stage core        # 只抓目录里的明确页面
+.venv/Scripts/python.exe scripts/normalize_corpus.py                # 快照 -> Markdown + notices
+.venv/Scripts/python.exe scripts/eval_retrieval.py --k 3            # 切分+embedding+cosine 基线
+```
+
+真实运行过的结果与未验证项见 [VALIDATION_RESULTS.md](docs/claude-code-handoff/VALIDATION_RESULTS.md)，
+逐项实施状态见 [IMPLEMENTATION_STATUS.md](docs/claude-code-handoff/IMPLEMENTATION_STATUS.md)，
+浏览器检查见 [BROWSER_CHECK.md](docs/BROWSER_CHECK.md)，部署见 [DEPLOYMENT.md](docs/DEPLOYMENT.md)。
+
+`scripts/run_eval.py --live` 需要真实 LLM 凭证，本仓库没有附带任何实测数字。
 
 ## 模型后端
 
@@ -174,10 +214,18 @@ web/                 React + Vite 前端
 
 ## 当前限制
 
-- **记忆在进程内**：`MemorySaver`，重启丢会话，只能单 worker。
-- **鉴权可选**：设置 `API_KEY` 后才要求 `X-API-Key`；没有限流。
-- **评测集是合成的**：5 条场景 + 240 条训练数据均为模板生成并校验，不是真实工单。
-- **RAG 未做混合检索**：只有 dense top-k，没有 rerank、没有 Recall@k 基线。
+- **知识问答会话历史落盘到 JSON**（`data/chat/`，有 TTL 与条数上限），但仍是单进程文件锁；
+  多实例部署前必须换成共享存储。
+- **鉴权可选**：`AUTH_MODE=deployment` 时未配置密钥会拒绝启动；`dev` 模式不做鉴权。
+  有并发准入闸门（`max_concurrent_diagnostics`），没有按 IP 的限流。
+- **评测集是合成的**：5 条诊断场景 + 240 条训练数据均为模板生成并校验，不是真实工单。
+  `eval/rag/dev.jsonl` 的 14 条检索问题同样是维护者编写，且阈值在该集上拟合，
+  **不是盲测结论**。
+- **RAG 未做混合检索**：只有 dense top-k + 适用性门控，没有 rerank。
+- **真实 Milvus 未验收**：本轮所有向量相关测试使用 fake store 或内存 cosine；
+  collection 描述符、索引度量与写入原子性没有在真实 Milvus 上端到端验证。
+- **11 页核心语料仍未完成许可人工核对**：其中 4 份（SD-02、LK-01、RH-01 与 RH-02 待抓）
+  的许可状态是 `needs_review`，在此之前只能作为内部验证数据。
 - **0.5B 尚未跑通**：对学习率敏感，两次训练分别发散/停滞；当前用 1.5B + 4-bit 作为端侧方案。
 - **本地 Planner 的评测口径与训练集不一致**：5 个场景里 4 个的 gold 用了 `search_log`，
   而训练数据（690 条）里它出现 0 次；这会让 `task_success` 在本地/云端都偏低。
