@@ -17,7 +17,7 @@
 
 | 维度 | 状态 |
 |---|---|
-| 后端测试 | **572 passed, 1 skipped**（`-o addopts=""`，2026-10-27 本轮实测） |
+| 后端测试 | **577 passed, 1 skipped**（`-o addopts=""`，2026-10-27 本轮实测） |
 | 前端 | `npm run build` 通过 / `npm run lint` 0 warning / `npm test` **48 passed** |
 | 静态检查 | `ruff --select F821,F811,F841` 全通过；`docker compose config --quiet` 通过 |
 | 三个离线验收探针 | 全部 `bug_reproduced=false`（2026-10-27 修复后复跑，见 §6） |
@@ -130,6 +130,7 @@
 | A11 | 云端取消标记/清理/审计/后续工具禁止调用一致 | 是 | `test_cloud_multi.py`（34 项相关）+ RAG/运行时探针 | 否（真实远端任务是否终止未测） |
 | A12 | 未配置模式刷新、FE-09、MCP/模型可用性反馈 | 部分 | `view.test.ts`、`test_health_capabilities.py` | **否**：真实浏览器旅程/读屏器未重跑 |
 | A13 | 统一 Compose 冷启动依赖策略，补真实镜像/恢复验证 | 部分 | `docker compose config --quiet` | **否**：未 build/up，无镜像与恢复证据 |
+| A13(retention/abandoned) | 过期 trace 清理 + 无终态静默运行标 abandoned | 是 | `test_runs_api.py`（+5） | 否 |
 
 ## 6. 三维度边界（已实现 / 测试替身验证 / 真实依赖验证）
 
