@@ -266,6 +266,9 @@ def claim_numbers(text: str) -> list[float]:
 #:    "statistics": {...}}`` —— **没有顶层 ``data.unit``**。只读 ``data.unit``
 #: 会让 ``has_duration_evidence`` 永远为 False，于是“网络延迟 999ms”被当成查询
 #: 窗口跳过（A06 第一个反例因此在接入真实 payload 后重新出现）。
+#: statistics 里表示“条数”的键（是可引用事实，但不是指标读数）。
+_COUNT_KEYS = frozenset({"count", "total", "n"})
+
 _METRIC_UNIT_HINTS: tuple[tuple[tuple[str, ...], str], ...] = (
     (("latency", "延迟", "rtt", "response_time", "duration"), "ms"),
     (("packet_loss", "丢包"), "%"),
@@ -329,10 +332,18 @@ def evidence_value_pairs(evidence: Mapping[str, Any]) -> list[tuple[float, str]]
         for key, value in statistics.items():
             if not isinstance(value, (int, float)) or isinstance(value, bool):
                 continue
-            # count 是条数，不是被观测到的指标读数。
-            if str(key).lower() in {"count", "total", "n"}:
+            if str(key).lower() in _COUNT_KEYS:
+                # 条数是**可引用的事实**（“样本数=3”“日志仅 1 条”），但不能被
+                # 当成指标读数：给它 count 单位，duration/percent 的声明因此仍
+                # 匹配不上（“网络延迟 2ms”不会命中 count=2）。
+                pairs.append((float(value), "count"))
                 continue
             pairs.append((float(value), fallback_unit))
+
+    # 顶层 total 也是条数（search_service_logs 返回 {"total": 1, "logs": [...]}）。
+    total = data.get("total")
+    if isinstance(total, (int, float)) and not isinstance(total, bool):
+        pairs.append((float(total), "count"))
 
     raw = data.get("value")
     if isinstance(raw, (int, float)) and not isinstance(raw, bool):

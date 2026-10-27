@@ -533,3 +533,82 @@ def test_numberless_evidence_does_not_render_a_fabricated_zero():
     rendered = str(checked[0].get("rendered") or "")
     assert "=0" not in rendered, rendered
     assert "无数值读数" in rendered, rendered
+
+
+# ── 条数（count/total）是可引用事实，但不能当指标读数 ────────────────
+
+COUNT_EVIDENCE = {
+    "id": "E1",
+    "tool": "query_cpu_metrics",
+    "ok": True,
+    "status": "ok",
+    "live": True,
+    "source": "tencent_cloud",
+    "target": "checkout-service",
+    "data": {
+        "metric_name": "cpu_usage_percent",
+        "data_points": [{"value": 93.5, "unit": "%"}],
+        "statistics": {"avg": 93.5, "max": 97.0, "min": 88.0, "p95": 96.0, "count": 3},
+        "time_range": {"start_time": 1, "end_time": 2},
+    },
+}
+
+LOG_TOTAL_EVIDENCE = {
+    "id": "E2",
+    "tool": "search_service_logs",
+    "ok": True,
+    "status": "ok",
+    "live": True,
+    "source": "tencent_cloud",
+    "target": "checkout-service",
+    "data": {
+        "logs": [{"level": "ERROR", "message": "upstream timeout after 3000ms"}],
+        "total": 1,
+        "time_range": {"start_time": 1, "end_time": 2},
+    },
+}
+
+
+def test_sample_count_is_citable():
+    """“样本数 3”是证据里真实存在的事实，不应被降级为假设。
+
+    真实 smoke（2026-10-27）里，Reviewer 写了“样本数=3”“日志仅 1 条”，
+    却被判成“数值 3/1 无法在引用证据中找到”，导致正确描述反而进证据缺口。
+    """
+    checked, problems = verify_claims(
+        [{"claim": "CPU 使用率 93.5%，样本数 3", "status": "supported",
+          "evidence_ids": ["E1"]}],
+        {"E1": COUNT_EVIDENCE},
+    )
+
+    assert checked[0]["status"] == "supported", problems
+
+
+def test_log_total_is_citable():
+    checked, problems = verify_claims(
+        [{"claim": "日志共 1 条 ERROR", "status": "supported", "evidence_ids": ["E2"]}],
+        {"E2": LOG_TOTAL_EVIDENCE},
+    )
+
+    assert checked[0]["status"] == "supported", problems
+
+
+def test_wrong_count_is_still_rejected():
+    checked, problems = verify_claims(
+        [{"claim": "日志共 99 条 ERROR", "status": "supported", "evidence_ids": ["E2"]}],
+        {"E2": LOG_TOTAL_EVIDENCE},
+    )
+
+    assert checked[0]["status"] == "hypothesis"
+    assert problems
+
+
+def test_count_value_cannot_be_used_as_a_duration_reading():
+    """count=3 不能让“网络延迟 3ms”通过（A06 不能被这条改动重新打开）。"""
+    checked, problems = verify_claims(
+        [{"claim": "网络延迟 3ms", "status": "supported", "evidence_ids": ["E1"]}],
+        {"E1": COUNT_EVIDENCE},
+    )
+
+    assert checked[0]["status"] == "hypothesis"
+    assert problems

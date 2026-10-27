@@ -9,6 +9,7 @@ from __future__ import annotations
 import asyncio
 import inspect
 import json
+import re
 from collections.abc import AsyncGenerator, Callable
 from contextlib import suppress
 from typing import Any, Literal, TypedDict
@@ -126,6 +127,80 @@ def _response_text(response: Any) -> str:
     raise ValueError("Model response must contain JSON text")
 
 
+#: JSON 解析失败时的重试次数（含首次调用）。只重试“输出不可解析”，
+#: 网络/鉴权错误不重试——那类错误重试只会泄露更多失败与费用。
+JSON_ATTEMPTS = 2
+JSON_RETRY_INSTRUCTION = (
+    "上一次输出不是完整合法的 JSON。请只输出 JSON 对象本身："
+    "不要三反引号、不要任何解释文字、不要省略字段。"
+)
+#: 被 max_tokens 截断时的重试指令。真实 smoke（2026-10-27）里 Reviewer 的输出
+#: 在 2627 字符处被截断：模型把每条 claim 写成整段中文建议，而 schema 允许
+#: 12 条 × 1500 字符。单纯调大 max_tokens 只是把问题推后，正确做法是要求精简。
+JSON_TRUNCATED_INSTRUCTION = (
+    "上一次输出因为长度上限被截断，JSON 没有闭合。本次请务必精简："
+    "每条 claim 不超过 60 个汉字，只保留必要字段，不要展开解释；"
+    "宁可少写几条，也必须输出**完整闭合**的 JSON。"
+)
+
+#: 模型输出里常见的 JSON 包装：三反引号围栏（可带语言标记）。
+_FENCE_RE = re.compile(r"```(?:json|JSON)?\s*(.+?)```", re.DOTALL)
+
+
+def _extract_json(text: str) -> str:
+    """从模型回复里取出 JSON 文本；取不到就原样返回（由调用方抛错）。
+
+    真实调用（DeepSeek/Anthropic 兼容网关）经常返回：
+    - ```json {...} ``` 围栏；
+    - 前缀一句“好的，以下是计划：”；
+    - 尾部追加解释。
+
+    直接 ``json.loads`` 会把这些正常输出判成失败——2026-10-27 真实 smoke 里
+    Reviewer 与 logs 专科就是这样各失败一次的，报告因此退化。
+    """
+    raw = (text or "").strip()
+    if not raw:
+        return raw
+    fenced = _FENCE_RE.search(raw)
+    if fenced:
+        candidate = fenced.group(1).strip()
+        if candidate:
+            return candidate
+    # 已经就是 JSON：直接返回，避免下面的花括号扫描把合法文本改坏。
+    try:
+        json.loads(raw)
+        return raw
+    except (ValueError, TypeError):
+        pass
+    start = raw.find("{")
+    if start < 0:
+        return raw
+    depth = 0
+    in_string = False
+    escaped = False
+    for index in range(start, len(raw)):
+        char = raw[index]
+        if in_string:
+            if escaped:
+                escaped = False
+            elif char == "\\":
+                escaped = True
+            elif char == '"':
+                in_string = False
+            continue
+        if char == '"':
+            in_string = True
+        elif char == "{":
+            depth += 1
+        elif char == "}":
+            depth -= 1
+            if depth == 0:
+                return raw[start:index + 1]
+    # 花括号没闭合（常见于 max_tokens 截断）：返回已找到的部分，让上层报
+    # “截断/非 JSON”，而不是丢掉全部上下文。
+    return raw[start:]
+
+
 async def _ask(model, messages: list, schema: type[_StrictModel], *, agent: str,
                run_id: str, budget=None) -> _StrictModel:
     trace_event(run_id, "agent_llm_start", agent=agent)
@@ -134,22 +209,61 @@ async def _ask(model, messages: list, schema: type[_StrictModel], *, agent: str,
         # 由调用方把它记成证据缺口而不是让 token 无限增长。
         budget.reserve("llm_calls", 1)
         budget.reserve("prompt_chars", len(_json([str(m) for m in messages])))
-    try:
-        response = await asyncio.wait_for(model.ainvoke(messages), LLM_TIMEOUT_SECONDS)
-        usage = getattr(response, "usage_metadata", None) or {}
-        trace_event(
-            run_id, "agent_llm", agent=agent,
-            input_tokens=usage.get("input_tokens"),
-            output_tokens=usage.get("output_tokens"),
-        )
-        return schema.model_validate(json.loads(_response_text(response)))
-    except asyncio.CancelledError:
-        trace_event(run_id, "agent_cancelled", agent=agent)
-        raise
-    except Exception as exc:
-        trace_event(run_id, "agent_llm_error", agent=agent, error=type(exc).__name__,
-                    message=str(exc)[:500], input_tokens=None, output_tokens=None)
-        raise
+    last_error: Exception | None = None
+    for attempt in range(1, JSON_ATTEMPTS + 1):
+        try:
+            response = await asyncio.wait_for(model.ainvoke(messages), LLM_TIMEOUT_SECONDS)
+            usage = getattr(response, "usage_metadata", None) or {}
+            trace_event(
+                run_id, "agent_llm", agent=agent, attempt=attempt,
+                input_tokens=usage.get("input_tokens"),
+                output_tokens=usage.get("output_tokens"),
+            )
+            text = _response_text(response)
+            try:
+                return schema.model_validate(json.loads(_extract_json(text)))
+            except Exception as exc:  # noqa: BLE001 - JSON 不完整时重试一次
+                last_error = exc
+                finish = _finish_reason(response)
+                trace_event(
+                    run_id, "agent_llm_bad_json", agent=agent, attempt=attempt,
+                    finish_reason=finish, output_chars=len(text),
+                    error=type(exc).__name__,
+                )
+                if attempt >= JSON_ATTEMPTS:
+                    break
+                # 一次重试，按失败原因给不同指令：
+                # - 被 max_tokens 截断 → 要求精简且必须闭合；
+                # - 其他（前置说明/围栏/胡写）→ 要求只输出 JSON。
+                instruction = (
+                    JSON_TRUNCATED_INSTRUCTION
+                    if finish in {"max_tokens", "length", "MAX_TOKENS"}
+                    else JSON_RETRY_INSTRUCTION
+                )
+                messages = [*messages, ("user", instruction)]
+                continue
+        except asyncio.CancelledError:
+            trace_event(run_id, "agent_cancelled", agent=agent)
+            raise
+        except Exception as exc:  # noqa: BLE001 - 网络/鉴权错误不重试
+            trace_event(run_id, "agent_llm_error", agent=agent, error=type(exc).__name__,
+                        message=str(exc)[:500], input_tokens=None, output_tokens=None)
+            raise
+    assert last_error is not None
+    trace_event(run_id, "agent_llm_error", agent=agent, error=type(last_error).__name__,
+                message=str(last_error)[:500], input_tokens=None, output_tokens=None)
+    raise last_error
+
+
+def _finish_reason(response: Any) -> str:
+    """读取模型的 finish_reason（截断诊断用）；读不到返回空串。"""
+    meta = getattr(response, "response_metadata", None) or {}
+    if isinstance(meta, dict):
+        for key in ("finish_reason", "stop_reason"):
+            value = meta.get(key)
+            if value:
+                return str(value)
+    return ""
 
 
 def _error(emit: Callable, agent: str, message: str, *, fatal: bool = False) -> None:
