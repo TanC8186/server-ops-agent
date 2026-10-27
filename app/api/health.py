@@ -8,9 +8,10 @@
 - ``data.auth`` 如实报告当前生效的访问控制状态，便于部署侧核对“这台实例
   到底要不要鉴权”。只报告模式与布尔值，绝不包含密钥本身、掩码或长度。
 - ``data.capabilities`` 的每一项都只有 ``status`` + ``reason``（``tracing``
-  额外带计数），状态取值固定为 ``unconfigured | ready | degraded |
-  unavailable``；``rag`` 额外允许 ``invalid_index``（索引与当前 embedding
-  配置不一致，需要显式重建，不能并入“依赖不可用”）。
+  额外带计数；``trace_retention`` 额外带 ``last_run_at / deleted / failed /
+  scanned / dry_run / enabled``），状态取值固定为 ``unconfigured | ready |
+  degraded | unavailable``；``rag`` 额外允许 ``invalid_index``（索引与当前
+  embedding 配置不一致，需要显式重建，不能并入“依赖不可用”）。
 - 所有能力判断只读取配置与进程内计数，**不主动探测**远端模型服务，也不向
   响应写入任何密钥、令牌或凭证片段。
 
@@ -158,6 +159,80 @@ def _mcp_capability() -> dict[str, Any]:
     )
 
 
+def _trace_retention_capability() -> dict[str, Any]:
+    """trace 保留策略能力：上一次清理的事实 + 当前开关，不触发任何清理。
+
+    状态语义（沿用 ``unconfigured|ready|degraded|unavailable``）：
+
+    - ``unconfigured``：``TRACE_RETENTION_DAYS=0``，自动清理关闭（这是配置选择，
+      不是故障，因此不判 degraded）；
+    - ``ready``：已开启且最近一次清理没有失败（含"调度器已起、首轮还没到"）；
+    - ``degraded``：已开启但有失败文件，**或**已开启却既没跑过清理、调度器也
+      没在运行（后台任务没起来——这正是需要被看见的状态）；
+    - ``unavailable``：读取清理状态本身抛异常。
+
+    dry-run 只影响 ``reason`` 文案，不改变状态：dry-run 下"没删掉东西"是预期
+    行为，不能读成失败。绝不暴露文件路径或 trace 内容。
+    """
+    try:
+        from app.api.runs import purge_stats
+
+        stats = purge_stats()
+    except Exception as exc:  # noqa: BLE001 - 保留策略模块故障不能拖垮探针
+        logger.warning(f"trace retention 状态读取失败: {type(exc).__name__}")
+        return {
+            "status": "unavailable",
+            "reason": f"保留策略状态读取失败（{type(exc).__name__}）",
+            "last_run_at": None,
+            "deleted": 0,
+            "failed": 0,
+            "scanned": 0,
+            "dry_run": False,
+            "enabled": False,
+        }
+
+    enabled = bool(stats.get("enabled"))
+    dry_run = bool(stats.get("dry_run"))
+    last_run_at = stats.get("last_run_at")
+    deleted = int(stats.get("deleted", 0))
+    failed = int(stats.get("failed", 0))
+    scanned = int(stats.get("scanned", 0))
+
+    scheduler_running = bool(stats.get("scheduler_running"))
+
+    if not enabled:
+        status = "unconfigured"
+        reason = "TRACE_RETENTION_DAYS=0，自动清理已关闭"
+    elif failed:
+        status = "degraded"
+        reason = f"最近一次清理有 {failed} 个文件删除失败"
+    elif not last_run_at and not scheduler_running:
+        # 开着保留策略却既没跑过、后台任务也不在：这才是需要人工介入的降级。
+        # （在后台任务正常运行时，启动后的首轮宽限期内 last_run_at 仍为 None，
+        #   那属于正常状态，不能报 degraded。）
+        status = "degraded"
+        reason = "保留策略已开启，但本进程尚未执行过清理且调度器未运行"
+    else:
+        status = "ready"
+        if dry_run:
+            reason = "dry-run：只统计不删除"
+        elif not last_run_at:
+            reason = "调度器已启动，等待首轮清理"
+        else:
+            reason = None
+
+    return {
+        "status": status,
+        "reason": reason,
+        "last_run_at": last_run_at,
+        "deleted": deleted,
+        "failed": failed,
+        "scanned": scanned,
+        "dry_run": dry_run,
+        "enabled": enabled,
+    }
+
+
 def _tracing_capability() -> dict[str, Any]:
     """trace 写入健康：只暴露计数，不暴露 last_error / 事件载荷。
 
@@ -189,7 +264,9 @@ async def health_check():
     - ``diagnosis_local`` / ``diagnosis_cloud``：配置是否完整，不探测端点；
     - ``mcp``：本进程是否真的加载过 MCP 工具（缓存事实，不是实时探活）；
     - ``rag``：Milvus 连通性与已记录的索引校验结果；
-    - ``tracing``：进程内写入/失败计数。
+    - ``tracing``：进程内写入/失败计数；
+    - ``trace_retention``：retention 开关与最近一次清理的事实（时间/删除/失败/
+      扫描/dry-run），只读快照，不触发清理。
 
     ``AUTH_MODE=deployment`` 且未配置密钥时，进程会在 lifespan 的
     ``startup_check()`` 阶段就拒绝启动，因此线上不会出现“deployment 但未
@@ -229,6 +306,7 @@ async def health_check():
         "mcp": _mcp_capability(),
         "rag": _rag_capability(milvus_status, milvus_message),
         "tracing": _tracing_capability(),
+        "trace_retention": _trace_retention_capability(),
     }
     for name, item in capabilities.items():
         allowed = _RAG_STATUSES if name == "rag" else _CAPABILITY_STATUSES

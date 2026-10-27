@@ -14,8 +14,10 @@ token 用量。目的不是替代 Langfuse/OTel，而是在没有额外服务的
 from __future__ import annotations
 
 import json
+import os
 import re
 import threading
+import time
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -23,6 +25,14 @@ from typing import Any
 from loguru import logger
 
 TRACE_DIR = Path(__file__).resolve().parents[1] / "logs" / "traces"
+
+#: retention 清理的"最小静默时间"：mtime 比这个更新的文件一律不删。
+#:
+#: 为什么需要它：per-path 锁只能防住"正在写"的那一瞬间。进程刚写完一条事件、
+#: 下一轮诊断 200ms 后还要继续追加的 run，如果按保留策略被删掉，前端回放会看到
+#: 一段被腰斩的 trace。默认 5 分钟，``PURGE_MIN_AGE_SECONDS`` 可覆盖。
+DEFAULT_PURGE_MIN_AGE_SECONDS = 300
+PURGE_MIN_AGE_ENV = "PURGE_MIN_AGE_SECONDS"
 
 #: 单条序列化记录的上限（字节，含 JSON 结构，不含行尾换行）。
 MAX_RECORD_BYTES = 64 * 1024
@@ -108,15 +118,144 @@ def _safe_run_id(run_id: str) -> str:
     return cleaned or "unknown"
 
 
+def _lock_key(path: Path | str) -> str:
+    """把路径收敛成锁键。
+
+    写入方用 ``TRACE_DIR / f"{run_id}.jsonl"``，清理方拿到的是 ``resolve()``
+    之后的路径；两者字符串不一定相同（大小写、符号链接、``.``/``..``）。锁必须
+    按**同一个键**取，否则清理会拿到另一把无人持有的锁，"协同删除"就成了摆设。
+    """
+    try:
+        return os.path.normcase(os.path.realpath(str(path)))
+    except (OSError, ValueError):
+        return os.path.normcase(os.path.abspath(str(path)))
+
+
 def _path_lock(path: Path) -> threading.Lock:
     """取（并按需创建）某个文件对应的锁；不同 run 之间互不阻塞。"""
-    key = str(path)
+    key = _lock_key(path)
     with _LOCKS_GUARD:
         lock = _PATH_LOCKS.get(key)
         if lock is None:
             lock = threading.Lock()
             _PATH_LOCKS[key] = lock
         return lock
+
+
+def is_file_locked(path: Path | str) -> bool:
+    """该文件的 per-path 锁当前是否被持有（任何线程，含当前线程）。
+
+    只用于测试与排查：``threading.Lock.locked()`` 不区分持有者，返回 True 不能
+    推断"别人正在写"，只能推断"此刻拿不到锁"。
+    """
+    return _path_lock(Path(path)).locked()
+
+
+def purge_min_age_seconds() -> float:
+    """清理的最小静默时间（秒）；非法值回退默认，``0`` 表示不做静默保护。"""
+    raw = os.environ.get(PURGE_MIN_AGE_ENV, "").strip()
+    if not raw:
+        return float(DEFAULT_PURGE_MIN_AGE_SECONDS)
+    try:
+        value = float(raw)
+    except ValueError:
+        return float(DEFAULT_PURGE_MIN_AGE_SECONDS)
+    return max(0.0, value)
+
+
+#: 协同删除的结果码；``purge_expired_traces`` 用它做精确计数。
+REMOVE_DELETED = "deleted"
+REMOVE_RECENT = "recent"
+REMOVE_LOCKED = "locked"
+REMOVE_MISSING = "missing"
+REMOVE_FAILED = "failed"
+
+
+def _remove_trace_file(
+    path: Path | str,
+    *,
+    min_age_seconds: float | None = None,
+    now: float | None = None,
+    delete: bool = True,
+) -> str:
+    """在 per-path 锁内删除一个 trace 文件，返回结果码。
+
+    与 ``_write_record`` 共用同一把锁，且用**非阻塞**获取：
+    - 拿到锁：写入方此刻不在写；删除完成前它会在锁上等待，不会把半行写进
+      一个已经被 unlink 的 inode。
+    - 拿不到锁（有 append 正在进行）：直接放弃本次删除，下一轮再试。
+
+    只在锁内才检查 mtime：写入方刚追加完会刷新 mtime，锁外读取会让"看起来已经
+    静默 5 分钟"的文件在真正删除前又被写一次。
+
+    ``delete=False`` 是 dry-run：走完全相同的锁与静默判定，只是不 unlink，
+    因此"按这个策略真跑会删几个"的预测与实际执行严格一致。
+    """
+    target = Path(path)
+    lock = _path_lock(target)
+    if not lock.acquire(blocking=False):
+        return REMOVE_LOCKED
+    try:
+        try:
+            stat = target.stat()
+        except FileNotFoundError:
+            return REMOVE_MISSING
+        except OSError:
+            return REMOVE_FAILED
+        age_limit = purge_min_age_seconds() if min_age_seconds is None else min_age_seconds
+        current = time.time() if now is None else now
+        if age_limit > 0 and current - stat.st_mtime < age_limit:
+            return REMOVE_RECENT
+        if not delete:
+            return REMOVE_DELETED
+        try:
+            target.unlink()
+        except FileNotFoundError:
+            return REMOVE_MISSING
+        except OSError:
+            return REMOVE_FAILED
+        return REMOVE_DELETED
+    finally:
+        lock.release()
+
+
+def remove_trace_file(
+    path: Path | str,
+    *,
+    min_age_seconds: float | None = None,
+    now: float | None = None,
+) -> bool:
+    """retention 清理用的协同删除：只有真的删掉了才返回 True。
+
+    跳过（正在被追加 / 仍在静默窗口内 / 文件已不存在）与失败都返回 False，
+    细节原因见 ``_remove_trace_file`` 的结果码。
+    """
+    return remove_trace_file_detail(
+        path, min_age_seconds=min_age_seconds, now=now
+    ) == REMOVE_DELETED
+
+
+def remove_trace_file_detail(
+    path: Path | str,
+    *,
+    min_age_seconds: float | None = None,
+    now: float | None = None,
+    delete: bool = True,
+) -> str:
+    """``remove_trace_file`` 的结果码版本，供清理统计区分"跳过"与"失败"。
+
+    返回 ``deleted | recent | locked | missing | failed`` 之一。调用方据此把
+    "本轮不该删"（recent/locked/missing）与真正的删除失败分开计数——混在一起
+    会让 /health 把正常工作读成 degraded。
+
+    ``delete=False`` 走同一套判定但不真的删，用于 dry-run 的精确预测。
+    """
+    reason = _remove_trace_file(
+        path, min_age_seconds=min_age_seconds, now=now, delete=delete
+    )
+    if reason == REMOVE_FAILED:
+        logger.warning("trace 文件删除失败: {}", type(OSError).__name__)
+    return reason
 
 
 def _is_secret_key(key: str) -> bool:

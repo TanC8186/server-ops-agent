@@ -221,6 +221,7 @@ async def run_diagnostic(user_input: str, session_id: str, execution_mode: str,
                          *, service_name: str | None = None,
                          target_choice: str | None = None,
                          target_candidate_id: str | None = None,
+                         owner: str | None = None,
                          request_context: dict | None = None):
     """执行一次诊断并流式产出事件。
 
@@ -228,6 +229,10 @@ async def run_diagnostic(user_input: str, session_id: str, execution_mode: str,
     ``service_name`` 指向同一个目标目录绑定字段（后者优先），因此这里原样转发
     给两种运行器，由它们在绑定前统一归一化。``request_context`` 只是协议预留，
     其中的 ``target_choice`` 会在传入的 ``target_choice`` 为空时兜底。
+
+    ``owner`` 是调用方 principal 的 id（G3-3）。它由 API 层从**已验证**的
+    API Key 推导后传入，写进 ``run_start`` 作为 run 归属的唯一事实；不传时
+    不写该字段，读取侧退化为只校验 session（兼容旧 trace）。
     """
     run_id = uuid.uuid4().hex
     started = time.monotonic()
@@ -235,7 +240,12 @@ async def run_diagnostic(user_input: str, session_id: str, execution_mode: str,
     deadline = started + float(config.diagnostic_timeout_seconds)
     budget = RequestBudget.from_config(config)
     trace_event(run_id, "run_start", session_id=session_id, execution_mode=execution_mode,
-                input_chars=len(user_input), deadline_s=config.diagnostic_timeout_seconds)
+                input_chars=len(user_input), deadline_s=config.diagnostic_timeout_seconds,
+                # G3-3：把 principal 归属写进唯一事实源（run_start）。显式传参而
+                # 不做 ** 展开（仓库有 root-cause 守卫：trace 不得裸展开外来字典）。
+                # ``owner=None`` 落成 null，读取侧把非字符串视为“未记录归属”，
+                # 与旧 trace（没有这个字段）行为一致。
+                owner=owner)
     # 显式形参优先；请求上下文里的同名字段只做兜底，避免两处选择冲突。
     choice = target_choice_value(target_choice) or target_choice_value(request_context)
     candidate = target_choice_value(target_candidate_id) or target_choice_value(

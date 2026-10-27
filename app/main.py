@@ -39,9 +39,21 @@ async def lifespan(app: FastAPI):
     
     logger.info("=" * 60)
     
+    # trace retention 后台清理：显式启动、可观测（/health -> trace_retention）。
+    # 必须在 try 里启动：清理只是运维动作，任何异常都不能让进程起不来。
+    try:
+        runs.start_trace_purge_scheduler()
+    except Exception as e:  # noqa: BLE001 - 启动路径不能因清理失败而中断
+        logger.warning(f"⚠️  trace retention 后台任务启动失败: {type(e).__name__}")
+
     yield
-    
+
     # 关闭时执行
+    try:
+        await runs.stop_trace_purge_scheduler()
+    except Exception as e:  # noqa: BLE001 - 退出路径同样不能阻塞
+        logger.warning(f"⚠️  trace retention 后台任务停止异常: {type(e).__name__}")
+
     logger.info("🔌 正在关闭 Milvus 连接...")
     try:
         milvus_manager.close()

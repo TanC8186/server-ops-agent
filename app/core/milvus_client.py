@@ -264,9 +264,23 @@ class MilvusClientManager:
 
         只用于“空 collection 可以写入初始描述符 / 非空 collection 缺描述符要拒绝”
         这一判断，不参与任何业务计数。
+
+        真实缺陷（2026-10-27 staging 验收发现）：Milvus 2.5 的
+        ``Collection.num_entities`` 在刚写入后可能返回 0（统计非实时/需 flush），
+        而 ``query(count(*))`` 立刻返回 953。用前者会让“非空 collection 缺描述符”
+        被误判成“空集合”，从而静默写入新描述符、复用错配的向量空间。
+        因此改为：``count(*)`` 优先，``num_entities`` 仅作退路。
         """
         if self._collection is None:
             return 0
+        try:
+            rows = self._collection.query(expr='id != ""', output_fields=["count(*)"])
+            for row in rows or []:
+                value = row.get("count(*)") if isinstance(row, dict) else None
+                if isinstance(value, int):
+                    return value
+        except Exception:  # noqa: BLE001 - count(*) 不可用时退回旧接口
+            pass
         try:
             return int(self._collection.num_entities)
         except Exception:  # noqa: BLE001 - 统计失败退化为 0，由调用方决定严格度

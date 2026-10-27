@@ -6,11 +6,12 @@ import inspect
 import json
 from typing import Any
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Header
 from loguru import logger
 from sse_starlette.sse import EventSourceResponse
 
 from app.config import config
+from app.core import principal as acl
 from app.models.aiops import AIOpsRequest
 from app.services.aiops_service import aiops_service
 
@@ -49,7 +50,7 @@ def _accepted_parameters(callable_obj) -> set[str] | None:
     return {name for name in parameters if name != "self"}
 
 
-def _service_kwargs(request: AIOpsRequest) -> dict[str, Any]:
+def _service_kwargs(request: AIOpsRequest, owner: str | None = None) -> dict[str, Any]:
     """把请求字段投影到服务当前真正接受的参数上。
 
     ``target_choice`` 是用户在 ``target_required`` 候选卡片里的显式选择；
@@ -79,6 +80,11 @@ def _service_kwargs(request: AIOpsRequest) -> dict[str, Any]:
 
     if accepted is None or "target_candidate_id" in accepted:
         kwargs["target_candidate_id"] = request.target_candidate_id
+
+    if accepted is None or "owner" in accepted:
+        # G3-3：owner 由 API 层从**已验证**的 API Key 推导，不取自请求体，
+        # 模型/客户端都不能伪造归属。
+        kwargs["owner"] = owner
 
     if accepted is None or "request_context" in accepted:
         context: dict[str, Any] = {}
@@ -128,7 +134,10 @@ async def execution_modes():
 
 
 @router.post("/aiops")
-async def diagnose_stream(request: AIOpsRequest):
+async def diagnose_stream(
+    request: AIOpsRequest,
+    x_api_key: str | None = Header(default=None, alias="X-API-Key"),
+):
     """
     AIOps 故障诊断接口（流式 SSE）
 
@@ -249,6 +258,8 @@ async def diagnose_stream(request: AIOpsRequest):
         SSE 事件流
     """
     session_id = request.session_id or "default"
+    # 认证失败映射成 401（不是 500）；dev 模式不要求 key，但归属照样记录。
+    owner = acl.current_principal(None, (x_api_key or "").strip()).principal_id
     logger.info(f"[会话 {session_id}] 收到 AIOps 诊断请求（流式）")
 
     async def event_generator():
@@ -259,7 +270,11 @@ async def diagnose_stream(request: AIOpsRequest):
             return {"event": "message", "data": json.dumps(event, ensure_ascii=False)}
 
         try:
-            async for event in aiops_service.diagnose(**_service_kwargs(request)):
+            # G3-3：owner 只能来自**已验证**的 API Key（dev 模式映射到单一
+            # principal），绝不从请求体或其他可伪造字段取。
+            async for event in aiops_service.diagnose(
+                **_service_kwargs(request, owner=owner)
+            ):
                 if not isinstance(event, dict):
                     logger.warning(f"[会话 {session_id}] 忽略非对象事件: {type(event).__name__}")
                     continue

@@ -15,14 +15,29 @@
 后续检查建议 → 原始证据索引。知识片段只能出现在“知识依据”，并且必须标注
 “（手册，不代表当前主机状态）”——手册描述的是某个版本的行为，不是这台主机
 此刻的状态。
+
+**知识片段与观测的显式关联（G2.3 / BE-06）**：知识依据以前只有一句笼统免责
+声明，读者无法判断某段手册到底支撑哪条观测。现在两边都要有名有姓：
+
+- 知识行：``… 关联观测: E1, E3``（只列**被证实的实验观测**，不含假设）；
+- 观测行：``知识依据: K1``（只列与它确实相关的知识片段）；
+- 关联判定只用可复核的客观线索（共享指标族、显式指标名/命令词元重叠），
+  一律不猜。没有命中时知识行必须写
+  ``仅为背景依据（未关联到本轮观测）``，**绝不编造关联**。
 """
 
 from __future__ import annotations
 
+import re
 from collections.abc import Iterable, Mapping
 from typing import Any
 
-from app.core.claims import evidence_is_live, verify_claims
+from app.core.claims import (
+    claim_metric_families,
+    evidence_is_live,
+    metric_family,
+    verify_claims,
+)
 from app.core.run_status import (
     DiagnosisQuality,
     Lifecycle,
@@ -157,6 +172,8 @@ def assess(runtime_evidence: Iterable[Mapping[str, Any]],
 
     knowledge = [item for item in evidence if is_knowledge(item)]
     indexed = [item for item in evidence if not is_knowledge(item)]
+    # 只把知识片段挂到**被证实的观测**上：假设不能被手册“支撑”。
+    links = link_knowledge(observed, knowledge, by_id)
 
     return {
         "lifecycle": str(lifecycle_value),
@@ -170,10 +187,26 @@ def assess(runtime_evidence: Iterable[Mapping[str, Any]],
         "knowledge": knowledge,
         "recommendations": [str(item) for item in review.get("recommendations") or ()],
         "evidence": indexed,
+        #: ``{知识 id: [观测 id, ...]}``；只含客观线索能对上的组合。
+        "knowledge_links": links,
+        #: 观测 id -> 与它相关的知识片段 id（由上面反向派生，只读）。
+        "observation_links": _invert_links(links),
     }
 
 
-def _observation_line(item: Mapping[str, Any]) -> str:
+def _invert_links(links: Mapping[str, list[str]]) -> dict[str, list[str]]:
+    """把 ``{知识 id: [观测 id]}`` 反置成 ``{观测 id: [知识 id]}``（保序去重）。"""
+    inverted: dict[str, list[str]] = {}
+    for knowledge_id, observation_ids in links.items():
+        for observation_id in observation_ids:
+            bucket = inverted.setdefault(str(observation_id), [])
+            if knowledge_id and knowledge_id not in bucket:
+                bucket.append(knowledge_id)
+    return inverted
+
+
+def _observation_line(item: Mapping[str, Any],
+                      knowledge_ids: Iterable[str] = ()) -> str:
     """渲染一条“当前观测”。
 
     一行同时给出两样东西，缺一不可（BE-01 的原始缺陷是两者只出现一个）：
@@ -182,15 +215,20 @@ def _observation_line(item: Mapping[str, Any]) -> str:
       已经核对了数值、指标、目标与时间窗）；
     - ``rendered``：服务端按证据逐字渲染的 ``E1 metric=12`` 口径，供人工复核，
       不依赖模型措辞。
+
+    ``knowledge_ids`` 是与之建立了客观关联的知识片段（K 编号）。没有关联时
+    不加任何后缀——宁可什么都不说，也不能暗示“有手册支持”。
     """
     rendered = str(item.get("rendered") or "").strip()
     claim = str(item.get("claim") or "").strip()
     refs = _refs(item)
+    linked = ", ".join(str(value) for value in knowledge_ids if str(value))
+    suffix = f"；知识依据: {linked}" if linked else ""
     if rendered and claim:
         return (f"- [{_STATUS_LABELS['supported']}] {claim} "
-                f"（服务端核算: {rendered}；证据: {refs}）")
+                f"（服务端核算: {rendered}；证据: {refs}{suffix}）")
     text = claim or rendered
-    return f"- [{_STATUS_LABELS['supported']}] {text} （证据: {refs}）"
+    return f"- [{_STATUS_LABELS['supported']}] {text} （证据: {refs}{suffix}）"
 
 
 def _hypothesis_line(item: Mapping[str, Any]) -> str:
@@ -209,7 +247,26 @@ def _refs(item: Mapping[str, Any]) -> str:
     return ", ".join(ids) if ids else "无可用证据引用"
 
 
-def _knowledge_line(item: Mapping[str, Any]) -> str:
+# ── 知识片段 ↔ 观测的显式关联 ───────────────────────────────
+
+#: 知识依据未关联到任何观测时必须出现的原文（回归见
+#: tests/test_knowledge_observation_link.py）。
+UNLINKED_KNOWLEDGE_NOTE = "仅为背景依据（未关联到本轮观测）"
+
+#: 提取“词元”用：拉丁字母开头的标识符形态（maxclients、redis-cli、cpu_usage）。
+_TOKEN_RE = re.compile(r"[A-Za-z][A-Za-z0-9_.\-]{3,}")
+
+#: 过于通用、不构成关联证据的词元（避免把手册里任何一句都关联到观测）。
+_GENERIC_TOKENS = frozenset({
+    "this", "that", "with", "from", "have", "should", "when", "will", "then",
+    "there", "their", "which", "value", "values", "data", "none", "null", "true",
+    "false", "unknown", "default", "system", "info", "status", "step", "https",
+    "http", "www", "html", "json", "text", "note", "notes",
+})
+
+
+def _knowledge_body(item: Mapping[str, Any]) -> tuple[str, str]:
+    """取出知识片段的 (标题, 正文)，兼容 data 为 dict / 字符串两种形态。"""
     data = item.get("data")
     title = str(item.get("title") or "")
     text = ""
@@ -218,9 +275,125 @@ def _knowledge_line(item: Mapping[str, Any]) -> str:
         text = str(data.get("text") or data.get("content") or data.get("context") or "")
     elif isinstance(data, str):
         text = data
+    return title, text
+
+
+def _tokens(text: str) -> set[str]:
+    return {
+        token.lower()
+        for token in _TOKEN_RE.findall(text or "")
+        if token.lower() not in _GENERIC_TOKENS
+    }
+
+
+def _families(text: str) -> set[str]:
+    return claim_metric_families(text)
+
+
+def _observation_signal(item: Mapping[str, Any],
+                        by_id: Mapping[str, Mapping[str, Any]]) -> tuple[set[str], set[str]]:
+    """一条观测的 (指标族, 词元)。
+
+    只使用**被引用证据**里可复核的字段：证据的 metric/name、工具名，以及
+    声明文本本身。不读工具原始 payload 的自由文本，避免“日志里碰巧出现的词”
+    把手册和观测绑在一起。
+    """
+    families: set[str] = set()
+    tokens: set[str] = set()
+    for evidence_id in item.get("evidence_ids") or ():
+        evidence = by_id.get(str(evidence_id))
+        if not isinstance(evidence, Mapping):
+            continue
+        data = evidence.get("data")
+        if isinstance(data, Mapping):
+            for key in ("metric", "metric_name", "name"):
+                value = data.get(key)
+                if value:
+                    families.add(metric_family(str(value)))
+                    tokens |= _tokens(str(value))
+        tool = str(evidence.get("tool") or "")
+        families.add(metric_family(tool))
+        tokens |= _tokens(tool)
+    text = f"{item.get('claim') or ''} {item.get('rendered') or ''}"
+    families |= _families(text)
+    tokens |= _tokens(str(item.get("claim") or ""))
+    families.discard("")
+    return families, tokens
+
+
+def _related(families: set[str], tokens: set[str],
+            other_families: set[str], other_tokens: set[str]) -> bool:
+    """判定两个证据是否“可能相关”。
+
+    有任一客观线索重合才算相关：共享指标族（CPU/内存/磁盘/网络/进程），或
+    共享一个非通用的标识符词元（指标名、命令名、参数名、组件名）。
+    """
+    if families and other_families and (families & other_families):
+        return True
+    return bool(tokens & other_tokens)
+
+
+def link_knowledge(observations: Iterable[Mapping[str, Any]],
+                   knowledge: Iterable[Mapping[str, Any]],
+                   by_id: Mapping[str, Mapping[str, Any]]) -> dict[str, list[str]]:
+    """计算知识片段与观测的关联，返回 ``{知识片段 id: [证据 id, ...]}``。
+
+    关联的“观测”用**主证据 id**（``E1``）表示，而不是内部序号：报告里可见的
+    就是这个 id，读者能直接对上“当前观测”小节里的 ``证据: E1``。
+
+    只建立**显式**关联：没有任何客观线索重合时返回空列表（渲染层据此写
+    “仅为背景依据”），绝不因为“同一轮里只有一条知识”就把它挂到所有观测上。
+    """
+    signals = [
+        (key, families, tokens)
+        for key, families, tokens in (
+            (observation_key(item),) + _observation_signal(item, by_id)
+            for item in observations
+        )
+        if key
+    ]
+    links: dict[str, list[str]] = {}
+    for chunk in knowledge:
+        chunk_id = str(chunk.get("id") or "")
+        title, text = _knowledge_body(chunk)
+        chunk_families = _families(f"{title} {text}")
+        chunk_tokens = _tokens(f"{title} {text}")
+        links[chunk_id] = [
+            key for key, families, tokens in signals
+            if _related(chunk_families, chunk_tokens, families, tokens)
+        ]
+    return links
+
+
+def observation_key(item: Mapping[str, Any]) -> str:
+    """观测在报告里的稳定标识：主证据 id（``E1``），没有则退回证据 id 列表首项。
+
+    一条 supported 观测可能引用多条证据；只取首个作为“主证据”，与
+    ``verify_claims`` 渲染的 ``E1 metric=12`` 口径一致。
+    """
+    for evidence_id in item.get("evidence_ids") or ():
+        text = str(evidence_id or "").strip()
+        if text:
+            return text
+    return str(item.get("id") or "").strip()
+
+
+def _knowledge_line(item: Mapping[str, Any],
+                    observation_ids: Iterable[str] = ()) -> str:
+    """渲染一条“知识依据”，并显式说明它与哪条观测相关。
+
+    - 有客观关联：``… 关联观测: E1, E3``（只列实际被证实的观测）；
+    - 没有任何关联：``… 仅为背景依据（未关联到本轮观测）``——不编造关联，
+      也不把“同轮出现”当成“支持”；
+    - ``（手册，不代表当前主机状态）`` 无论如何都保留。
+    """
+    title, text = _knowledge_body(item)
     source = str(item.get("source") or "manual")
     head = f"{title}：" if title else ""
-    return f"- {head}{text} {MANUAL_DISCLAIMER}（来源: {source}）".replace("  ", " ")
+    linked = ", ".join(str(value) for value in observation_ids if str(value))
+    relation = f"关联观测: {linked}" if linked else UNLINKED_KNOWLEDGE_NOTE
+    line = f"- {head}{text} {MANUAL_DISCLAIMER}（{relation}；来源: {source}）"
+    return line.replace("  ", " ")
 
 
 def _cell(value: Any) -> str:
@@ -247,7 +420,11 @@ def render_report(assessment: Mapping[str, Any]) -> str:
         )
     lines.extend(["", f"## {REPORT_SECTIONS[0]}"])
     observations = assessment.get("observations") or []
-    lines.extend(_observation_line(item) for item in observations)
+    observation_links = assessment.get("observation_links") or {}
+    lines.extend(
+        _observation_line(item, observation_links.get(observation_key(item), ()))
+        for item in observations
+    )
     if not observations:
         lines.append("- 本轮没有可用的真实观测；以下内容不能作为当前主机状态。")
 
@@ -259,7 +436,11 @@ def render_report(assessment: Mapping[str, Any]) -> str:
 
     lines.extend(["", f"## {REPORT_SECTIONS[2]}"])
     knowledge = assessment.get("knowledge") or []
-    lines.extend(_knowledge_line(item) for item in knowledge)
+    knowledge_links = assessment.get("knowledge_links") or {}
+    lines.extend(
+        _knowledge_line(item, knowledge_links.get(str(item.get("id") or ""), ()))
+        for item in knowledge
+    )
     if not knowledge:
         lines.append("- 本轮没有检索到知识库依据。")
 

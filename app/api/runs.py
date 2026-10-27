@@ -13,11 +13,18 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 import re
+import threading
 import time
+from datetime import datetime
 from pathlib import Path
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Header, HTTPException, Query
+from loguru import logger
+
+from app import observability
+from app.core import principal as acl
 
 router = APIRouter()
 
@@ -48,6 +55,17 @@ RETENTION_DAYS_ENV = "TRACE_RETENTION_DAYS"
 
 #: 单次清理最多删除的文件数与每批字节上限（避免一次删太多影响磁盘）。
 RETENTION_MAX_FILES_PER_RUN = 200
+
+#: 后台清理间隔（秒）；``TRACE_PURGE_INTERVAL_SECONDS`` 可覆盖。
+DEFAULT_PURGE_INTERVAL_SECONDS = 3600
+PURGE_INTERVAL_ENV = "TRACE_PURGE_INTERVAL_SECONDS"
+
+#: dry-run 开关：``1/true/yes/on`` 打开，只统计不删除。``TRACE_PURGE_DRY_RUN``。
+DRY_RUN_ENV = "TRACE_PURGE_DRY_RUN"
+
+#: 后台任务的启动宽限（秒）：先等应用把路由/依赖起完，再跑第一次清理。
+PURGE_STARTUP_DELAY_SECONDS = 5.0
+
 
 
 def _coerce_index(value: object, default: int = 0) -> int:
@@ -85,8 +103,6 @@ def abandoned_after_seconds() -> float:
 
 def retention_days() -> float:
     """trace 保留天数；``0`` 表示关闭自动清理。非法值回退到默认。"""
-    import os
-
     raw = os.environ.get(RETENTION_DAYS_ENV, "").strip()
     if not raw:
         return float(DEFAULT_TRACE_RETENTION_DAYS)
@@ -97,37 +113,235 @@ def retention_days() -> float:
     return max(0.0, value)
 
 
+def purge_interval_seconds() -> float:
+    """后台清理间隔（秒）；非法或非正值回退到 3600。"""
+    raw = os.environ.get(PURGE_INTERVAL_ENV, "").strip()
+    if not raw:
+        return float(DEFAULT_PURGE_INTERVAL_SECONDS)
+    try:
+        value = float(raw)
+    except ValueError:
+        return float(DEFAULT_PURGE_INTERVAL_SECONDS)
+    return value if value > 0 else float(DEFAULT_PURGE_INTERVAL_SECONDS)
+
+
+def purge_dry_run() -> bool:
+    """是否处于 dry-run（只统计、不删除）。``TRACE_PURGE_DRY_RUN=1`` 打开。"""
+    raw = os.environ.get(DRY_RUN_ENV, "").strip().lower()
+    return raw in {"1", "true", "yes", "on"}
+
+
+#: 最近一次清理的事实快照；进程内单份，缺失时为 None（从未跑过）。
+_PURGE_STATS_LOCK = threading.Lock()
+_LAST_PURGE: dict | None = None
+
+
+def _remember_purge(stats: dict) -> dict:
+    """记录最近一次清理结果（覆盖式），并返回同内容的副本。"""
+    global _LAST_PURGE
+    snapshot = dict(stats)
+    snapshot["last_run_at"] = datetime.now().isoformat(timespec="seconds")
+    with _PURGE_STATS_LOCK:
+        _LAST_PURGE = snapshot
+    return dict(snapshot)
+
+
+def purge_stats() -> dict:
+    """返回最近一次清理结果；从未运行过时 ``last_run_at`` 为 None。
+
+    ``enabled`` 是**当前配置**（``TRACE_RETENTION_DAYS > 0``），不是历史值：
+    运维改了环境变量之后，这里必须立刻反映"现在还会不会清理"。
+    """
+    enabled = retention_days() > 0
+    with _PURGE_STATS_LOCK:
+        last = dict(_LAST_PURGE) if _LAST_PURGE else {}
+    return {
+        "enabled": enabled,
+        "dry_run": purge_dry_run(),
+        "interval_seconds": purge_interval_seconds(),
+        "last_run_at": last.get("last_run_at"),
+        "deleted": int(last.get("deleted", 0)),
+        "failed": int(last.get("failed", 0)),
+        "scanned": int(last.get("scanned", 0)),
+        "skipped": int(last.get("skipped", 0)),
+        "scheduler_running": _running_task() is not None,
+    }
+
+
 def purge_expired_traces(*, now: float | None = None) -> dict:
     """按保留策略删除过期 trace 文件，返回清理统计（可审计、可重跑）。
 
     只删 `logs/traces/*.jsonl` 里通过 run_id 格式与包含性校验的普通文件；
     越界条目、非本目录文件、符号链接逃逸一律跳过。删除失败逐条记录，不抛异常
     （清理是运维动作，不能影响 API 可用性）。
-    """
-    import os
 
+    并发安全：删除走 ``observability.remove_trace_file``，它和 trace 追加共用
+    per-path 锁并且要求文件已静默 ``PURGE_MIN_AGE_SECONDS``。正在被追加的文件
+    要么先写完（拿到锁后等待），要么本轮直接跳过（``skipped`` 计数），绝不
+    出现"删到一半还在写"的腰斩 trace。
+
+    ``TRACE_PURGE_DRY_RUN=1`` 时只统计 ``scanned`` 与 ``would_delete``，不删。
+
+    每次调用（除 disabled 外）都会写入 ``purge_stats()`` 的最近一次记录，
+    包括失败次数——启动期后台任务与运维手工调用共用同一份事实。
+    """
     days = retention_days()
+    dry_run = purge_dry_run()
     if days <= 0:
-        return {"enabled": False, "deleted": 0, "failed": 0, "scanned": 0}
+        stats = {
+            "enabled": False,
+            "dry_run": dry_run,
+            "deleted": 0,
+            "failed": 0,
+            "scanned": 0,
+            "skipped": 0,
+        }
+        return _remember_purge(stats)
+
     cutoff = (now if now is not None else time.time()) - days * 86400
-    deleted = failed = scanned = 0
-    if not TRACE_DIR.exists():
-        return {"enabled": True, "deleted": 0, "failed": 0, "scanned": 0}
-    for candidate in list(TRACE_DIR.glob("*.jsonl"))[:RETENTION_MAX_FILES_PER_RUN]:
-        if not is_valid_run_id(candidate.stem):
-            continue
-        resolved = resolve_trace_file(candidate)
-        if resolved is None or not resolved.is_file():
-            continue
-        scanned += 1
-        if _safe_mtime(resolved) >= cutoff:
-            continue
-        try:
-            os.remove(resolved)
-            deleted += 1
-        except OSError:
-            failed += 1
-    return {"enabled": True, "deleted": deleted, "failed": failed, "scanned": scanned}
+    deleted = failed = scanned = skipped = would_delete = 0
+    if TRACE_DIR.exists():
+        for candidate in list(TRACE_DIR.glob("*.jsonl"))[:RETENTION_MAX_FILES_PER_RUN]:
+            if not is_valid_run_id(candidate.stem):
+                continue
+            resolved = resolve_trace_file(candidate)
+            if resolved is None or not resolved.is_file():
+                continue
+            scanned += 1
+            if _safe_mtime(resolved) >= cutoff:
+                continue
+            # dry-run 也走完全相同的锁/静默判定（只是不 unlink），这样
+            # "真跑会删几个"的预测与实际执行严格一致，不会因为锁状态产生偏差。
+            outcome = observability.remove_trace_file_detail(
+                resolved, now=now, delete=not dry_run
+            )
+            if outcome == observability.REMOVE_DELETED:
+                if dry_run:
+                    would_delete += 1
+                else:
+                    deleted += 1
+            elif outcome == observability.REMOVE_FAILED:
+                failed += 1
+            else:
+                # recent / locked / missing：都不是失败，是"本轮不该删"，
+                # 必须与真实删除失败分开计数，否则 /health 会把正常跳过读成降级。
+                skipped += 1
+
+    stats = {
+        "enabled": True,
+        "dry_run": dry_run,
+        "deleted": deleted,
+        "failed": failed,
+        "scanned": scanned,
+        "skipped": skipped,
+    }
+    if dry_run:
+        stats["would_delete"] = would_delete
+    return _remember_purge(stats)
+
+
+# ---------------------------------------------------------------------------
+# 后台调度：显式、可观测、幂等
+# ---------------------------------------------------------------------------
+
+_SCHEDULER_LOCK = threading.Lock()
+_SCHEDULER_TASK: asyncio.Task | None = None
+
+
+def _running_task() -> asyncio.Task | None:
+    """当前存活的后台任务；已完成/已取消的任务不算运行中。"""
+    task = _SCHEDULER_TASK
+    if task is None or task.done():
+        return None
+    return task
+
+
+async def _trace_purge_loop(interval: float) -> None:
+    """周期性清理循环；单轮失败只记日志，绝不让任务退出。
+
+    先用 ``asyncio.to_thread`` 把同步的扫描/删除挪出事件循环，否则大目录一次
+    ``glob`` + 200 次 stat 会阻塞所有 HTTP 请求。
+    """
+    delay = min(PURGE_STARTUP_DELAY_SECONDS, interval)
+    try:
+        await asyncio.sleep(delay)
+        while True:
+            try:
+                stats = await asyncio.to_thread(purge_expired_traces)
+                logger.info(
+                    "trace retention 清理完成: scanned={} deleted={} failed={} "
+                    "skipped={} dry_run={}",
+                    stats["scanned"], stats["deleted"], stats["failed"],
+                    stats["skipped"], stats["dry_run"],
+                )
+            except asyncio.CancelledError:
+                raise
+            except Exception as exc:  # noqa: BLE001 - 后台任务不能因单轮失败而死
+                logger.warning(f"trace retention 清理失败: {type(exc).__name__}")
+            await asyncio.sleep(interval)
+    except asyncio.CancelledError:
+        logger.info("trace retention 后台任务已停止")
+        raise
+
+
+def start_trace_purge_scheduler() -> asyncio.Task | None:
+    """启动后台清理任务；返回任务对象，未启动时返回 None。
+
+    幂等：已有存活任务时直接返回它，不会叠加第二个循环。
+    ``TRACE_RETENTION_DAYS=0`` 时不启动（返回 None），也不写统计。
+    必须在已运行的事件循环里调用（``app/main.py`` 的 lifespan 满足）。
+    """
+    global _SCHEDULER_TASK
+    if retention_days() <= 0:
+        logger.info("trace retention 已关闭（TRACE_RETENTION_DAYS=0），不启动清理任务")
+        return None
+    with _SCHEDULER_LOCK:
+        existing = _running_task()
+        if existing is not None:
+            return existing
+        loop = asyncio.get_running_loop()
+        task = loop.create_task(
+            _trace_purge_loop(purge_interval_seconds()),
+            name="trace-purge-scheduler",
+        )
+        _SCHEDULER_TASK = task
+    logger.info(
+        "trace retention 后台任务已启动: interval={}s dry_run={} retention_days={}",
+        purge_interval_seconds(), purge_dry_run(), retention_days(),
+    )
+    return task
+
+
+async def stop_trace_purge_scheduler() -> bool:
+    """停止后台清理任务；返回是否真的取消了一个存活任务。
+
+    幂等：没有存活任务时直接返回 False。取消后等待任务真正退出（吞掉
+    ``CancelledError``），避免 shutdown 时留下悬挂协程。
+    """
+    global _SCHEDULER_TASK
+    with _SCHEDULER_LOCK:
+        task = _running_task()
+        _SCHEDULER_TASK = None
+    if task is None:
+        return False
+    task.cancel()
+    try:
+        await task
+    except asyncio.CancelledError:
+        pass
+    except Exception as exc:  # noqa: BLE001 - 退出路径不该因清理异常而失败
+        logger.warning(f"trace retention 任务退出异常: {type(exc).__name__}")
+    return True
+
+
+def _principal_for(api_key: str | None):
+    """解析调用方 principal；认证失败映射成 401（不是 500）。
+
+    与 ``app/api/knowledge.py``、``app/api/chat.py`` 用同一个解析器，保证三条
+    资源的权限边界一致（G3-3 要求“跨用户读取、知识删除、引用回看复用同一
+    权限边界”）。
+    """
+    return acl.current_principal(None, (api_key or "").strip())
 
 
 def is_valid_run_id(run_id: str) -> bool:
@@ -163,8 +377,15 @@ def trace_path(run_id: str) -> Path:
 
 
 @router.get("/runs")
-async def list_runs(limit: int = Query(default=20, ge=1, le=100)) -> dict:
-    """列出最近的诊断运行（按文件修改时间倒序）。"""
+async def list_runs(
+    limit: int = Query(default=20, ge=1, le=100),
+    x_api_key: str | None = Header(default=None, alias="X-API-Key"),
+) -> dict:
+    """列出最近的诊断运行（按文件修改时间倒序）。
+
+    G3-3：只返回当前 principal 可见的 run。不可见条目**直接省略**（而不是整页
+    403）；没有记录 owner 的旧 trace 仍按 session 语义可见，不臆造归属。
+    """
     if not TRACE_DIR.exists():
         return {"runs": []}
     files = []
@@ -179,9 +400,12 @@ async def list_runs(limit: int = Query(default=20, ge=1, le=100)) -> dict:
     files.sort(key=_safe_mtime, reverse=True)
     files = files[:limit]
 
+    principal = _principal_for(x_api_key)
     runs = []
     for path in files:
         events = await asyncio.to_thread(_read_jsonl, path)
+        if not acl.run_visible(path.stem, principal):
+            continue
         runs.append(_summarize_run(path.stem, events, mtime=_safe_mtime(path)))
     return {"runs": runs}
 
@@ -359,10 +583,13 @@ async def get_run(
     after_seq: int = Query(default=0, ge=0),
     after_event: int = Query(default=0, ge=0),
     limit: int = Query(default=DEFAULT_EVENT_LIMIT, ge=1, le=MAX_EVENT_LIMIT),
+    x_api_key: str | None = Header(default=None, alias="X-API-Key"),
 ) -> dict:
     path = trace_path(run_id)
     if not path.exists():
         raise HTTPException(status_code=404, detail="run not found")
+    # G3-3：回放与读取同一套归属校验（拒绝映射成 403/401，不是 500）。
+    acl.enforce_run_access_http(run_id, x_api_key, action="run:read")
     events = await asyncio.to_thread(_read_jsonl, path)
     after_seq = _coerce_index(after_seq)
     after_event = _coerce_index(after_event)

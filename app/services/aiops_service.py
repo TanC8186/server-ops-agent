@@ -53,6 +53,7 @@ class AIOpsService:
         service_name: str | None = None,
         target_choice: str | None = None,
         target_candidate_id: str | None = None,
+        owner: str | None = None,
         request_context: dict | None = None,
     ) -> AsyncGenerator[dict[str, Any], None]:
         """执行一次诊断并流式返回运行时事件。
@@ -75,6 +76,7 @@ class AIOpsService:
             service_name=service_name,
             target_choice=target_choice,
             target_candidate_id=target_candidate_id,
+            owner=owner,
             request_context=request_context,
         )
         async for event in run_diagnostic(user_input, session_id, execution_mode, **kwargs):
@@ -88,6 +90,7 @@ class AIOpsService:
         service_name: str | None = None,
         target_choice: str | None = None,
         target_candidate_id: str | None = None,
+        owner: str | None = None,
         request_context: dict | None = None,
     ) -> AsyncGenerator[dict[str, Any], None]:
         """按症状执行 AIOps 诊断，事件原样透传运行时输出。
@@ -112,6 +115,7 @@ class AIOpsService:
             service_name=service_name,
             target_choice=target_choice,
             target_candidate_id=target_candidate_id,
+            owner=owner,
             request_context=request_context,
         ):
             yield event

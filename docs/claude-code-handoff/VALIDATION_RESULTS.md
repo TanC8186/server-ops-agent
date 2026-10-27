@@ -436,13 +436,19 @@ bash -n docker-entrypoint.sh
 | 检查 | 命令 | 结果 |
 |---|---|---|
 | 后端全量 pytest | `./.venv/Scripts/python.exe -m pytest tests -p no:cacheprovider -q -o addopts= --tb=line --disable-warnings -rs` | **621 passed, 1 skipped, 2 warnings，95.46s**（exit 0） |
-| 前端单测 | `cd web && npm test` | **48 passed, 0 fail** |
+| 前端单测 | `cd web && npm test` | **53 passed, 0 fail** |
 | 前端构建 | `cd web && npm run build` | 通过，产物 `assets/index-vsa-hn5h.js` 320.57 kB / `index-Zmx7MErZ.css` 28.86 kB |
 | 前端 lint | `cd web && npm run lint` | 通过（oxlint 无输出） |
 | Python 静态检查 | `./.venv/Scripts/python.exe -m ruff check app servers scripts --select F821,F811,F841` | All checks passed（去掉过期的 F841 未用变量） |
 | Compose 配置 | `docker compose config --quiet` | 通过（exit 0） |
 | Docker daemon | `docker info --format '{{.ServerVersion}}'` | 29.8.2（可用） |
 | skip | `tests/test_p0_run_paths.py:134` | 环境不允许创建符号链接，仍是 **未执行**，不是通过 |
+
+### V1.1 当前工作区复核（2026-10-27，代码未再修改）
+
+- 再次执行 `npm test` 得到 **53 passed**；`npm run build` 与 `npm run lint` 通过；后端与三项离线探针结果见本节和 `NEXT_PHASE_PLAN_2026-10-27.md`。
+- `docker compose config --quiet` 通过；实际 `docker build --progress=plain -t oncall-agent-acceptance .` 在解析 `docker/dockerfile:1.7` 时因无法从 `auth.docker.io` 获取 OAuth token 失败。该次没有产生可验收镜像，属于 Docker registry 网络/认证阻断，不能写成镜像构建通过或 Dockerfile 逻辑失败。
+- 当前项目没有运行中的 Compose 容器；真实 Milvus、云 API、SSH 和当前构建浏览器旅程仍未进入真实依赖验收。
 
 收集总数从 528 → 621（+93），新增测试文件：
 `test_acceptance_boundaries.py`(12)、`test_acceptance_targets_budget_paging.py`(12)、
@@ -711,3 +717,134 @@ A09（均为 writer 不可达的损坏 trace）：
    （分页本身不会卡住）。
 
 这些属于"已知且如实标注"，不是"已修复"。
+
+## V10. 依赖升级计划（2026-10-27，本轮未改动任何版本）
+
+本节只记录**实测到的弃用信号**与修复草图，不修改 `pyproject.toml` /
+`uv.lock` / `web/package.json`。当前实测版本：`pydantic 2.13.4`、
+`pymilvus 2.6.15`、`ruff 0.17.1`、`node v22.17.0`。
+
+### 10.1 PydanticDeprecatedSince20：class-based `config`
+
+实测（`python -W always -c "import app.main"`）出现 2 条：
+
+```
+PydanticDeprecatedSince20: Support for class-based `config` is deprecated,
+use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0.
+  -> app/models/aiops.py
+```
+
+同一模式还出现在 `app/models/document.py`（导入路径没走到，但代码存在）。
+影响：Pydantic V3 会移除 `class Config`，届时这些模型直接报错，而不是 warning。
+
+**Owner-fix 草图**（模型层负责人，1 个 PR 可收）：
+
+```python
+# 旧
+class Foo(BaseModel):
+    class Config:
+        populate_by_name = True
+
+# 新
+from pydantic import ConfigDict
+
+class Foo(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+```
+
+验收：`python -W error::DeprecationWarning -c "import app.main"` 无
+`PydanticDeprecatedSince20`；621+ 后端用例全绿（本轮为 635 passed）。
+注意 `model_config` 的键名与 `class Config` 的属性名并不总是一一对应
+（`allow_population_by_field_name` → `populate_by_name`），逐个核对。
+
+### 10.2 PyMilvus 2.6 → 3.1：ORM 风格连接与 `utility.*` 弃用
+
+实测导入期出现：
+
+```
+PyMilvusDeprecationWarning: connections.connect ... will be removed in PyMilvus 3.1
+```
+
+本仓库的弃用面（`app/core/milvus_client.py`）：
+
+| 位置 | 现用 API | 3.1 之后 |
+| --- | --- | --- |
+| `milvus_client.py:80` | `connections.connect(alias="default", ...)` | `MilvusClient(uri=..., token=...)` |
+| `milvus_client.py:145` | `utility.has_collection(name)` | `client.has_collection(name)` |
+| `milvus_client.py:224-225` | `utility.load_state(name)` | `client.get_load_state(...)` |
+| `milvus_client.py:285` | `Collection.num_entities`（已是 count(*) 退路） | `client.query(..., output_fields=["count(*)"])` |
+| `Collection.query` / 全局 alias 下的增删改查 | ORM 风格 | `client.search` / `client.query` / `client.upsert` |
+
+**Owner-fix 草图**（检索/向量库负责人，需真实 Milvus 验收）：
+
+1. 先**不换版本**，只在 `milvus_client.py` 内部引入一层 `_client()` 工厂，把
+   `connections.connect` 换成 `MilvusClient`，其余调用点暂时保留；
+2. 逐个方法迁移：`has_collection` → `has_collection`、`load_state` →
+   `get_load_state`、`num_entities` → `query(count(*))`，每个都保留旧分支到
+   2.6 兼容期结束；
+3. 用 G1.2 的真实 Milvus staging 脚本跑一轮导入/检索/恢复，**不能只用 fake
+   store 的离线用例证明迁移成功**；
+4. 最后才升 `pymilvus>=3.1` 并删掉兼容分支。
+
+风险：`langchain-milvus 0.3.3` 仍依赖 `pymilvus` 的 ORM 接口，升级前必须先确认
+它已发版支持 `MilvusClient`，否则会出现"我们迁了、上游没迁"的混合状态。
+
+### 10.3 Ruff：顶层 lint 设置迁移
+
+`ruff 0.17.1` 每次运行都打印：
+
+```
+warning: The top-level linter settings are deprecated in favour of their
+counterparts in the `lint` section.
+  - 'ignore' -> 'lint.ignore'
+  - 'select' -> 'lint.select'
+  - 'isort' -> 'lint.isort'
+  - 'per-file-ignores' -> 'lint.per-file-ignores'
+```
+
+影响：目前只是 warning，未来 Ruff 小版本会直接忽略顶层键——那时 lint 规则会
+**静默失效**（最危险的一种回归：CI 变绿但什么都没检查）。
+
+**Owner-fix 草图**（构建/CI 负责人，纯配置改动）：
+
+```toml
+# pyproject.toml：把顶层的 select/ignore/isort/per-file-ignores
+# 原样移动到 [tool.ruff.lint] / [tool.ruff.lint.isort]
+[tool.ruff.lint]
+select = [...]
+ignore = [...]
+```
+验收：`ruff check` 无 deprecation warning，且 `ruff check --show-settings`
+在迁移前后输出的规则集合完全一致（否则等于偷偷改了规则）。
+
+### 10.4 前端测试：`node --experimental-strip-types`
+
+`web/package.json` 的 `test` 脚本是：
+
+```
+node --experimental-strip-types --test src/sse.test.ts src/state.test.ts src/view.test.ts src/chat.test.ts
+```
+
+风险：
+- 该 flag 在 Node 22 是实验特性，Node 23+ 已默认启用类型剥离，flag 变成噪音；
+  未来版本可能直接拒绝未知的 `--experimental-*` flag。
+- 它只做**类型擦除**，不做类型检查；`npm run lint`/`tsc` 不跑到测试文件时
+  `.test.ts` 里的类型错误不会被发现。
+- 只能用 Node 执行，vitest/jest 生态的覆盖率、watch、mock 能力都拿不到。
+
+**Owner-fix 草图**（前端负责人）：
+
+1. 近期：把 flag 收进一个 `scripts/test.sh` / npm script 变量，Node 版本判断后
+   决定是否附加，避免每个 CI job 各写一份；
+2. 中期：迁移到 `vitest`（原生 TS、可复用现有 `node:test` 断言风格），
+   `test` 脚本改为 `vitest run`，并保留一份 `test:node` 作为对照；
+3. 迁移验收标准：同一批 53 个前端用例在 vitest 下全绿，且 `npm run build`
+   与 `npm run lint` 不退步。
+
+### 10.5 本轮结论
+
+- 以上四项**均未修改版本或配置**，只记录信号与修复路径。
+- 三项（10.1/10.2/10.3）是"现在能跑、未来会断"的定时炸弹；10.4 是"现在能跑、
+  但覆盖面比看起来窄"的隐性缺口。
+- 真正的升级顺序建议：10.3（纯配置、零风险）→ 10.1（模型层，1 个 PR）→
+  10.4（前端测试基建）→ 10.2（最后做，必须配真实 Milvus 验收）。

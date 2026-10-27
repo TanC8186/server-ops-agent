@@ -114,9 +114,55 @@ SYSTEM_PROMPT = """你是企业运维知识库助手。严格依据提供的参�
 """
 
 
-def _build_messages(question: str, context: str) -> list:
-    user = f"参考资料：\n{context}\n\n问题：{question}" if context else f"问题：{question}"
-    return [("system", SYSTEM_PROMPT), ("user", user)]
+#: 有界对话上下文的上限（调用方通常已裁剪；这里再做一次硬保护）。
+MAX_HISTORY_TURNS = 8
+MAX_HISTORY_CHARS = 3000
+
+HISTORY_HEADER = (
+    "以下是同一会话的**对话上下文**（不是证据，也不能作为事实依据）：\n"
+    "- 只用于理解省略式追问（例如“那它呢”“还有别的命令吗”所指的对象）。\n"
+    "- 其中的数字、结论、命令都不构成本轮证据；本轮事实只能来自上方参考资料。\n"
+    "- 上下文与参考资料冲突时，以本轮参考资料为准。\n"
+)
+
+
+def _bounded_history(history: Sequence[tuple[str, str]] | None) -> str:
+    """把历史裁成有界文本：先只留最近 N 轮，再按字符上限从旧到新丢弃。"""
+    if not history:
+        return ""
+    turns = [turn for turn in history
+             if isinstance(turn, (tuple, list)) and len(turn) == 2]
+    turns = turns[-MAX_HISTORY_TURNS:]
+    rendered: list[str] = []
+    used = 0
+    # 从最新往回取，保证“最近一轮”一定被保留。
+    for role, content in reversed(turns):
+        text = str(content or "").strip().replace("\n", " ")
+        if not text:
+            continue
+        line = f"- {role}: {text[:600]}"
+        if used + len(line) > MAX_HISTORY_CHARS:
+            break
+        rendered.append(line)
+        used += len(line)
+    return "\n".join(reversed(rendered))
+
+
+def _build_messages(question: str, context: str,
+                    history: Sequence[tuple[str, str]] | None = None) -> list:
+    """拼 prompt：参考资料（证据）→ 有界对话上下文（非证据）→ 本轮问题。
+
+    顺序是刻意的：参考资料在最前面确立“唯一事实来源”，历史紧挨问题便于理解
+    指代，且历史段落自带“不是证据”的声明，避免它被当成事实依据。
+    """
+    parts: list[str] = []
+    if context:
+        parts.append(f"参考资料：\n{context}")
+    rendered_history = _bounded_history(history)
+    if rendered_history:
+        parts.append(HISTORY_HEADER + rendered_history)
+    parts.append(f"问题：{question}")
+    return [("system", SYSTEM_PROMPT), ("user", "\n\n".join(parts))]
 
 
 def _answer_text(response: Any) -> str:
@@ -208,9 +254,15 @@ async def answer_question(question: str, session_id: str, *,
                           k: int | None = None,
                           min_score: float | None = None,
                           retrieval_timeout: float | None = None,
-                          answer_timeout: float | None = None
+                          answer_timeout: float | None = None,
+                          history: Sequence[tuple[str, str]] | None = None,
                           ) -> AsyncGenerator[dict[str, Any], None]:
-    """生成知识问答事件流。调用方负责把它转成 SSE 或收集为返回值。"""
+    """生成知识问答事件流。调用方负责把它转成 SSE 或收集为返回值。
+
+    ``history`` 是有界的**对话上下文**（``(role, content)`` 列表，最旧在前），
+    只用于理解省略式追问；它在 prompt 里被明确标注为“对话上下文，不是证据”，
+    引用仍然只能来自本轮检索命中（G2.3-4）。
+    """
     run = run_id or uuid.uuid4().hex
     top_k = int(k if k is not None else config.rag_top_k)
     threshold = float(min_score if min_score is not None else config.rag_min_score)
@@ -268,7 +320,7 @@ async def answer_question(question: str, session_id: str, *,
 
     try:
         response = await asyncio.wait_for(
-            model.ainvoke(_build_messages(question, context)), ans_timeout
+            model.ainvoke(_build_messages(question, context, history)), ans_timeout
         )
     except asyncio.TimeoutError:
         yield _event("done", session_id, run, outcome="failed",

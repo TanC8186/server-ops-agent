@@ -54,7 +54,9 @@ def test_capabilities_have_exact_keys_and_valid_status_vocabulary(monkeypatch):
     data = _get(monkeypatch)
     caps = data["capabilities"]
 
-    assert set(caps) == {"diagnosis_local", "diagnosis_cloud", "mcp", "rag", "tracing"}
+    assert set(caps) == {
+        "diagnosis_local", "diagnosis_cloud", "mcp", "rag", "tracing", "trace_retention",
+    }
     for name in ("diagnosis_local", "diagnosis_cloud", "mcp", "rag"):
         assert set(caps[name]) == {"status", "reason"}, name
         assert caps[name]["status"] in _RAG_ALLOWED, name

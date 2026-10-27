@@ -15,6 +15,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import hmac
 
 from fastapi import Header, HTTPException
@@ -53,6 +54,30 @@ def auth_status() -> dict[str, object]:
     }
 
 
+def key_fingerprint(api_key: str) -> str:
+    """密钥的不可逆短指纹，用作 principal_id 后缀。
+
+    只用 SHA-256 前 12 位十六进制：足以区分密钥，又不能从中还原密钥本身。
+    空密钥返回空串（调用方据此判断“没有身份”）。
+    """
+    candidate = (api_key or "").strip()
+    if not candidate:
+        return ""
+    return hashlib.sha256(candidate.encode("utf-8")).hexdigest()[:12]
+
+
+def verify_key(candidate: str | None) -> bool:
+    """候选密钥是否等于当前生效密钥（常数时间比较）。
+
+    未配置密钥时返回 ``False``——"没有密钥"不等于"任何密钥都对"，
+    fail-closed 的判定留给调用方（见 ``app.core.principal``）。
+    """
+    key = configured_key()
+    if not key:
+        return False
+    return hmac.compare_digest((candidate or "").encode("utf-8"), key.encode("utf-8"))
+
+
 def _reject(message: str) -> HTTPException:
     return HTTPException(status_code=401, detail=message)
 
@@ -64,8 +89,7 @@ async def require_api_key(x_api_key: str = Header(default="", alias="X-API-Key")
             logger.warning("AUTH_MODE=deployment 但未配置 API_KEY：拒绝访问")
             raise _reject("api key not configured; access denied")
         return
-    candidate = x_api_key or ""
-    if not hmac.compare_digest(candidate.encode("utf-8"), key.encode("utf-8")):
+    if not verify_key(x_api_key):
         raise _reject("invalid or missing X-API-Key")
 
 
