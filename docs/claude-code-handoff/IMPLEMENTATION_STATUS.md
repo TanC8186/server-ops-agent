@@ -1,6 +1,6 @@
 # 实施状态（逐项）
 
-日期：2026-10-27（第二轮整改）。对象：**当前工作区**，基线 `fca7f1c` + 两轮未提交实现
+日期：2026-10-27（第三轮：真实依赖闭环）。对象：**当前工作区**，基线 `fca7f1c` + 两轮未提交实现
 （本轮已落两个本地提交 `de22339`、`ff81417`）。原始问题定义见
 [ENTERPRISE_REVIEW.md](ENTERPRISE_REVIEW.md)，上轮复核见
 [COMPLETION_AUDIT_2026-10-26.md](COMPLETION_AUDIT_2026-10-26.md)，本轮反例见
@@ -17,14 +17,14 @@
 
 | 维度 | 状态 |
 |---|---|
-| 后端测试 | **621 passed, 1 skipped**（`-o addopts=""`，2026-10-27 本轮实测） |
+| 后端测试 | **717 passed, 1 skipped**（`-o addopts=""`，2026-10-27 本轮实测） |
 | 前端 | `npm run build` 通过 / `npm run lint` 0 warning / `npm test` **53 passed** |
 | 静态检查 | `ruff --select F821,F811,F841` 全通过；`docker compose config --quiet` 通过 |
 | 三个离线验收探针 | 全部 `bug_reproduced=false`（2026-10-27 修复后复跑，见 §6） |
-| 真实浏览器 | **部分**：当前构建（`vite preview`）在 1100/1440 已验证 A12 窄屏替代入口与 aria-live 存在；完整任务旅程仍未重跑 |
-| 真实 Milvus | **未验证**（本机 19530 未启动，全部用 fake store / 内存向量） |
-| 真实云 API 诊断 | 部分（一次 cloud_multi 真实运行，模型返回非 JSON 导致角色失败，见 BROWSER_CHECK D12） |
-| Docker 镜像 | **未验证**：Docker daemon 可用（29.8.2），但本轮未 build/up，无镜像与恢复验证 |
+| 真实浏览器 | **部分**：当前构建 + 容器后端，五档视口（1440/1100/1024/768/390/375）实测无横向溢出、替代入口与 aria-live 正常；知识库面板连真实 Milvus。见 [BROWSER_JOURNEY_2026-10-27.md](BROWSER_JOURNEY_2026-10-27.md) |
+| 真实 Milvus | **已验证**：milvusdb/milvus:v2.5.10 staging，11 文档 / 953 chunks 导入、更新/回滚/失败清理/描述符错配/停机恢复全部实测。见 [MILVUS_ACCEPTANCE_2026-10-27.md](MILVUS_ACCEPTANCE_2026-10-27.md) |
+| 真实云 API 诊断 | **已验证（有限）**：真实 LLM 跑通完整 cloud_multi，修复了 JSON 解析缺陷。见 [CLOUD_SMOKE_2026-10-27.md](CLOUD_SMOKE_2026-10-27.md) |
+| Docker 镜像 | **已验证**：`sha256:7788efe30239...` 构建成功、compose 全栈 healthy、SIGTERM/子进程崩溃/命名卷重建/数据持久化全部实测。见 [DOCKER_ACCEPTANCE_2026-10-27.md](DOCKER_ACCEPTANCE_2026-10-27.md) |
 
 ## 2. 启动阻断（上轮 EDIT_GUARD 遗留项）
 

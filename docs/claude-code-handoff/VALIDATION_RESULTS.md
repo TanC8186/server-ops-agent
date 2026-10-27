@@ -435,7 +435,7 @@ bash -n docker-entrypoint.sh
 
 | 检查 | 命令 | 结果 |
 |---|---|---|
-| 后端全量 pytest | `./.venv/Scripts/python.exe -m pytest tests -p no:cacheprovider -q -o addopts= --tb=line --disable-warnings -rs` | **621 passed, 1 skipped, 2 warnings，95.46s**（exit 0） |
+| 后端全量 pytest | `./.venv/Scripts/python.exe -m pytest tests -p no:cacheprovider -q -o addopts= --tb=line --disable-warnings -rs` | **717 passed, 1 skipped, 2 warnings，103.21s**（exit 0） |
 | 前端单测 | `cd web && npm test` | **53 passed, 0 fail** |
 | 前端构建 | `cd web && npm run build` | 通过，产物 `assets/index-vsa-hn5h.js` 320.57 kB / `index-Zmx7MErZ.css` 28.86 kB |
 | 前端 lint | `cd web && npm run lint` | 通过（oxlint 无输出） |
@@ -450,7 +450,7 @@ bash -n docker-entrypoint.sh
 - `docker compose config --quiet` 通过；实际 `docker build --progress=plain -t oncall-agent-acceptance .` 在解析 `docker/dockerfile:1.7` 时因无法从 `auth.docker.io` 获取 OAuth token 失败。该次没有产生可验收镜像，属于 Docker registry 网络/认证阻断，不能写成镜像构建通过或 Dockerfile 逻辑失败。
 - 当前项目没有运行中的 Compose 容器；真实 Milvus、云 API、SSH 和当前构建浏览器旅程仍未进入真实依赖验收。
 
-收集总数从 528 → 621（+93），新增测试文件：
+收集总数从 528 → 717（+189），新增测试文件：
 `test_acceptance_boundaries.py`(12)、`test_acceptance_targets_budget_paging.py`(12)、
 `test_claim_boundaries.py`(45)、`test_parent_backfill.py`(5)、`test_runs_api.py` +5（abandoned/retention）；前端 +4。
 
@@ -848,3 +848,67 @@ node --experimental-strip-types --test src/sse.test.ts src/state.test.ts src/vie
   但覆盖面比看起来窄"的隐性缺口。
 - 真正的升级顺序建议：10.3（纯配置、零风险）→ 10.1（模型层，1 个 PR）→
   10.4（前端测试基建）→ 10.2（最后做，必须配真实 Milvus 验收）。
+
+---
+
+# V11. 第三轮：真实依赖闭环（2026-10-27）
+
+上两轮（V1–V10）的结果全部是**测试替身验证**。本轮第一次拿到真实依赖证据。
+分三档记录，不混写。
+
+## V11.1 真实依赖验证（新增）
+
+| 项 | 证据文件 | 关键结果 |
+|---|---|---|
+| 真实 Milvus 端到端 | `MILVUS_ACCEPTANCE_2026-10-27.md` + `eval/results/milvus-e2e-*.json` | 11 文档 / 953 chunks / COSINE 384；更新只返 active、回滚恢复、真实部分写入失败零残留、描述符错配 `invalid_index`、停机→重启同进程恢复 |
+| Docker 镜像与 Compose | `DOCKER_ACCEPTANCE_2026-10-27.md` | 镜像 `sha256:7788efe30239…`；全栈 4 容器 healthy；401/200 鉴权；SIGTERM 退出码 0；杀 MCP 子进程后容器退出并按 `unless-stopped` 重启；4 个命名卷 + Milvus bind mount 重建后数据保留 |
+| 真实云模型 | `CLOUD_SMOKE_2026-10-27.md` | 真实 LLM 跑通 cloud_multi（34.5s），`completed/sufficient`，观测数值可回证据；JSON 围栏/前缀/截断全部可恢复 |
+| 当前构建浏览器 | `BROWSER_JOURNEY_2026-10-27.md` + `screenshots/` | 五档视口无横向溢出；替代入口/aria-live 正常；知识库面板连真实 Milvus；合成 IME 事件序列 |
+
+## V11.2 本轮实测数字
+
+| 检查 | 结果 |
+|---|---|
+| 后端 pytest | **717 passed, 1 skipped**（103.21s） |
+| 前端 | **53 passed**；build / lint / tsc 通过 |
+| ruff `F821,F811,F841` | 通过 |
+| `docker compose config --quiet` | 通过 |
+| 三个离线探针 | 全部 `bug_reproduced=false` |
+
+## V11.3 本轮修掉的真实缺陷（都由真实依赖暴露，测试替身没抓到）
+
+| 缺陷 | 暴露场景 | 影响 | 修复 |
+|---|---|---|---|
+| `web/package-lock.json` 有缺 `version` 的条目 | `docker build` 的 `npm ci` | 镜像**必然构建失败**，而本地 `npm install` 容忍 | 从官方 registry 重新生成 lock |
+| `Collection.num_entities` 在 Milvus 2.5 刚写入后返回 0 | 真实 Milvus descriptor 校验 | 非空 collection 被当空 → 给错配向量空间**静默写描述符** | `collection_count()` 改 `count(*)` 优先 |
+| `compose up app` 复用 2026-06 的陈旧镜像 | 真实 compose 启动 | 把旧代码当成“刚验收”；容器里没有 `capabilities`、没有 `principal.py` | 显式 retag + `--force-recreate`，并以镜像内文件核对 |
+| `json.loads(model_reply)` 过脆 | 真实模型返回围栏/前缀/截断 | Reviewer 与 logs 各失败一次，报告退化为“没有观测” | `_extract_json()` + 按 finish_reason 区分的单次重试 |
+| `statistics.count` / `total` 不被当事实 | 真实报告写“样本数 3”“日志仅 1 条” | 正确描述被判成“数值不存在”进缺口 | 以 `count` 单位收录为可引用事实（duration/percent 仍匹配不上） |
+
+## V11.4 仍属未验证（与上轮相比的增量，不含全部历史项）
+
+1. **SSH 只读冒烟**：未执行（无我获授权的 staging 主机；不伪造证据）。
+2. **同名实例的浏览器点击**：容器内 MCP 是 stub，无同名双实例目录；仅有 HTTP/单测覆盖。
+3. **作业失败/重试的浏览器操作**：容器里没有失败作业，`hasRetry=false`。
+4. **断流续读 / tab 恢复 / 引用卡片**：浏览器侧未操作。
+5. **真实中文 IME 进程与读屏器**：只有合成事件。
+6. **ACL/OS/版本/有效期在候选阶段过滤**：目前只有 principal 归属，无文档级 ACL。
+7. **多副本部署下的 trace 并发**：进程内锁，跨进程无互斥（子代理已如实标注）。
+8. **费用**：网关无单价，未估算。
+
+## V11.5 简历可写 / 不可写
+
+**可写**（都有可复跑证据）：
+
+- 双模式诊断 + 版本化 RAG（真实 Milvus v2.5.10，11 文档 / 953 chunks，COSINE 384）。
+- 检索质量：77 条独立 blind 集，Recall@3 **0.983** / MRR **0.928** / nDCG@5 **0.945**（n=58），
+  无答案误答 **0/19**；并给出“dev 拟合阈值不可泛化”的阈值-召回曲线。
+- 真实 LLM 全链路（Supervisor→metrics/logs→Reviewer），观测数值由服务端按证据渲染。
+- Docker 多阶段镜像可构建、全栈可启动、SIGTERM/子进程崩溃/卷重建均有实测。
+
+**不可写**：
+
+- “RAG 准确率 98.3%”——那是 Recall@5，且在 11 篇小语料上；没有完整问答正确率。
+- “端到端回答率 50%”——那是 dev 阈值 0.6315 的结果，属阈值问题，不是模型能力。
+- “支持多用户权限体系”——目前是单租户 + principal 归属检查。
+- “SSH 已联调”“取消能终止远端生成”——两者都未验证。
