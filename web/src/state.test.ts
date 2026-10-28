@@ -16,6 +16,7 @@ import { test } from "node:test";
 import {
   applyEvent,
   emptyLive,
+  isTargetBound,
   normalizeTraceEvent,
   planFromAssignments,
   replay,
@@ -294,4 +295,62 @@ test("重复投递的 tool_step（重连）按 tool_call_id 去重", () => {
   live = applyEvent(live, event as never, 1);
 
   assert.equal(live.toolCalls.length, 1);
+});
+
+const boundTarget = {
+  service: "orders",
+  instance_id: "i-a",
+  region: "r-a",
+  topics: ["t-a"],
+  ssh_host: "",
+  ssh_in_scope: false,
+};
+
+test("G5 实时路径：status/target_bound 把 target 写入 LiveState", () => {
+  const live = applyEvent(emptyLive("s"), {
+    event: "status",
+    stage: "target_bound",
+    message: "本次诊断目标：orders",
+    service_name: "orders",
+    target: boundTarget,
+    seq: 5,
+  } as never, 0);
+
+  assert.deepEqual(live.target, boundTarget, "后端绑定成功必须反映到 UI 状态");
+  assert.equal(isTargetBound({ event: "status", stage: "target_bound" }), true);
+});
+
+test("G5 回放路径：trace 里同一扁平结构也能填出 target", () => {
+  const live = replay("s", [
+    { event: "status", stage: "target_bound", target: boundTarget, seq: 5, service_name: "orders" },
+    { event: "run_complete", seq: 6, response: "# 报告" },
+  ] as never);
+
+  assert.deepEqual(live.target, boundTarget);
+  assert.equal(live.lifecycle, "completed");
+});
+
+test("G5：旧服务端的 type=target_bound 与缺字段的绑定仍可识别", () => {
+  const legacy = applyEvent(emptyLive("s"), {
+    event: "target_bound",
+    target: { service: "svc-a" },
+  } as never, 0);
+  assert.deepEqual(legacy.target, { service: "svc-a" });
+
+  // 只有 service_name：保留服务名，实例/地域不编造。
+  const partial = applyEvent(emptyLive("s"), {
+    event: "status",
+    stage: "target_bound",
+    service_name: "svc-b",
+  } as never, 0);
+  assert.deepEqual(partial.target, { service: "svc-b" });
+
+  // 无关的 status 事件不能清掉或伪造 target。
+  const untouched = applyEvent(emptyLive("s"), {
+    event: "status",
+    stage: "run_start",
+    message: "开始",
+  } as never, 0);
+  assert.equal(untouched.target, null);
+  assert.equal(isTargetBound({ event: "status", stage: "run_start" }), false);
 });

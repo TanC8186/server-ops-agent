@@ -265,14 +265,14 @@ async def run_diagnostic(user_input: str, session_id: str, execution_mode: str,
             from app.agent.aiops.local_runtime import run_local
             source = run_local(user_input, session_id, run_id, service_name=service_name,
                                target_choice=choice, target_candidate_id=candidate,
-                               deadline=deadline, budget=budget)
+                               deadline=deadline, budget=budget, owner=owner)
         elif execution_mode == "cloud_multi":
             if not config.llm_api_key.strip() or config.llm_api_key.startswith("your-"):
                 raise ValueError("在线模型尚未配置，请在服务端设置 LLM_API_KEY")
             from app.agent.aiops.cloud_multi import run_cloud_multi
             source = run_cloud_multi(user_input, session_id, run_id, service_name=service_name,
                                      target_choice=choice, target_candidate_id=candidate,
-                                     deadline=deadline, budget=budget)
+                                     deadline=deadline, budget=budget, owner=owner)
         else:
             raise ValueError("不支持的诊断模式")
 

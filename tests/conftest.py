@@ -11,6 +11,7 @@ import pytest
 
 from app import observability
 from app.core import principal as principal_acl
+from app.services import chat_events
 
 
 @pytest.fixture(autouse=True)
@@ -27,3 +28,15 @@ def isolated_acl_file(tmp_path, monkeypatch):
     acl_file = tmp_path / "acl" / "principal_acl.json"
     monkeypatch.setenv(principal_acl.ACL_FILE_ENV, str(acl_file))
     return acl_file
+
+
+@pytest.fixture(autouse=True)
+def isolated_chat_streams(tmp_path, monkeypatch):
+    """聊天流事件目录隔离：``/api/chat_stream`` 现在会把事件落盘供续读。
+
+    不隔离的话，任何调用 chat 的测试都会写进仓库的 ``logs/chat_streams/``，
+    和真实运行的续读记录混在一起。这里按测试指到临时目录。
+    """
+    streams = tmp_path / "chat_streams"
+    monkeypatch.setenv(chat_events.CHAT_STREAM_DIR_ENV, str(streams))
+    return streams

@@ -25,6 +25,10 @@ export interface CitationCard {
   snippet: string;
   score: number;
   documentId: string;
+  /** 服务端写入的 active revision；旧数据没有时为空串（不编造版本号）。 */
+  revision: string;
+  /** 章节路径（`heading_path` 数组），用 ` > ` 连接；空表示服务端没有该元数据。 */
+  headingPath: string;
 }
 
 export interface TargetCandidate {
@@ -108,6 +112,33 @@ export function candidateKey(candidate: TargetCandidate): string {
   return candidateIdentity(candidate);
 }
 
+export interface BoundTarget {
+  service: string;
+  instanceId: string;
+  region: string;
+  topics: string[];
+}
+
+/**
+ * 已绑定的诊断目标（来自 `status/target_bound` 的 `target`）。
+ *
+ * 没有服务名视为“未绑定”：服务端绑定成功时一定带 service，缺它就说明
+ * 这条记录不是一次有效绑定，展示“已绑定”会让用户误以为证据归属可信。
+ * 实例/地域缺失保留空串——由界面显示“未声明”，绝不用服务名冒充。
+ */
+export function boundTarget(value: unknown): BoundTarget | null {
+  const row = record(value);
+  if (!row) return null;
+  const service = (text(row.service) || text(row.service_name)).trim();
+  if (!service) return null;
+  return {
+    service,
+    instanceId: text(row.instance_id) || text(row.instance),
+    region: text(row.region) || text(row.region_code),
+    topics: stringList(row.topics),
+  };
+}
+
 /**
  * 用户点击候选卡片后重新发起诊断的请求体。
  *
@@ -143,9 +174,86 @@ export function citationCards(value: unknown): CitationCard[] {
       snippet: text(row.snippet),
       score: numberOr(row.score),
       documentId: text(row.document_id),
+      revision: text(row.revision),
+      headingPath: stringList(row.heading_path).join(" > "),
     });
   }
   return cards;
+}
+
+/**
+ * 引用来源是否可以渲染成可点击链接。
+ *
+ * 只有明确的 http/https 才给 `<a>`：`source_uri` 来自上传文档元数据，属于
+ * 用户可控内容，`javascript:` / `data:` 之类协议一旦成为 href 就是协议注入。
+ * 大小写、前后空白、以及夹在协议名里的控制字符都要先规范化再判断——
+ * `\tjava\nscript:` 在浏览器里仍会被当作脚本 URL。
+ *
+ * 不借助 `markdown.ts` 的 `safeMarkdownUrl`：那个函数允许 `mailto:` 且接受
+ * 相对地址（供 Markdown 链接使用），引用来源必须是绝对地址且仅 http(s)。
+ */
+export function safeSourceUri(value: unknown): string | null {
+  const raw = text(value).trim();
+  if (!raw) return null;
+  // eslint-disable-next-line no-control-regex -- 控制字符必须在判断协议前剔除。
+  const canonical = raw.replace(/[\s\u0000-\u001f\u007f-\u009f]/g, "");
+  if (!/^https?:\/\//i.test(canonical)) return null;
+  // 反斜杠可能被浏览器归一化成 `/`，`https:\\host` 之类的变体一律不接受。
+  if (canonical.includes("\\")) return null;
+  try {
+    const parsed = new URL(canonical);
+    return parsed.protocol === "http:" || parsed.protocol === "https:" ? raw : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * 回答正文里的 `[K#]` 标记 -> 本轮引用卡片的锚点 id。
+ *
+ * 只在本 turn 的引用集合内匹配：模型可能写出上一轮的 `[K9]`，把它链接到
+ * 不存在的卡片（或别的文档）比不链接更糟。服务端已移除的引用 ID 同样不在
+ * 集合内，因此不会被链出去。
+ */
+export function citationAnchorId(citationId: string): string {
+  return `citation-${citationId.replace(/[^A-Za-z0-9_-]/g, "_")}`;
+}
+
+const CITATION_MARK = /\[(K\d+)\]/g;
+
+function escapeHtmlText(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+/**
+ * 把正文里的 `[K#]` 转成可点击锚点（点击由 React 的容器级 onClick 处理，
+ * 因此不需要内联脚本，也不引入 `javascript:` href）。
+ *
+ * 只替换在 `knownIds` 里的标记，其余原样保留为文本——模型可能引用本轮不存在
+ * 的编号，把它变成死链接会误导用户。输入是 Markdown 渲染后的 HTML，所以替换
+ * 必须跳过 HTML 标签内部，避免破坏属性值。
+ */
+export function linkCitationMarks(html: string, knownIds: Iterable<string>): string {
+  const known = new Set<string>();
+  for (const id of knownIds) if (id) known.add(id);
+  if (!known.size || !html) return html;
+  // 按标签切分：偶数段是文本，奇数段是标签，只在文本段里替换。
+  return html
+    .split(/(<[^>]*>)/)
+    .map((part, index) => {
+      if (index % 2 === 1) return part;
+      return part.replace(CITATION_MARK, (match, id: string) =>
+        known.has(id)
+          ? `<a class="citation-mark" href="#${citationAnchorId(id)}" data-citation-id="${escapeHtmlText(id)}">${match}</a>`
+          : match,
+      );
+    })
+    .join("");
 }
 
 /** 检索状态：hit / miss / unavailable / timeout / invalid_index 各自独立。 */

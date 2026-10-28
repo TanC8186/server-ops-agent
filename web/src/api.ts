@@ -233,8 +233,8 @@ async function request<T>(path: string, init: RequestInit): Promise<T> {
   return (await response.json()) as T;
 }
 
-async function getJson<T>(path: string): Promise<T> {
-  return request<T>(path, { headers: headers() });
+async function getJson<T>(path: string, signal?: AbortSignal): Promise<T> {
+  return request<T>(path, { headers: headers(), signal });
 }
 
 function query(params: Record<string, string | number | undefined>): string {
@@ -253,6 +253,20 @@ export interface RunEventPage {
   truncated?: boolean;
   next_after_seq?: number | null;
   next_after_event?: number | null;
+}
+
+/**
+ * 聊天流事件的一页（G5 断流续读）。
+ *
+ * 服务端契约：``{run_id, events, truncated, next_after_seq}``。聊天事件只有
+ * seq 游标（事件由 ``/api/chat_stream`` 顺序产生，不存在无 seq 的边界），
+ * 因此没有位置游标。``truncated=true`` 时必须带 ``next_after_seq`` 再读。
+ */
+export interface ChatEventPage {
+  run_id: string;
+  events: RunEvent[];
+  truncated?: boolean;
+  next_after_seq?: number | null;
 }
 
 export const api = {
@@ -325,6 +339,26 @@ export const api = {
     ),
 
   // ---------- 知识问答会话历史（RAG-09） ----------
+
+  /**
+   * 续读一次聊天流在 ``after_seq`` 之后的事件（G5）。
+   *
+   * 断流（EOF 没有 done）时前端用它补齐；服务端只读落盘记录，不会重新调用
+   * 模型，也不会自动重跑。没有记录时返回 404，调用方据此区分“记录不存在”
+   * 与“没有更多事件”。
+   */
+  chatStreamEvents: (runId: string, afterSeq = 0, sessionId = "", signal?: AbortSignal) =>
+    getJson<ChatEventPage>(
+      `/api/chat/events/${encodeURIComponent(runId)}${query({
+        after_seq: afterSeq,
+        // 服务端按**会话归属**校验续读权限：只有该会话的 owner 能读取。
+        // 不传时部署模式会 403（见 /api/chat/events 的 docstring）。
+        session_id: sessionId,
+      })}`,
+      // 续读必须能被"停止"打断：否则用户取消后，迟到的续读结果仍会被应用，
+      // 并把刚清掉的 oncall.chat.pending 重新写回去。
+      signal,
+    ),
 
   /** 服务端保存的会话历史；带引用与检索状态，刷新后可回填。 */
   chatSession: (sessionId: string) =>

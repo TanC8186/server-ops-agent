@@ -155,3 +155,39 @@ test("缺少终态的 EOF 由调用方判定为中断", () => {
   assert.equal(outcomes[0].kind, "event");
   assert.equal(state.terminalSeen, false);
 });
+
+test("G5 终态事件名由调用方声明：聊天流用 done，诊断流不变", () => {
+  // 默认（诊断）：done 不是终态，仍然作为普通事件交给 UI。
+  const diagnoseState = createStreamState();
+  const chatDone = block({ type: "done", seq: 1, data: { content: "x" } });
+  const asEvent = applyBlock(chatDone, diagnoseState);
+  assert.equal(asEvent[0].kind, "event");
+
+  // 聊天流：done 是终态，且只产生一次。
+  const chatState = createStreamState();
+  const first = applyBlock(chatDone, chatState, { terminalTypes: ["done", "error"] });
+  assert.equal(first[0].kind, "terminal");
+  assert.equal(first[0].kind === "terminal" && first[0].outcome, "complete");
+  assert.deepEqual(
+    applyBlock(chatDone, chatState, { terminalTypes: ["done", "error"] }),
+    [],
+  );
+  // error 在两种模式下都是终态。
+  const errorState = createStreamState();
+  const errored = applyBlock(block({ type: "error", message: "boom" }), errorState, {
+    terminalTypes: ["done", "error"],
+  });
+  assert.equal(errored[0].kind === "terminal" && errored[0].outcome, "error");
+});
+
+test("G5 状态机记录 run_id 与 lastSeq，供断流续读取用", () => {
+  const state = createStreamState();
+  assert.equal(state.runId, "");
+  applyBlock(block({ type: "content", run_id: "run-a", seq: 3, event_id: "run-a:3" }), state);
+  assert.equal(state.runId, "run-a");
+  assert.equal(state.lastSeq, 3);
+  // 重复投递不推进游标，也不改 run_id。
+  applyBlock(block({ type: "content", run_id: "run-b", seq: 9, event_id: "run-a:3" }), state);
+  assert.equal(state.runId, "run-a");
+  assert.equal(state.lastSeq, 3);
+});

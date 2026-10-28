@@ -468,24 +468,27 @@ async def discover_service_compat(runtime: Any, requested: str | None, user_inpu
 
 async def create_tools_compat(create: Callable, run_id: str, execution_mode: str,
                               emit: Callable[[dict], None], *,
-                              deadline: float | None = None, budget=None):
+                              deadline: float | None = None, budget=None,
+                              owner: str | None = None):
     """调用 ``create_run_tools``，按目标签名裁剪可选参数。
 
-    运行器可能被测试替身替换（只接受 3 个位置参数）。deadline/budget 是新增的
-    可选能力，不能因为替身不认识它们就让整次运行 TypeError。
+    运行器可能被测试替身替换（只接受 3 个位置参数）。deadline/budget/owner 是
+    新增的可选能力，不能因为替身不认识它们就让整次运行 TypeError。
     """
     kwargs: dict[str, Any] = {}
     if _accepts_keyword(create, "deadline"):
         kwargs["deadline"] = deadline
     if _accepts_keyword(create, "budget"):
         kwargs["budget"] = budget
+    if _accepts_keyword(create, "owner"):
+        kwargs["owner"] = owner
     return await create(run_id, execution_mode, emit, **kwargs)
 
 
 async def create_run_tools(run_id: str, execution_mode: str,
                            emit: Callable[[dict], None],
                            *, deadline: float | None = None,
-                           budget=None) -> RunTools:
+                           budget=None, owner: str | None = None) -> RunTools:
     timeout = config.diagnostic_tool_timeout_seconds
     if deadline is not None:
         remaining = deadline - time.monotonic()
@@ -505,10 +508,13 @@ async def create_run_tools(run_id: str, execution_mode: str,
         # 直接透传时用户只看到 "unhandled errors in a TaskGroup"，无法定位。
         raise RuntimeError(_describe_tool_load_error(exc)) from exc
     # 知识检索是进程内工具（不在 MCP 里）；失败只影响它自己的证据条目。
+    # owner 是 API 层从已验证 API Key 推导的 principal：诊断路径必须和 /api/chat
+    # 用同一套文档可见性规则，否则 retrieve_knowledge 会绕过文档 ACL。
     from app.agent.aiops.knowledge_wiring import knowledge_tools
 
     runtime = RunTools(
-        [*tools, get_current_time, *knowledge_tools(execution_mode=execution_mode)],
+        [*tools, get_current_time,
+         *knowledge_tools(execution_mode=execution_mode, principal_id=owner or "")],
         run_id, execution_mode, emit, budget=budget,
     )
     runtime.deadline = deadline

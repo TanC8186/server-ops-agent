@@ -1,0 +1,28 @@
+{
+  "_comment": "staging 演练用服务目录（夹具），不是生产配置，也不是 services.json 的替代品。唯一目的：让 MCP 的 list_all_services 返回同一 service_name 的两个不同实例/地域，从而在前端走完 target_required 候选卡片 → 点击某个实例 → target_candidate_id 精确绑定这条路径。两条 staging-payment-api 是构造成对出现的夹具（instance_id 形如 ins-staging-*，带 staging_fixture=true，不对应任何云资源；拿它查腾讯云只会得到云 API 报错或 unavailable，不会产生伪造监控数据）；agent-test-server 那一条是从 services.json 原样复制的真实实例，只为让目录里保留一个可用的真实目标。用 AIOPS_SERVICES_FILE=services.staging.json 切换；不设置时仍读仓库根 services.json。",
+  "services": [
+    {
+      "service_name": "agent-test-server",
+      "instance_id": "lhins-nst2h9mv",
+      "region": "ap-guangzhou",
+      "status": "active",
+      "type": "lighthouse"
+    },
+    {
+      "service_name": "staging-payment-api",
+      "instance_id": "ins-staging-a-0001",
+      "region": "ap-guangzhou",
+      "status": "active",
+      "type": "cvm",
+      "staging_fixture": true
+    },
+    {
+      "service_name": "staging-payment-api",
+      "instance_id": "ins-staging-b-0002",
+      "region": "ap-shanghai",
+      "status": "active",
+      "type": "cvm",
+      "staging_fixture": true
+    }
+  ]
+}

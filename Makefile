@@ -22,7 +22,7 @@ NC = \033[0m
         security pre-commit-install pre-commit check-all coverage docs shell \
         ipython watch add add-dev remove list-docs test-upload sync logs \
         start-cls stop-cls start-monitor stop-monitor start-api stop-api status-mcp \
-        eval eval-validate web
+        eval eval-validate web docker-build-fresh
 
 # ============================================================
 # 默认目标：显示帮助信息
@@ -573,6 +573,24 @@ eval-validate:  ## 校验评测场景 / 工具注册表 / 文档引用
 eval: eval-validate  ## 跑完整评测（需要 MCP + LLM 凭证）
 	@echo "$(YELLOW)📊 运行评测...$(NC)"
 	python3 scripts/run_eval.py --live
+
+# 无缓存重建生产镜像，并打印本次产出的镜像身份。
+# 为什么不用 `docker compose build`：compose 在已有同名镜像时会直接复用旧镜像，
+# 验收时很容易把上一次构建的代码当成这次的产出（DOCKER_ACCEPTANCE_2026-10-27）。
+# --pull 拉最新基础镜像、--no-cache 不复用任何层；tag 用时间戳而不是 latest，
+# 避免“同名覆盖”再次把新旧镜像混为一谈。注意：构建前端产物需要 npm registry
+# 与基础镜像可达，构建失败时本目标直接退出非 0，不会留下半成品 tag。
+docker-build-fresh:  ## 无缓存重建生产镜像并打印 image id / digest / 大小
+	@echo "$(YELLOW)重建生产镜像（--pull --no-cache，约 20 分钟）...$(NC)"
+	@TAG="oncall-agent:$$(date +%Y%m%d-%H%M%S)"; \
+	docker build --pull --no-cache -t "$$TAG" . || exit 1; \
+	echo ""; \
+	echo "$(GREEN)镜像已构建: $$TAG$(NC)"; \
+	echo "  image id : $$(docker image inspect "$$TAG" --format '{{.Id}}')"; \
+	echo "  size     : $$(docker image inspect "$$TAG" --format '{{.Size}}') bytes"; \
+	echo "  digest   : $$(docker image inspect "$$TAG" --format '{{join .RepoDigests ","}}')"; \
+	echo ""; \
+	echo "$(YELLOW)部署请用上面的 tag/image id 并配合 --force-recreate，不要用 latest。$(NC)"
 
 web:  ## 构建前端
 	@echo "$(YELLOW)🎨 构建前端...$(NC)"

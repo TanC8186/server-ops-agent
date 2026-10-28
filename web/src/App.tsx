@@ -23,6 +23,7 @@ import { diagnose as diagnoseStream, type DiagnoseOutcome } from "./sse";
 import {
   MAX_RUN_PAGES,
   appendRunEvents,
+  boundTarget,
   candidateKey,
   evalManifestSummary,
   isStuckPage,
@@ -33,6 +34,13 @@ import {
   type TargetCandidate,
 } from "./view";
 import { renderMarkdown } from "./markdown";
+import {
+  browserStorage,
+  persistSession,
+  resolveSessionId,
+  sanitizeSessionInput,
+  type StorageLike,
+} from "./chat";
 import ChatPanel from "./ChatPanel";
 import KnowledgePanel from "./KnowledgePanel";
 import "./styles.css";
@@ -69,8 +77,25 @@ function lifecycleLabel(lifecycle: LiveState["lifecycle"]) {
   }
 }
 
+/**
+ * 新会话 ID。加一段随机后缀：同一毫秒内点两次“新会话”也必须得到不同 ID，
+ * 否则第二次会把第一次的历史又读回来。字符集与 `validSessionId` 一致。
+ */
 function newSessionId() {
-  return `web-${Date.now().toString(36)}`;
+  return `web-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+/**
+ * 首次渲染使用的会话 ID：`?session=` 优先，其次 localStorage 里上次的会话，
+ * 都没有才新建。刷新不再每次换一个空历史会话（G5 tab 恢复的反例）。
+ */
+function initialSession(): { id: string; source: "url" | "storage" | "new" } {
+  const resolved = resolveSessionId({
+    search: typeof window === "undefined" ? "" : window.location.search,
+    storage: browserStorage() as StorageLike | null,
+    generate: newSessionId,
+  });
+  return { id: resolved.sessionId, source: resolved.source };
 }
 
 function fmtTime(value: string | null | undefined) {
@@ -126,6 +151,20 @@ function initialRunParam(): string | null {
 }
 
 /**
+ * 把当前会话写进 URL（`?session=`）。
+ *
+ * 不写回的话，“新会话”之后刷新会按旧的 `?session=` 又回到上一个会话，
+ * 用户刚清掉的对话看起来“自己回来了”。这里只替换 query，不产生历史记录。
+ */
+function setSessionParam(sessionId: string) {
+  if (typeof window === "undefined") return;
+  const url = new URL(window.location.href);
+  if (url.searchParams.get("session") === sessionId) return;
+  url.searchParams.set("session", sessionId);
+  window.history.replaceState({}, "", `${url.pathname}${url.search}${url.hash}`);
+}
+
+/**
  * 读完整一次 run 的事件（A09）。
  *
  * 服务端单页有条数上限；必须按返回的游标循环到 `truncated=false`，否则事件数
@@ -158,7 +197,7 @@ async function collectRunEvents(
 }
 
 export default function App() {
-  const [sessionId, setSessionId] = useState(newSessionId);
+  const [sessionId, setSessionId] = useState(() => initialSession().id);
   const [runs, setRuns] = useState<RunSummary[]>([]);
   const [evals, setEvals] = useState<EvalResult[]>([]);
   const [live, setLive] = useState<LiveState>(() => emptyLive(sessionId));
@@ -245,6 +284,13 @@ export default function App() {
     void loadModes();
     return () => { abortRef.current?.abort(); };
   }, [refresh, loadModes]);
+
+  // 会话 ID 变更即写入 localStorage 与 URL：刷新/重开标签页后沿用同一个会话，
+  // ChatPanel 才能从服务端恢复历史。写入失败（隐私模式）不影响对话。
+  useEffect(() => {
+    persistSession(browserStorage() as StorageLike | null, sessionId);
+    setSessionParam(sessionId);
+  }, [sessionId]);
 
   useEffect(() => {
     if (live.lifecycle !== "running") return;
@@ -706,7 +752,7 @@ export default function App() {
                   rows={1}
                   value={sessionId}
                   disabled={running}
-                  onChange={(event) => setSessionId(event.target.value.trim())}
+                  onChange={(event) => setSessionId(sanitizeSessionInput(event.target.value))}
                   maxLength={128}
                 />
               </details>
@@ -730,6 +776,7 @@ export default function App() {
             backend={backend}
             evals={evals}
             evalsError={evalsError}
+            variant="inline"
           />
         </section>
       </main>
@@ -741,6 +788,7 @@ export default function App() {
           backend={backend}
           evals={evals}
           evalsError={evalsError}
+          variant="aside"
         />
       </aside>
     </div>
@@ -757,13 +805,18 @@ function RunInspector({
   backend,
   evals,
   evalsError,
+  variant,
 }: {
   current: LiveState;
   summary: StepSummary;
   backend: "local" | "cloud" | null;
   evals: EvalResult[];
   evalsError: string;
+  /** 同一个组件渲染两次（宽屏 aside / 窄屏内联），`data-testid` 必须唯一。 */
+  variant: "aside" | "inline";
 }) {
+  // 目标行只读服务端绑定结果；未绑定时明确写“未绑定”，不显示空行。
+  const bound = boundTarget(current.target);
   return (
     <>
       <section>
@@ -782,6 +835,23 @@ function RunInspector({
             )}
           </dd>
           <dt>状态</dt><dd>{lifecycleLabel(current.lifecycle)}</dd>
+          <dt>目标</dt>
+          {/*
+            同一个组件在宽屏 aside 与窄屏内联区块各渲染一次（A12），若两处都用
+            `bound-target` 会出现重复 id。aside 保留契约要求的 testid，内联副本
+            加后缀，端到端测试按可见的那一个断言即可。
+          */}
+          <dd data-testid={variant === "aside" ? "bound-target" : "bound-target-inline"}>
+            {bound ? (
+              <span className="bound-target">
+                <strong>{bound.service}</strong>
+                <span>实例 {bound.instanceId || "未声明"}</span>
+                <span>地域 {bound.region || "未声明"}</span>
+              </span>
+            ) : (
+              "未绑定"
+            )}
+          </dd>
           <dt>证据质量</dt><dd>{current.quality ?? "—"}</dd>
           <dt>步骤</dt>
           <dd>{summary.completed}/{summary.total}</dd>
@@ -876,12 +946,22 @@ function TargetChoice({
         {reason || "多个候选服务匹配本次描述。"}为避免把其他服务的证据归到目标上，本次没有调用任何指标或日志查询工具。选择后重新发起一次诊断。
       </p>
       <div className="target-cards" role="group" aria-label="候选服务">
-        {candidates.map((candidate) => (
+        {candidates.map((candidate, index) => (
           <button
             key={candidateKey(candidate)}
             type="button"
             className="target-card"
             disabled={disabled}
+            /*
+              G5：除了 aria-label，卡片还要能被断言到“具体是哪一个实例”。
+              data-* 直接来自服务端候选字段（declared values），不参与样式，
+              端到端测试据此确认点击的是 i-a 而不是同名服务的 i-b。
+            */
+            data-testid="target-card"
+            data-target-id={candidate.targetId}
+            data-instance-id={candidate.instanceId}
+            data-region={candidate.region}
+            data-index={index}
             aria-label={`选择目标 ${candidate.service} · 实例 ${candidate.instanceId || "未声明"} · 地域 ${candidate.region || "未声明"}`}
             onClick={() => onChoose(candidate)}
           >

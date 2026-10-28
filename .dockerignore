@@ -5,6 +5,11 @@ __pycache__/
 venv/
 *.egg-info/
 
+# 训练虚拟环境是 Windows 版 venv（pyvenv.cfg 里 home 指向宿主 Anaconda，只有
+# Lib/Scripts、没有 bin/），在 Linux 容器里既跑不起来也用不上，但 `COPY . .`
+# 会把它约 5.1GB 原样打进镜像；实测数字见 docs/claude-code-handoff/G5_INFRA_NOTES.md。
+.venv-train/
+
 # Git
 .git/
 .gitignore
@@ -48,3 +53,14 @@ web/dist/
 training/out/
 training/data/*.jsonl
 eval/results/
+
+# 运行期数据与评测产物：`COPY . .` 会把本机的会话历史、ACL 侧表和题集产物
+# 一起烤进镜像；/app/data 与 /app/eval 在 compose 里都是命名卷，烤进去也看不见。
+data/
+eval/rag/results/
+
+# 本地排障 scratch 与构建变体：.g6_* 只在本地排障时出现，绝不能因为一次
+# `COPY . .` 被烤进镜像（.g6_apikey 是本机测试用 API_KEY，明文躺在 /app 下最糟）。
+.g6_apikey
+.g6*
+.g6-local.Dockerfile

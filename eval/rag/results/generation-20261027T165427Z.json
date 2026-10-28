@@ -1,0 +1,352 @@
+{
+  "generated_at_utc": "2026-10-27T16:54:27Z",
+  "kind": "generation_eval_llm_smoke",
+  "report_label": "calibration",
+  "note": "真实 LLM + 真实 Milvus 的生成层评测。三层指标各自独立分母，不能合成一个'问答准确率'；失败与无法判定分别计数。",
+  "model": {
+    "provider": "anthropic",
+    "model": "DeepSeek-V4.1-Flash-1017",
+    "base_url": "https://www.autodl.art/api/v1/anthropic",
+    "max_tokens": 900,
+    "temperature": 0
+  },
+  "dataset": {
+    "file": "eval/rag/calibrate-dev2.jsonl",
+    "sha256": "247b089186bde2d5d4b2f9e311f5865a37267f24b4d1e5d0fa9bd76c11275f3c",
+    "rows_total": 80,
+    "rows_evaluated": 3,
+    "selection": "按 category 轮转取样（确定性）"
+  },
+  "gate": {
+    "profile": {
+      "mode": "domain",
+      "global": 0.5135,
+      "by_category": {
+        "code_config": 0.5605,
+        "exact_command": 0.6382,
+        "lifecycle_refusal": 0.5135,
+        "misleading_trap": 0.5676,
+        "no_answer": 0.5135,
+        "os_version_conflict": 0.5435,
+        "prompt_injection": 0.5141,
+        "zh_to_en_manual": 0.5135
+      },
+      "by_product": {
+        "docker": 0.606,
+        "linux-kernel": 0.5135,
+        "rhel": 0.5135,
+        "systemd": 0.5676,
+        "windows": 0.5487
+      },
+      "fallback": "global",
+      "fitted_on": {
+        "dataset": "eval/rag/calibrate-dev2.jsonl",
+        "sha256": "247b089186bde2d5d4b2f9e311f5865a37267f24b4d1e5d0fa9bd76c11275f3c",
+        "rows": 80,
+        "answerable_rows": 56,
+        "no_answer_rows": 24,
+        "fitted_at_utc": "2026-10-27T16:51:19Z",
+        "fitted_on_blind": false,
+        "retrieval": "real Milvus via app.services.knowledge_service.VectorStoreRetriever",
+        "model": "embedding descriptor on disk（见 manifest.embedding_descriptor_hash）"
+      },
+      "_source": "eval/rag/results/calibration-20261027T165119Z.json"
+    },
+    "explicit_threshold": null,
+    "profile_skipped": [
+      "calibration-retrieval-20261027T165238Z.json: 没有 gate_profile（kind=calibration_retrieval_milvus）"
+    ]
+  },
+  "judge": {
+    "enabled": true,
+    "note": "LLM 判定结果单独字段，不与确定性检查合并"
+  },
+  "manifest": {
+    "git_commit": "ed13769ff9ccb4dd1f0ac22242d1967e11348e32",
+    "git_dirty": true,
+    "corpus_manifest": "knowledge/manifests/normalized-2026-10-26.json",
+    "corpus_manifest_sha256": "a0ce0ef8f89af80a1bde358b1cb56a5dac8307b5591d4bf90c988fcc5ff1262e",
+    "embedding_descriptor_sha256": "80f0712e785447f177661eee8068049b061ae4d9a348db6bff13c924fb267420",
+    "embedding_descriptor_hash": "589648f22e0df491e887c16b02d393c5a11b786657aead70cfb2d89f900b6ebc",
+    "embedding_model": "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2",
+    "embedding_dimension": 384,
+    "milvus": {
+      "connected": true,
+      "collection": "biz",
+      "num_entities": 1005,
+      "indexes": [
+        {
+          "field": "vector",
+          "params": {
+            "metric_type": "COSINE",
+            "index_type": "IVF_FLAT",
+            "params": {
+              "nlist": 128
+            }
+          }
+        }
+      ],
+      "dim": 384,
+      "metric_type": "COSINE"
+    },
+    "knowledge_store_file": "data\\acceptance\\milvus-e2e-store.json",
+    "threshold": {
+      "value": 0.5135,
+      "source": "gate_profile",
+      "fitted_on": "eval/rag/calibrate-dev2.jsonl",
+      "fitted_on_blind": false
+    },
+    "report_label": "calibration",
+    "dataset_file": "eval/rag/calibrate-dev2.jsonl",
+    "dataset_sha256": "247b089186bde2d5d4b2f9e311f5865a37267f24b4d1e5d0fa9bd76c11275f3c",
+    "blind_file": "eval/rag/blind.jsonl",
+    "blind_file_sha256": "a42aed35caa5e88db2b907a82867a8f4c2af905d398187ec5d11780f5b183253",
+    "retrieval_k": 5
+  },
+  "milvus": {
+    "connected": true,
+    "collection": "biz",
+    "num_entities": 1005,
+    "indexes": [
+      {
+        "field": "vector",
+        "params": {
+          "metric_type": "COSINE",
+          "index_type": "IVF_FLAT",
+          "params": {
+            "nlist": 128
+          }
+        }
+      }
+    ],
+    "dim": 384,
+    "metric_type": "COSINE"
+  },
+  "id_mapping": {
+    "unmapped_document_ids": [
+      "doc-65cfb31698ae",
+      "doc-834421b82dba"
+    ]
+  },
+  "metrics": {
+    "citation_support_rate": {
+      "supported": 1,
+      "unsupported": 0,
+      "undecided_no_token": 1,
+      "unauthorized_or_unresolved": 0,
+      "denominator_used_citations": 2,
+      "denominator_decided": 1,
+      "rate": 1.0,
+      "removed_citations_count": 0,
+      "note": "分母是答案里被使用的引用；被服务端移除的伪造引用不计入分母，单列 removed_citations_count。"
+    },
+    "factual_correct_rate": {
+      "answerable_rows": 2,
+      "deterministic_rows_with_points": 2,
+      "deterministic_mean_coverage": 1.0,
+      "deterministic_rows_all_points_present": 1.0,
+      "judge_rows": 2,
+      "judge_failures": 0,
+      "judge_correct_rate": 1.0,
+      "note": "确定性覆盖率与 LLM judge 分别报告，不合成单一数字。"
+    },
+    "no_answer_false_answer_rate": {
+      "no_answer_rows": 1,
+      "false_answers": 0,
+      "rate": 0.0,
+      "rows": []
+    },
+    "outcomes": {
+      "answered": 2,
+      "insufficient_evidence": 1
+    },
+    "failure_denominators": {
+      "total": 3,
+      "succeeded": 3,
+      "failed": 0,
+      "failures": []
+    },
+    "judge_tokens": {
+      "input_tokens": 871,
+      "output_tokens": 215,
+      "total_tokens": 1086
+    },
+    "latency_seconds": {
+      "rows_p50": 4.48,
+      "rows_max": 12.66
+    }
+  },
+  "elapsed_seconds": 17.2,
+  "rows": [
+    {
+      "id": "C039",
+      "category": "code_config",
+      "question": "写一条把容器内存限制 300m、内存加 swap 总共 1g 的 docker run 命令。",
+      "expect_no_answer": false,
+      "expected_ids": [
+        "DK-02"
+      ],
+      "product": "docker",
+      "outcome": "answered",
+      "retrieval_status": "hit",
+      "retrieval_reason": "",
+      "answer": "## 命令\n\n```bash\ndocker run -d \\\n  --name <容器名> \\\n  --memory=\"300m\" \\\n  --memory-swap=\"1g\" \\\n  <镜像>:<标签> \\\n  <启动命令>\n```\n\n（`<容器名>`、`<镜像>:<标签>`、`<启动命令>` 需按实际情况填写，参考资料未给出具体镜像。）\n\n## 参数含义（依据 [K2]）\n\n- `--memory-swap` 是修饰性参数；**只有在同时设置了 `--memory` 时才有意义**。因此这两个参数必须一起给出，并且 `--memory-swap` 需为正整数 [K2]。\n- 当 `--memory-swap` 为正整数时，它表示**内存 + swap 的总量**，而 `--memory` 控制非 swap 内存的用量。因此 `--memory=\"300m\"` 配合 `--memory-swap=\"1g\"`，容器最多用 300m 内存 + 700m（1g−300m）swap [K2]。\n- 对比几个容易混淆的取值 [K2]：\n  - `--memory-swap` 设为 `0`：该设置被忽略，按未设置处理。\n  - `--memory-swap` 与 `--memory` 取相同值：容器**不能使用 swap**。\n  - 只设 `--memory=\"300m\"`、不设 `--memory-swap`：在宿主机配置了 swap 的情况下，容器可用 300m 内存 + 最多 300m swap，合计 600m。\n\n## 前提条件与注意事项\n\n1. **这是变更操作**（会创建并启动新容器），不是只读查询。执行前建议先做只读确认：宿主机是否配置并启用了 swap、镜像是否已在本地、端口/卷/网络等参数是否正确。\n2. **宿主机需有可用的 swap**；否则 swap 部分实际上无法使用 [K2]。\n3. **不要在容器内用 `free",
+      "answer_chars": 831,
+      "used_citation_ids": [
+        "K2"
+      ],
+      "authorized_citation_ids": [
+        "K2"
+      ],
+      "removed_citations": [],
+      "citation_checks": [
+        {
+          "citation_id": "K2",
+          "authorized": true,
+          "resolves_to_chunk": true,
+          "supported": true,
+          "tokens": [
+            "--memory-swap",
+            "--memory=\"300m\"",
+            "--memory-swap=\"1g\"",
+            "--memory",
+            "300m",
+            "1g",
+            "700m"
+          ],
+          "matched": [
+            "--memory-swap",
+            "--memory=\"300m\"",
+            "--memory-swap=\"1g\"",
+            "--memory",
+            "300m",
+            "1g",
+            "700m"
+          ],
+          "reason": ""
+        }
+      ],
+      "reference_points": [
+        "--memory",
+        "--memory-swap"
+      ],
+      "deterministic_coverage": {
+        "points": [
+          "--memory",
+          "--memory-swap"
+        ],
+        "matched": [
+          "--memory",
+          "--memory-swap"
+        ],
+        "coverage": 1.0,
+        "all_present": true
+      },
+      "fact_judge": {
+        "ok": true,
+        "covers": true,
+        "covered_points": [
+          "--memory",
+          "--memory-swap"
+        ],
+        "reason": "答案命令中明确使用了 --memory=\"300m\" 和 --memory-swap=\"1g\"，覆盖了两个关键参数。",
+        "usage": {
+          "input_tokens": 601,
+          "output_tokens": 114,
+          "total_tokens": 715
+        },
+        "seconds": 1.27
+      },
+      "seconds": 12.66,
+      "threshold": 0.606
+    },
+    {
+      "id": "C012",
+      "category": "exact_command",
+      "question": "Get-WinEvent 想限制条数、并且从最旧的开始取，分别用哪两个参数？",
+      "expect_no_answer": false,
+      "expected_ids": [
+        "WS-02"
+      ],
+      "product": "windows",
+      "outcome": "answered",
+      "retrieval_status": "hit",
+      "retrieval_reason": "",
+      "answer": "限制返回条数用 **`-MaxEvents`**，从最旧的开始取用 **`-Oldest`**。[K2]\n\n例如在 `Get-WinEvent` 的语法中可见：\n\n```powershell\nGet-WinEvent\n    [-FilterXml] <XmlDocument>\n    [-MaxEvents <Int64>]\n    ...\n    [-Oldest]\n```\n\n其中 `-MaxEvents <Int64>` 用于限制事件数量，`-Oldest` 表示从最旧的事件开始返回。[K2]",
+      "answer_chars": 252,
+      "used_citation_ids": [
+        "K2"
+      ],
+      "authorized_citation_ids": [
+        "K2"
+      ],
+      "removed_citations": [],
+      "citation_checks": [
+        {
+          "citation_id": "K2",
+          "authorized": true,
+          "resolves_to_chunk": true,
+          "supported": null,
+          "tokens": [],
+          "matched": [],
+          "reason": "引用所在句子里没有可核验 token"
+        }
+      ],
+      "reference_points": [
+        "MaxEvents",
+        "Oldest"
+      ],
+      "deterministic_coverage": {
+        "points": [
+          "MaxEvents",
+          "Oldest"
+        ],
+        "matched": [
+          "MaxEvents",
+          "Oldest"
+        ],
+        "coverage": 1.0,
+        "all_present": true
+      },
+      "fact_judge": {
+        "ok": true,
+        "covers": true,
+        "covered_points": [
+          "MaxEvents",
+          "Oldest"
+        ],
+        "reason": "答案明确说明限制条数用 -MaxEvents，从最旧开始取用 -Oldest，覆盖了两个关键参数。",
+        "usage": {
+          "input_tokens": 270,
+          "output_tokens": 101,
+          "total_tokens": 371
+        },
+        "seconds": 1.88
+      },
+      "seconds": 4.48,
+      "threshold": 0.5487
+    },
+    {
+      "id": "C071",
+      "category": "lifecycle_refusal",
+      "question": "当前每个知识文档的 active revision 分别是哪个？",
+      "expect_no_answer": true,
+      "expected_ids": [],
+      "product": "",
+      "outcome": "insufficient_evidence",
+      "retrieval_status": "miss",
+      "retrieval_reason": "检索到 3 个候选，但均低于相关性阈值 0.5135",
+      "answer": "知识库中没有足够依据回答这个问题。",
+      "answer_chars": 17,
+      "used_citation_ids": [],
+      "authorized_citation_ids": [],
+      "removed_citations": [],
+      "citation_checks": [],
+      "reference_points": [],
+      "deterministic_coverage": null,
+      "fact_judge": null,
+      "seconds": 0.09,
+      "threshold": 0.5135
+    }
+  ]
+}

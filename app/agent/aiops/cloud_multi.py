@@ -43,6 +43,11 @@ SPECIALIST_TOOLS = {
         "search_service_logs", "search_system_logs", "read_log_file",
         "search_topic_by_service_name", "get_topic_info_by_name", "search_log",
         "analyze_log_pattern", "search_historical_tickets",
+        # supervisor 的提示词一直写着"logs 可查询日志、工单或知识库"，但知识检索
+        # 不在这个目录里：模型照着提示词分配 retrieve_knowledge 会被判成"未授权
+        # 工具"并让整次运行失败，知识库在云端多智能体路径上从未真正可用。
+        # 这里把它加进 logs 专科——它只读、不绑定目标，且已在 READ_ONLY_TOOLS 里。
+        "retrieve_knowledge",
     }),
 }
 NON_LIVE_SOURCES = frozenset({"", "unknown", "unspecified", "demo", "unavailable", "unsupported"})
@@ -99,6 +104,8 @@ class CloudMultiState(TypedDict, total=False):
     #: 运行级硬截止（time.monotonic 秒）与共享预算；由 diagnostic_runtime 传入。
     deadline: float | None
     budget: Any
+    #: 调用方 principal（G6 P1-2）：supervisor 建工具时用它收窄知识检索可见性。
+    owner: str | None
     #: 运行器引用容器（run_cloud_multi 持有，supervisor 节点写入）。
     runtime_holder: Any
     runtime: Any
@@ -426,6 +433,7 @@ async def _supervisor_node(state: CloudMultiState) -> dict:
     runtime = await create_tools_compat(
         create_run_tools, run_id, "cloud_multi", emit,
         deadline=state.get("deadline"), budget=state.get("budget"),
+        owner=state.get("owner"),
     )
     # A11：把运行器交给流包装层，使 aclose 时能设置取消标记并写审计。
     holder = state.get("runtime_holder")
@@ -600,14 +608,14 @@ async def _workflow(user_input: str, session_id: str, run_id: str,
                     target_choice: str | None = None,
                     target_candidate_id: str | None = None,
                     deadline: float | None = None, budget=None,
-                    runtime_holder: dict | None = None) -> None:
+                    runtime_holder: dict | None = None, owner: str | None = None) -> None:
     graph = _build_cloud_graph()
     final = await graph.ainvoke(
         {"user_input": user_input, "session_id": session_id, "run_id": run_id,
          "service_name": service_name, "target_choice": target_choice,
          "target_candidate_id": target_candidate_id, "emit": emit,
          "deadline": deadline, "budget": budget,
-         "runtime_holder": runtime_holder},
+         "runtime_holder": runtime_holder, "owner": owner},
         config={"max_concurrency": 2},
     )
     resolution = (final or {}).get("target_required_resolution")
@@ -626,7 +634,7 @@ async def _call_workflow(user_input: str, session_id: str, run_id: str,
                          target_choice: str | None,
                          deadline: float | None = None, budget=None,
                          target_candidate_id: str | None = None,
-                         runtime_holder: dict | None = None) -> None:
+                         runtime_holder: dict | None = None, owner: str | None = None) -> None:
     """调用工作流；旧版/测试替身没有新形参时按原签名转发。"""
     try:
         parameters = inspect.signature(_workflow).parameters
@@ -642,6 +650,7 @@ async def _call_workflow(user_input: str, session_id: str, run_id: str,
         ("deadline", deadline),
         ("budget", budget),
         ("runtime_holder", runtime_holder),
+        ("owner", owner),
     ):
         if accepts_all or name in parameters:
             kwargs[name] = value
@@ -678,7 +687,8 @@ async def run_cloud_multi(user_input: str, session_id: str, run_id: str, *,
                           target_choice: str | None = None,
                           target_candidate_id: str | None = None,
                           deadline: float | None = None,
-                          budget=None) -> AsyncGenerator[dict, None]:
+                          budget=None,
+                          owner: str | None = None) -> AsyncGenerator[dict, None]:
     """Stream API-only multi-agent events; closing the stream cancels all work."""
     queue: asyncio.Queue = asyncio.Queue()
     #: 运行器引用：由 supervisor 节点写入（见 ``_supervisor_node``）。
@@ -700,7 +710,7 @@ async def run_cloud_multi(user_input: str, session_id: str, run_id: str, *,
             await _call_workflow(user_input, session_id, run_id, service_name, emit,
                                  target_choice, deadline=deadline, budget=budget,
                                  target_candidate_id=target_candidate_id,
-                                 runtime_holder=runtime_holder)
+                                 runtime_holder=runtime_holder, owner=owner)
         except asyncio.CancelledError:
             raise
         except Exception as exc:

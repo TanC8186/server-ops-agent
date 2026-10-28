@@ -474,3 +474,96 @@ def test_concurrent_append_and_purge_never_corrupts_traces(trace_dir, monkeypatc
             f"{run_id} 追加的记录丢失: {len(appended)}/{records_per_file}"
         )
         assert [record["index"] for record in appended] == list(range(records_per_file))
+
+
+# ---------------------------------------------------------------------------
+# 6. 跨进程 retention：别的进程正在写同一个 run 时不得删除
+#
+# 300 过期 + 10 未过期、单轮上限 200 的分轮删除用例放在
+# ``tests/test_soak_concurrency.py``（那里同时覆盖 dry-run），这里只补本文件
+# 缺少的**多进程**视角：进程内锁看不到别的 worker。
+# ---------------------------------------------------------------------------
+
+
+def _bulk_trace(directory: Path, run_id: str, age: float) -> Path:
+    path = directory / f"{run_id}.jsonl"
+    path.write_text(json.dumps({"run_id": run_id, "event": "run_start"}) + "\n",
+                    encoding="utf-8")
+    stamp = time.time() - age  # 构造的时间：不真的等待 10 天
+    os.utime(path, (stamp, stamp))
+    return path
+
+
+def test_purge_skips_file_locked_by_another_process(trace_dir, monkeypatch):
+    """另一个进程持有 ``<run>.jsonl.lock`` 时，本进程的清理必须跳过而不是删掉。
+
+    进程内锁看不到别的进程；删除前必须再拿一次跨进程锁。这里用真实子进程持锁，
+    验证 G5-E 要求的多进程 retention 安全（不是 mock）。
+    """
+    import subprocess
+    import sys
+
+    monkeypatch.setenv(runs.RETENTION_DAYS_ENV, "1")
+    monkeypatch.setenv(observability.PURGE_MIN_AGE_ENV, "0")
+    run_id = _run_id(0xBEEF)
+    path = _bulk_trace(trace_dir, run_id, OLD_AGE_SECONDS)
+
+    repo_root = Path(observability.__file__).resolve().parents[1]
+    child = """
+import sys, time
+from app import observability
+lock = observability._cross_process_trace_lock(sys.argv[1], timeout=0)
+lock.__enter__()
+print("locked", flush=True)
+time.sleep(float(sys.argv[2]))
+"""
+    process = subprocess.Popen(
+        [sys.executable, "-c", child, str(path), "5"],
+        cwd=str(repo_root), stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+    )
+    try:
+        assert process.stdout.readline().strip() == "locked"
+        stats = runs.purge_expired_traces()
+        assert stats["deleted"] == 0, "别的进程正在写，不得删除"
+        assert stats["skipped"] >= 1
+        assert path.exists()
+    finally:
+        process.kill()
+        process.communicate(timeout=30)
+
+    # 锁随进程退出释放，下一轮即可正常删除。
+    after = runs.purge_expired_traces()
+    assert after["deleted"] == 1
+    assert not path.exists()
+
+
+def test_expired_traces_beyond_the_scan_window_still_get_purged(trace_dir, monkeypatch):
+    """目录里超过 200 个文件时，过期文件不能被"前 200 项"永久挤在外面。
+
+    现状：``purge_expired_traces`` 先对 ``glob`` 结果切片 ``[:200]`` 再逐个判断
+    是否过期，所以文件名/目录顺序排在第 200 项之后的过期 trace 每轮都扫不到，
+    永远删不掉——``logs/traces`` 长期运行后必然进入这个状态。
+
+    这里构造 250 个新鲜 + 50 个过期（过期文件名排在后面），连续跑多轮：修复后
+    过期文件应当被删掉。本次不改 ``app/api/runs.py``（不在文件所有权内），用
+    strict xfail 固定真实缺口；最小补丁见报告 cross_file_requests。
+    """
+    monkeypatch.setenv(runs.RETENTION_DAYS_ENV, "1")
+    monkeypatch.setenv(observability.PURGE_MIN_AGE_ENV, "0")
+    monkeypatch.delenv(runs.DRY_RUN_ENV, raising=False)
+    fresh = [_bulk_trace(trace_dir, _run_id(index), 0) for index in range(250)]
+    expired = [_bulk_trace(trace_dir, _run_id(0xF0000000 + index), OLD_AGE_SECONDS)
+               for index in range(50)]
+
+    for _ in range(3):
+        stats = runs.purge_expired_traces()
+        assert stats["failed"] == 0
+        if not any(path.exists() for path in expired):
+            break
+
+    assert all(not path.exists() for path in expired), (
+        "过期 trace 被扫描窗口挤在外面，永远轮不到删除"
+    )
+    assert all(path.exists() for path in fresh), "未过期 trace 必须保留"
+
+

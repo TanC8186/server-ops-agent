@@ -77,6 +77,10 @@ uploads/
 eval/results/
 # 离线检索基线结果是可复现证据，需要提交；只忽略临时产物。
 eval/rag/results/*.tmp
+# 同一命令的重复/被取代产物：保留在本地供复查，但不入库。文档引用的是
+# generation-20261027T192749Z（12 条，judge 全跑完）；191935 是它之前那次
+# 被取代的运行，指标不同，同仓库同时入库只会让读者不知道该信哪份。
+eval/rag/results/generation-20261027T191935Z.json
 
 # 运行期数据（会话历史、知识库作业/版本元数据、embedding 描述符）
 # 由程序生成、与具体环境绑定，不入库；目录结构见 docs/DEPLOYMENT.md。
@@ -112,3 +116,6 @@ web/dist/
 
 # Scratch
 .ui-check.png
+
+# 本地排障 scratch 与构建变体（不入库）
+.g6*

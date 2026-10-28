@@ -201,9 +201,18 @@ def purge_expired_traces(*, now: float | None = None) -> dict:
     cutoff = (now if now is not None else time.time()) - days * 86400
     deleted = failed = scanned = skipped = would_delete = 0
     if TRACE_DIR.exists():
-        for candidate in list(TRACE_DIR.glob("*.jsonl"))[:RETENTION_MAX_FILES_PER_RUN]:
-            if not is_valid_run_id(candidate.stem):
-                continue
+        # 上限是**删除数**，不是**扫描数**：先按 mtime 升序排序再逐个判断。
+        # 旧实现先 ``glob`` 切片 [:200] 再看 mtime，文件名排在窗口之后的过期
+        # trace 每轮都扫不到、永远删不掉（``logs/traces`` 长期运行必然进入这个
+        # 状态；实测 250 新鲜 + 50 过期，连续 3 轮 deleted=0）。
+        candidates = sorted(
+            (p for p in TRACE_DIR.glob("*.jsonl") if is_valid_run_id(p.stem)),
+            key=_safe_mtime,
+        )
+        for candidate in candidates:
+            if deleted + failed + would_delete >= RETENTION_MAX_FILES_PER_RUN:
+                # 本轮已处理够多，剩下的下一轮继续；按 mtime 升序保证最旧先处理。
+                break
             resolved = resolve_trace_file(candidate)
             if resolved is None or not resolved.is_file():
                 continue

@@ -68,6 +68,17 @@ RUN apt-get update \
 COPY pyproject.toml uv.lock ./
 # --frozen：严格使用锁文件；--no-dev：生产镜像不含 pytest/ruff 等开发依赖；
 # --no-install-project：本层只装第三方依赖，项目代码在最终阶段才出现。
+#
+# 关于镜像里的 CUDA 版 torch（实测约 4.9GB：nvidia-* 3196MB + triton 897MB +
+# libtorch_cuda.so 480MB，见 docs/claude-code-handoff/G5_INFRA_NOTES.md）：
+# 应用只用 CPU 推理，这些运行时是纯负担。但**不要**在这里加 `UV_TORCH_BACKEND=cpu`——
+# uv 0.12.7 的 `--torch-backend` 只存在于 `uv pip install`，`uv sync --help` 里没有
+# 这个选项；`[tool.uv] torch-backend` 对 --frozen 的锁文件也无效（实测：把 torch 提升
+# 为直接依赖 + `torch-backend = "cpu"` 后重新 lock，nvidia-* 仍是 43 条）。真正可行的
+# 做法是把 torch 提升为直接依赖并加 `[[tool.uv.index]]` 指向
+# https://download.pytorch.org/whl/cpu + `[tool.uv.sources] torch = {index = ...}`，
+# 然后重新 `uv lock`（实测 nvidia 43→0、triton 2→0，包数 241→209）。
+# 这会改变全平台解析结果，需要单独一轮并重新验收。
 RUN uv sync --frozen --no-dev --no-install-project
 
 # ---------- 4. 最终运行镜像 ----------

@@ -115,11 +115,14 @@ async def run_local(user_input: str, session_id: str, run_id: str, *,
                     target_choice: str | None = None,
                     target_candidate_id: str | None = None,
                     deadline: float | None = None,
-                    budget=None):
+                    budget=None,
+                    owner: str | None = None):
     """本地诊断：plan → execute → report。
 
     ``deadline`` 是运行级硬截止（``time.monotonic()`` 秒），下传给每次工具调用；
     ``budget`` 与云端共用同一个 ``RequestBudget``，避免两条路径各算一套额度。
+    ``owner`` 是 API 层解析出的 principal，转发给知识检索工具；否则本地诊断的
+    ``retrieve_knowledge`` 会把别人的文档也当成证据。
     流被关闭（客户端取消）时会把 ``RunTools.cancel()`` 标记上，让后续调用立即
     停止，并把“已经发出的调用”如实记进 trace。
     """
@@ -133,7 +136,7 @@ async def run_local(user_input: str, session_id: str, run_id: str, *,
             async with _LOCAL_SLOT:
                 tools = await create_tools_compat(
                     create_run_tools, run_id, "local", queue.put_nowait,
-                    deadline=deadline, budget=budget,
+                    deadline=deadline, budget=budget, owner=owner,
                 )
                 holder["tools"] = tools
                 try:

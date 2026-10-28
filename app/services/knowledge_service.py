@@ -24,6 +24,7 @@ import asyncio
 import concurrent.futures
 import threading
 import uuid
+from dataclasses import dataclass
 from typing import Any, AsyncGenerator, Callable, Protocol, Sequence
 
 from loguru import logger
@@ -202,6 +203,12 @@ def _search(retriever: Retriever, query: str, k: int, timeout: float,
     except InvalidIndex:
         raise
     except Exception as exc:  # noqa: BLE001
+        # 过滤条件非法（日期/principal 形状）必须是明确失败：如果退化成
+        # “不过滤”，未授权文档就会重新进入候选。
+        from app.services.knowledge_store import InvalidFilter
+
+        if isinstance(exc, InvalidFilter):
+            raise RetrievalUnavailable(f"检索过滤条件非法：{exc}") from exc
         text = str(exc).lower()
         if "timeout" in text or "deadline" in text:
             raise RetrievalTimeout(str(exc)) from exc
@@ -416,25 +423,99 @@ def _active_revision_map() -> dict[str, str]:
     return knowledge_store.active_revisions()
 
 
-def _visible_revision_expr(active: dict[str, str]) -> str | None:
-    """给 Milvus 的候选预过滤表达式：只扫 active revision 的分片。
+def _visible_map(principal_id: str, filters: RetrievalFilters) -> dict[str, str]:
+    """按 principal + 过滤条件读取可见文档（G5）。
 
-    在 top-k 之前约束候选范围（而不是先取 top-k 再过滤），否则旧版分片可能占满
-    全部名额，导致“已激活的新版本反而检索不到”——这是 A01 要求先约束候选的
-    直接原因。表达式语法用 metadata JSON 字段的 ``in``，只包含当前 active 的
-    revision 字面量（已转义）。无法构造时返回 ``None``，由调用方退化为
-    “扩大候选 + 后置过滤”。
+    走 ``knowledge_store.visible_documents``：active revision、有效期、文档级 ACL、
+    OS/产品/版本都在那里判定，检索侧不再复制一套规则。读取失败或条件非法都
+    向上抛，由 ``VectorStoreRetriever`` 映射成明确状态。
     """
-    revisions = sorted({value for value in active.values() if value})
-    if not revisions:
+    from app.services import knowledge_store
+
+    return knowledge_store.visible_documents(
+        principal_id,
+        os_family=filters.os_family,
+        product=filters.product,
+        product_version=filters.product_version,
+        at_date=filters.at_date,
+    )
+
+
+def _visible_revision_expr(visible: dict[str, str]) -> str | None:
+    """给 Milvus 的候选预过滤表达式：只扫 active 且已授权的文档分片。
+
+    两个条件必须同时成立：
+
+    - ``metadata["_revision"] in [...]``：排除 staged/superseded 的旧版本；
+    - ``metadata["_document_id"] in [...]``：排除未授权文档（ACL/有效期/OS 不匹配）。
+
+    只做 revision 过滤会漏掉“同一个文档当前仍 active、但调用方无权读”的情况；
+    只做文档过滤则会把 superseded 版本重新带回来。表达式在 top-k **之前**执行，
+    未授权分片不会占满候选名额。可见集合为空时返回 ``None``，由调用方按
+    “无候选”处理（不是“不过滤”）。
+    """
+    revisions = sorted({value for value in visible.values() if value})
+    documents = sorted({key for key in visible if key})
+    if not revisions or not documents:
         return None
-    quoted = ", ".join('"' + _escape_expr(value) + '"' for value in revisions)
-    return f'metadata["_revision"] in [{quoted}]'
+    revision_list = ", ".join('"' + _escape_expr(value) + '"' for value in revisions)
+    document_list = ", ".join('"' + _escape_expr(value) + '"' for value in documents)
+    return (
+        f'metadata["_revision"] in [{revision_list}] and '
+        f'metadata["_document_id"] in [{document_list}]'
+    )
 
 
 def _escape_expr(value: str) -> str:
     """转义 Milvus 表达式里的字符串字面量（反斜杠与双引号）。"""
     return str(value).replace("\\", "\\\\").replace('"', '\\"')
+
+
+def _supports_expr(store: Any) -> bool:
+    """向量适配器是否接受 ``expr`` 关键字参数（显式参数或 ``**kwargs``）。
+
+    以前用 ``except TypeError`` 兜底重查，但查询**内部**抛出的 TypeError 与
+    “签名不认识 expr”是两回事：前者是真实故障，退化成不带过滤的重查会把
+    候选范围静默放大（越权/低相关分片重新进入 top-k），且失败状态被掩盖。
+    所以先看签名再决定调用形状；签名取不到时按“支持”处理，让真实错误照常
+    抛出，而不是默默走兼容分支。
+    """
+    import inspect
+
+    target = getattr(store, "similarity_search_with_score", store)
+    try:
+        parameters = inspect.signature(target).parameters
+    except (TypeError, ValueError):
+        return True
+    if any(p.kind is inspect.Parameter.VAR_KEYWORD for p in parameters.values()):
+        return True
+    return "expr" in parameters
+
+
+@dataclass(frozen=True)
+class RetrievalFilters:
+    """检索前的可选过滤条件（全部可空；空 = 不过滤该维度）。
+
+    刻意只保留可核验的字段：OS/产品/版本/日期都来自调用方明确给出的事实，
+    不做任何语义推断（例如不把 ``RHEL 9`` 解析成版本号）。
+
+    **不包含 principal**：身份只来自服务端解析，检索器另有 ``principal_id``
+    形参。放在这里会让“请求体里的身份”有第二条进入路径。
+    """
+
+    os_family: str = ""
+    product: str = ""
+    product_version: str = ""
+    at_date: str = ""
+
+    def normalized(self) -> RetrievalFilters:
+        """去空白；日期只做格式校验（合法性由存储层统一判断并抛 ``InvalidFilter``）。"""
+        return RetrievalFilters(
+            os_family=str(self.os_family or "").strip(),
+            product=str(self.product or "").strip(),
+            product_version=str(self.product_version or "").strip(),
+            at_date=str(self.at_date or "").strip(),
+        )
 
 
 class VectorStoreRetriever:
@@ -449,47 +530,75 @@ class VectorStoreRetriever:
     - 读不到 metric 时所有分数记 0，任何正的阈值都会判为未命中；
     - **可见性绑定 active revision（A01）**：只返回当前 active 版本的分片；
       staged/failed/superseded 版本既不能进入候选，也不能计入 top-k。
+    - **候选前文档过滤（G5）**：给了 ``principal_id`` 时，可见集合来自
+      ``visible_documents``（ACL/有效期/OS/产品/版本），并合成到 expr；后置核对
+      仍要求 ``document_id -> revision`` 命中同一份快照，防止表达式被适配器忽略。
+      可见集合超过 ``MAX_VISIBLE_DOCUMENTS`` 时明确拒绝，而不是不过滤。
     """
 
-    def __init__(self, store=None, *, active_revisions=None):
+    def __init__(self, store=None, *, active_revisions=None,
+                 principal_id: str = "",
+                 filters: RetrievalFilters | None = None):
         self._store = store
         #: 可注入的可见性来源（测试）；默认读取 knowledge_store 的一致快照。
         self._active_revisions = active_revisions
+        #: 调用方身份与可选过滤条件（G5）。为空时保持旧行为：只用 active revision。
+        self._principal_id = str(principal_id or "").strip()
+        self._filters = (filters or RetrievalFilters()).normalized()
 
-    def _active_map(self) -> dict[str, str]:
-        provider = self._active_revisions
-        return dict(provider() if provider is not None else _active_revision_map())
+    def _visible(self) -> dict[str, str]:
+        """本次检索允许进入候选的 ``document_id -> active revision``。
+
+        优先级：显式注入的 ``active_revisions``（测试/脚本）→ 带 principal 的
+        完整过滤 → 仅 active revision（旧行为）。第 2 种在过滤失败时抛异常，
+        绝不回退到第 3 种（那等于把未授权内容重新放进来）。
+        """
+        if self._active_revisions is not None:
+            return dict(self._active_revisions())
+        if self._principal_id:
+            return _visible_map(self._principal_id, self._filters)
+        return dict(_active_revision_map())
 
     def search(self, query: str, k: int) -> list[RetrievedChunk]:
+        from app.services.knowledge_store import MAX_VISIBLE_DOCUMENTS
         from app.services.vector_store_manager import (
             VectorStoreInvalidIndex,
             VectorStoreUnavailable,
         )
 
         store = self._store or _default_store()
-        active = self._active_map()
-        if not active:
-            # 没有任何 active revision：知识库为空/全部失败。这是确定的“无候选”，
-            # 不是依赖故障，也不是候选恰好为零。
+        # 非法过滤条件（日期/principal 形状）直接向上抛（``InvalidFilter`` 继承
+        # ``ValueError``），由 ``_search`` 映射成明确的失败状态；绝不在这里
+        # 吞掉条件退回“不过滤”。
+        visible = self._visible()
+        if not visible:
+            # 没有任何可见文档：知识库为空/全部失败/全部被过滤。这是确定的
+            # “无候选”，不是依赖故障，也不是候选恰好为零。
             return []
+        if len(visible) > MAX_VISIBLE_DOCUMENTS:
+            # 允许列表过大时 Milvus 的 ``in`` 表达式会失控；此时放行等于不过滤，
+            # 是静默的越权，必须明确失败并提示缩小范围。
+            raise RetrievalUnavailable(
+                f"可见文档数 {len(visible)} 超过过滤上限 {MAX_VISIBLE_DOCUMENTS}；"
+                "请缩小过滤范围（OS/产品/版本/日期或按文档范围检索）"
+            )
 
         # 先约束候选范围：真实 Milvus 走 expr 预过滤；不支持 expr 的适配器（测试
         # 替身/旧实现）会在下面做后置过滤。多取一些候选，给后置过滤留余量。
-        expr = _visible_revision_expr(active)
+        expr = _visible_revision_expr(visible)
         pool = max(int(k) * 4, int(k) + 8)
         kwargs: dict[str, Any] = {}
         if expr:
-            kwargs["expr"] = expr
+            if _supports_expr(store):
+                kwargs["expr"] = expr
+            else:
+                # 明确说明退化原因：这不是"重试成功"，而是该适配器根本没有
+                # 预过滤能力，正确性只由后置核对保证，候选池也会更大。
+                logger.debug(
+                    "适配器 {} 不支持 expr，已退化为后置过滤（候选池 {}）",
+                    type(store).__name__, pool)
         try:
             pairs = store.similarity_search_with_score(query, k=pool, **kwargs)
-        except TypeError:
-            # 适配器不接受 expr：退回纯 top-k，靠后置过滤保证正确性。
-            try:
-                pairs = store.similarity_search_with_score(query, k=pool)
-            except VectorStoreInvalidIndex as exc:
-                raise InvalidIndex(str(exc)) from exc
-            except VectorStoreUnavailable as exc:
-                raise RetrievalUnavailable(str(exc)) from exc
         except VectorStoreInvalidIndex as exc:
             raise InvalidIndex(str(exc)) from exc
         except VectorStoreUnavailable as exc:
@@ -506,8 +615,9 @@ class VectorStoreRetriever:
             metadata = dict(getattr(doc, "metadata", {}) or {})
             document_id = str(metadata.get("_document_id") or "")
             revision = str(metadata.get("_revision") or "")
-            if active.get(document_id) != revision:
-                # 非 active 版本（staged/failed/superseded）一律不可见。
+            if visible.get(document_id) != revision:
+                # 后置核对：不仅要求是 active 版本，还要求它在本次过滤后的可见集合里。
+                # 适配器忽略 expr 时（旧实现/测试替身）也靠这里兜住越权分片。
                 continue
             parent_text = str(metadata.get("_parent_text") or "")
             if len(parent_text) > RetrievedChunk.MAX_PARENT_CHARS:

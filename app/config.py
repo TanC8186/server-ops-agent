@@ -163,6 +163,24 @@ class Settings(BaseSettings):
     # 诊断运行时是否接入内置知识检索工具（M4）。关闭后诊断仍可运行，只是
     # 没有“知识依据”这一节；Milvus 不可用时不必关闭，工具会如实报 unavailable。
     rag_tool_enabled: bool = True
+    # 知识库租户语义（G5）：
+    # - single（默认，单租户 demo）：没有归属记录的旧文档对任何已认证 principal 可见，
+    #   与今天的行为一致；
+    # - multi：没有归属记录的文档对非 dev principal 一律不可见（fail closed），
+    #   避免多租户部署里“没记 owner 就等于所有人可见”。
+    # 只来自配置/环境，绝不从请求头或客户端 tenant_id 读取。
+    knowledge_tenant_mode: str = "single"
+
+    @field_validator("knowledge_tenant_mode", mode="before")
+    @classmethod
+    def _normalize_knowledge_tenant_mode(cls, value: Any) -> str:
+        if value is None:
+            return "single"
+        mode = str(value).strip().lower()
+        if mode not in {"single", "multi"}:
+            # 拼错模式必须显式失败：静默回退到 single 会造成“以为开了隔离”的假象。
+            raise ValueError("KNOWLEDGE_TENANT_MODE 只能是 single 或 multi")
+        return mode
     # embedding 描述符落盘位置；默认 data/embedding_descriptor.json，测试可覆盖。
     embedding_descriptor_file: str = ""
 

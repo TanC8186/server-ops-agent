@@ -8,21 +8,30 @@ token 用量。目的不是替代 Langfuse/OTel，而是在没有额外服务的
 - trace 失败绝不能影响主流程：任何异常都在本模块内被吞掉，但会累计到
   ``get_trace_health()`` 并打 WARNING 日志（只带异常类型，不带载荷）。
 - 敏感字段落盘前脱敏；单条记录与单 run 文件都有大小上限。
-- 同一文件的追加在进程内加锁，避免 Windows 上多线程追加产生半行。
+- 同一文件的追加在进程内加锁，避免 Windows 上多线程追加产生半行；同一台机器
+  上的多个进程再叠加一层**跨进程文件锁**（``<run_id>.jsonl.lock``），避免多
+  worker 同时追加时事件丢失或交织。
 """
 
 from __future__ import annotations
 
+import contextlib
 import json
 import os
 import re
 import threading
 import time
+from collections.abc import Iterator
 from datetime import datetime
 from pathlib import Path
 from typing import Any
 
 from loguru import logger
+
+if os.name == "nt":  # pragma: no cover - 平台分支实际只走一条
+    import msvcrt
+else:  # pragma: no cover
+    import fcntl
 
 TRACE_DIR = Path(__file__).resolve().parents[1] / "logs" / "traces"
 
@@ -151,6 +160,130 @@ def is_file_locked(path: Path | str) -> bool:
     return _path_lock(Path(path)).locked()
 
 
+# ── 跨进程文件锁 ─────────────────────────────────────────────
+#
+# 进程内锁只能保护同一进程的线程。多个 uvicorn worker / CLI 脚本同时给同一个
+# run 追加事件时，Windows 上 ``open(..., "a")`` 之间仍可能互相覆盖尾部，表现
+# 为整行丢失或两条记录粘成一行。这里在同一目录用 ``<run_id>.jsonl.lock`` 做
+# 一把操作系统级的独占锁（Windows ``msvcrt.locking`` / POSIX ``flock``）：
+#
+# - 不加新依赖，也不依赖锁文件里写 pid（进程崩溃后 OS 自动释放锁，不会留下
+#   "谁也不敢碰"的死锁文件）；
+# - 锁文件是 0 字节的旁路文件，retention 只扫 ``*.jsonl``，因此不会被误删。
+#   刻意**不在删除 trace 时删锁文件**：POSIX 上删除一个仍被他人持有的锁文件
+#   会让后来的进程拿到新 inode 的锁，互斥直接失效（经典 ABA）；即使"确认没人
+#   持有"再删，写入方"open 之后、lock 之前"的空窗也会踩到同一问题。代价是
+#   ``logs/traces`` 里每个 run 留一个 0 字节文件，比互斥失效便宜得多。
+# - 不可跨进程重入：同一进程的第二次加锁会失败并等待到超时。进程内已经有
+#   ``_path_lock`` 串行化，正常调用路径不会嵌套 ``_write_record``。
+
+#: 跨进程锁的默认等待上限（秒）。``TRACE_LOCK_TIMEOUT_SECONDS`` 可覆盖。
+DEFAULT_TRACE_LOCK_TIMEOUT_SECONDS = 10.0
+TRACE_LOCK_TIMEOUT_ENV = "TRACE_LOCK_TIMEOUT_SECONDS"
+
+
+class TraceLockTimeout(RuntimeError):
+    """在等待上限内没能拿到跨进程 trace 锁。
+
+    单独成类型，是为了让 ``_record_failure`` 的 ``last_error`` 能直接读成
+    "锁超时"，而不是伪装成磁盘错误；该条事件计入 ``failures`` 并打 WARNING，
+    绝不静默丢弃。
+    """
+
+
+def lock_timeout_seconds() -> float:
+    """跨进程锁等待上限（秒）；非法值回退默认，``0`` 表示只尝试一次。"""
+    raw = os.environ.get(TRACE_LOCK_TIMEOUT_ENV, "").strip()
+    if not raw:
+        return float(DEFAULT_TRACE_LOCK_TIMEOUT_SECONDS)
+    try:
+        value = float(raw)
+    except ValueError:
+        return float(DEFAULT_TRACE_LOCK_TIMEOUT_SECONDS)
+    return max(0.0, value)
+
+
+def trace_lock_path(path: Path | str) -> Path:
+    """trace 文件对应的锁文件：``<name>.lock``，与 trace 同目录。"""
+    target = Path(path)
+    return target.with_name(f"{target.name}.lock")
+
+
+def _try_lock_fd(fd: int) -> bool:
+    """非阻塞地尝试获取 fd 上的独占锁；被占用返回 False。
+
+    被占用时底层抛 ``OSError``（Windows 是 errno 13，POSIX 是 EWOULDBLOCK）。
+    这里把所有 ``OSError`` 都当成"本次拿不到"，由调用方在最外层给出有界等待
+    和明确超时——锁是尽力而为的互斥，不值得为不同平台错误码再分叉一套语义。
+    """
+    if os.name == "nt":
+        try:
+            os.lseek(fd, 0, os.SEEK_SET)
+            msvcrt.locking(fd, msvcrt.LK_NBLCK, 1)
+        except OSError:
+            return False
+        return True
+    try:
+        fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except OSError:
+        return False
+    return True
+
+
+def _unlock_fd(fd: int) -> None:
+    """释放 fd 上的锁；失败只可能是句柄已失效，关闭时 OS 同样会释放。"""
+    try:
+        if os.name == "nt":
+            os.lseek(fd, 0, os.SEEK_SET)
+            msvcrt.locking(fd, msvcrt.LK_UNLCK, 1)
+        else:
+            fcntl.flock(fd, fcntl.LOCK_UN)
+    except OSError:
+        pass
+
+
+@contextlib.contextmanager
+def _cross_process_trace_lock(
+    path: Path | str, *, timeout: float | None = None
+) -> Iterator[None]:
+    """持有 ``<trace>.lock`` 的跨进程独占锁，退出时释放并关闭句柄。
+
+    有界等待：线性尝试 + 1ms→50ms 的退避，超过上限抛 :class:`TraceLockTimeout`，
+    绝不无限等待。``timeout=0`` 等价于"只试一次"，供 retention 的非阻塞删除使用。
+
+    为什么每次重新 open 而不是缓存 fd：open/close 一次约 0.45ms（Windows 上要
+    建句柄），相比每条事件自身的序列化 + 追加开销仍可接受；换来的是任何异常
+    路径都由 ``finally`` 关闭句柄，进程被强杀时 OS 也会回收。缓存 fd 反而要处理
+    "锁文件被别人删掉后新 inode 上互斥失效"的经典 ABA，不值得。
+    """
+    target = Path(path)
+    lock_path = trace_lock_path(target)
+    limit = lock_timeout_seconds() if timeout is None else max(0.0, float(timeout))
+    deadline = time.monotonic() + limit
+    try:
+        fd = os.open(lock_path, os.O_RDWR | os.O_CREAT, 0o600)
+    except FileNotFoundError:
+        # 目录尚未建好（第一次写这个 run）：只在这种冷路径上付一次 mkdir。
+        lock_path.parent.mkdir(parents=True, exist_ok=True)
+        fd = os.open(lock_path, os.O_RDWR | os.O_CREAT, 0o600)
+    try:
+        delay = 0.001
+        while not _try_lock_fd(fd):
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise TraceLockTimeout(
+                    f"等待 trace 锁超时（{limit:.1f}s）: {lock_path.name}"
+                )
+            time.sleep(min(delay, remaining))
+            delay = min(delay * 2, 0.05)
+        try:
+            yield
+        finally:
+            _unlock_fd(fd)
+    finally:
+        os.close(fd)
+
+
 def purge_min_age_seconds() -> float:
     """清理的最小静默时间（秒）；非法值回退默认，``0`` 表示不做静默保护。"""
     raw = os.environ.get(PURGE_MIN_AGE_ENV, "").strip()
@@ -185,6 +318,10 @@ def _remove_trace_file(
       一个已经被 unlink 的 inode。
     - 拿不到锁（有 append 正在进行）：直接放弃本次删除，下一轮再试。
 
+    拿到进程内锁后再试一次**跨进程**锁（同样非阻塞）：另一台 worker 正在追加
+    时，只靠本进程的锁是看不出来的。两级都拿到才允许删除，否则按 ``locked``
+    跳过——宁可晚一轮删，也不制造腰斩的 trace。
+
     只在锁内才检查 mtime：写入方刚追加完会刷新 mtime，锁外读取会让"看起来已经
     静默 5 分钟"的文件在真正删除前又被写一次。
 
@@ -196,27 +333,54 @@ def _remove_trace_file(
     if not lock.acquire(blocking=False):
         return REMOVE_LOCKED
     try:
-        try:
-            stat = target.stat()
-        except FileNotFoundError:
+        # trace 已经不在了：没有必要为它新建一把锁文件，直接如实返回。
+        if not target.exists():
             return REMOVE_MISSING
+        try:
+            # 跨进程锁必须**覆盖 stat 与 unlink**：只在锁内 stat、锁外 unlink 的话，
+            # 别的进程可以在两者之间开始追加，删除它就又变成腰斩 trace 了。
+            with _cross_process_trace_lock(target, timeout=0):
+                return _unlink_if_expired(
+                    target,
+                    min_age_seconds=min_age_seconds,
+                    now=now,
+                    delete=delete,
+                )
+        except TraceLockTimeout:
+            return REMOVE_LOCKED
         except OSError:
             return REMOVE_FAILED
-        age_limit = purge_min_age_seconds() if min_age_seconds is None else min_age_seconds
-        current = time.time() if now is None else now
-        if age_limit > 0 and current - stat.st_mtime < age_limit:
-            return REMOVE_RECENT
-        if not delete:
-            return REMOVE_DELETED
-        try:
-            target.unlink()
-        except FileNotFoundError:
-            return REMOVE_MISSING
-        except OSError:
-            return REMOVE_FAILED
-        return REMOVE_DELETED
     finally:
         lock.release()
+
+
+def _unlink_if_expired(
+    target: Path,
+    *,
+    min_age_seconds: float | None,
+    now: float | None,
+    delete: bool,
+) -> str:
+    """在当前持有的两级锁内做静默判定并（可选）删除，返回结果码。"""
+    try:
+        stat = target.stat()
+    except FileNotFoundError:
+        return REMOVE_MISSING
+    except OSError:
+        return REMOVE_FAILED
+    age_limit = purge_min_age_seconds() if min_age_seconds is None else min_age_seconds
+    current = time.time() if now is None else now
+    if age_limit > 0 and current - stat.st_mtime < age_limit:
+        return REMOVE_RECENT
+    if not delete:
+        return REMOVE_DELETED
+    try:
+        target.unlink()
+    except FileNotFoundError:
+        return REMOVE_MISSING
+    except OSError:
+        return REMOVE_FAILED
+    return REMOVE_DELETED
 
 
 def remove_trace_file(
@@ -373,8 +537,41 @@ def _remember_truncated(run_id: str) -> None:
         _TRUNCATED_RUNS.pop(next(iter(_TRUNCATED_RUNS)))
 
 
+def _already_truncated(path: Path) -> bool:
+    """文件尾部是否已经有一条 ``trace_truncated`` 标记。
+
+    跨进程场景下"谁先触顶"只有最先拿到锁的进程知道；``_TRUNCATED_RUNS`` 是
+    进程内缓存，别的 worker 看不到。触顶时读一次尾部（<=4KB），已经标记过就
+    不再追加第二条，否则每个进程都会在文件末尾重复写一个标记。
+    """
+    try:
+        with open(path, "rb") as handle:
+            handle.seek(0, os.SEEK_END)
+            size = handle.tell()
+            handle.seek(max(0, size - 4096), os.SEEK_SET)
+            tail = handle.read().decode("utf-8", errors="replace")
+    except OSError:
+        return False
+    lines = [line for line in tail.splitlines() if line.strip()]
+    if not lines:
+        return False
+    try:
+        return json.loads(lines[-1]).get("event") == "trace_truncated"
+    except json.JSONDecodeError:
+        return False
+
+
 def _write_record(run_id: str, record: dict[str, Any]) -> None:
-    """在锁内完成“脱敏/限长 → 配额检查 → 追加写入”。"""
+    """在锁内完成“脱敏/限长 → 配额检查 → 追加写入”。
+
+    两级锁：进程内 ``_path_lock`` 串行化线程，跨进程 ``<run>.jsonl.lock``
+    串行化 worker/脚本。两级都拿到才读写文件大小并追加——配额判断必须发生在
+    互斥区内，否则两个进程会各自读到旧大小、同时越过 ``MAX_RUN_BYTES``。
+
+    :class:`TraceLockTimeout` 会向上抛（由 ``trace_event`` 统一计入
+    ``failures`` 并告警）：锁等不到时必须让"这条事件没写进去"可见，不能悄悄
+    丢；其它异常仍在内部吞掉，保证观测故障不中断诊断。
+    """
     path = TRACE_DIR / f"{_safe_run_id(run_id)}.jsonl"
     try:
         line = _prepare_line(record)
@@ -387,20 +584,28 @@ def _write_record(run_id: str, record: dict[str, Any]) -> None:
             _record_drop()
             return
         try:
-            path.parent.mkdir(parents=True, exist_ok=True)
-            size = path.stat().st_size if path.exists() else 0
-            if size + len(line) > MAX_RUN_BYTES:
-                marker = _truncation_marker(run_id, MAX_RUN_BYTES)
+            # 目录由加锁本身保证存在（锁文件与 trace 同目录，冷路径里会建目录）。
+            with _cross_process_trace_lock(path):
+                try:
+                    size = path.stat().st_size
+                except FileNotFoundError:
+                    size = 0
+                if size + len(line) > MAX_RUN_BYTES:
+                    _remember_truncated(run_id)
+                    # 触发超限的这条事件本身被丢弃，计入 dropped；标记每条 run
+                    # 只写一次（跨进程已写过的就不再重复）。
+                    if not _already_truncated(path):
+                        marker = _truncation_marker(run_id, MAX_RUN_BYTES)
+                        with open(path, "a", encoding="utf-8", newline="\n") as handle:
+                            handle.write(marker.decode("utf-8"))
+                        _record_write()
+                    _record_drop()
+                    return
                 with open(path, "a", encoding="utf-8", newline="\n") as handle:
-                    handle.write(marker.decode("utf-8"))
-                _remember_truncated(run_id)
+                    handle.write(line.decode("utf-8"))
                 _record_write()
-                # 触发超限的这条事件本身被丢弃，计入 dropped。
-                _record_drop()
-                return
-            with open(path, "a", encoding="utf-8", newline="\n") as handle:
-                handle.write(line.decode("utf-8"))
-            _record_write()
+        except TraceLockTimeout:
+            raise
         except Exception as exc:  # noqa: BLE001 - 观测不能中断诊断
             _record_failure(exc)
 

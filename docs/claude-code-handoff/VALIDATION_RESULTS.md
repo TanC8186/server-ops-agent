@@ -912,3 +912,110 @@ node --experimental-strip-types --test src/sse.test.ts src/state.test.ts src/vie
 - “端到端回答率 50%”——那是 dev 阈值 0.6315 的结果，属阈值问题，不是模型能力。
 - “支持多用户权限体系”——目前是单租户 + principal 归属检查。
 - “SSH 已联调”“取消能终止远端生成”——两者都未验证。
+
+# V12. 第四轮：G5 质量与生产化收尾（2026-10-28）
+
+本轮完整结果、分母与限制单独记在
+[G5_RESULTS_2026-10-28.md](G5_RESULTS_2026-10-28.md)，这里只留“本次实测了什么”的索引，
+不复制数字（避免两处漂移）。**V11 及以上的历史记录保留，未覆盖、未删除。**
+
+## V12.1 本轮实测（2026-10-28，工作区 HEAD `ed13769` + 未提交改动）
+
+| 检查 | 结果 |
+|---|---|
+| 后端 pytest | **809 passed, 1 skipped, 1 warning**（164.42s） |
+| 前端 | **70 passed**；`tsc -b` / `oxlint` / `vite build` 通过 |
+| 真实 Milvus 校准 | 80 行 calibration、0 失败；全局 0.5135，分域 docker 0.606 / systemd 0.5676 / windows 0.5487 |
+| blind 对照 | 用 0.5135 跑 frozen blind：Recall@5 0.9828，漏答 1/58，无答案误答 5/19 |
+| 真实 LLM 生成评测 | 12 条，失败 0；引用支持 16/16（4 条 undecided），judge 6/8，确定性覆盖 4/9，无答案误答 1/3 |
+| 检索前 ACL/OS/版本过滤 | 真实 Milvus 复合 expr 可执行；收窄 allowlist 只剩授权文档，空 allowlist 返回空 |
+| 浏览器 | 同名双实例点选绑定 `ins-staging-b-0002`；真实引用卡片；SSE 断流按 seq 续读；刷新恢复；失败作业点重试到 ready |
+| 镜像 | `sha256:d93d673ee7d2…` **10.7 GB**（原 18.9 GB），当前工作区重建，容器 healthy |
+| 并发/长时间 | 4 进程 × 500 条 trace 无丢失/无半行；retention 扫描窗口饥饿已修；并发 retry 幂等 |
+
+## V12.2 本轮修掉的真实缺陷（此前记录里没有的）
+
+| 缺陷 | 暴露场景 | 修复 |
+|---|---|---|
+| `.venv-train/` 未进 `.dockerignore` | 真实 `docker build` | 构建上下文 5.33 GB → 18.5 MB，镜像 18.9 → 10.7 GB |
+| `fastmcp 2.14.x` 的 `@mcp.tool()` 返回不可调用的 `FunctionTool` | `uv sync --frozen` 后三个 MCP server 的 9 条测试失败 | 锁文件升级到 fastmcp 3.4.0（装饰器返回原函数），23 处调用点不改 |
+| `retry_job` 对已有 queued/running 重试不返回也不拒绝 | 8 线程并发 retry 实测产生 8 个新 job | 返回已有作业（`duplicate=true`） |
+| `purge_expired_traces` 先 `[:200]` 再判 mtime | 250 新鲜 + 50 过期，连续 3 轮 deleted=0 | 上限改为“删除数”，按 mtime 升序遍历 |
+| chat 事件不落盘，断流无法续读 | 浏览器模拟断流 | 新增 `app/services/chat_events.py` + `GET /api/chat/events/{run_id}?after_seq=`；前端按 `run_id+seq` 续读 |
+| 生成层“模型自己拒答”被记成误答 | 真实 LLM 评测 | 文本层识别并**单列** `model_refusals_in_answered`，不改变门控统计 |
+
+## V12.3 V11 中被本轮推翻/更新的表述
+
+- V11.4 第 7 条“多副本部署下的 trace 并发：进程内锁，跨进程无互斥”
+  → **已加 `<run_id>.jsonl.lock` 跨进程独占锁**（msvcrt/flock），有界等待 + 超时可见；
+  同机 4 进程 × 500 条验证通过。POSIX 分支仍只有静态审查（本机是 Windows）。
+- V11.4 第 6 条“ACL/OS/版本/有效期在候选阶段过滤：未实现”
+  → **已实现**并在真实 Milvus 上验证复合表达式；诊断路径（`app/agent/aiops/*`）仍未接 principal。
+- V11.4 第 4 条“断流续读 / tab 恢复 / 引用卡片：浏览器侧未操作”
+  → 本轮在真实浏览器里完成，截图见 `screenshots/g5-*.png`。
+- V11.4 第 3 条“作业失败/重试的浏览器操作” → 本轮完成（停 Milvus 制造 `cleanup_failed` → 点重试 → ready）。
+- V11.4 第 2 条“同名实例的浏览器点击” → 本轮完成（staging 双实例目录 + 点第 3 张卡绑定 `ins-staging-b-0002`）。
+
+仍未推翻的：SSH 只读联调未执行；真实中文 IME 进程与读屏器未验证；CUDA torch 未替换；
+PyMilvus ORM 迁移未做；生成式评测只 12/80 条。
+
+---
+
+# V13. 第五轮：G6 权限与聊天流一致性（2026-10-28）
+
+本轮只修具体的业务一致性问题；历史 V1–V12 的记录**原样保留**（不覆盖、不删除），
+被本轮推翻或补全的表述在 §V13.3 显式列出。
+
+## V13.1 本轮实测
+
+| 项 | 结果 |
+|---|---|
+| 后端 pytest | **849 passed, 1 skipped, 1 warning**（94.27 s） |
+| 前端 | **74 passed**；`tsc -b` / `oxlint` / `vite build` 通过 |
+| 真实镜像 | `sha256:14417223cdbf…`，10 680 483 616 B（10.7 GB），当前工作区重建 |
+| 运行配置 | `AUTH_MODE=deployment` + `API_KEY`（值不记录）；无 key 401、错 key 401、对 key 200 |
+| RAG readiness | 同一时刻 `/health`：`status=healthy`（liveness）+ `milvus=connected` + `capabilities.rag=ready` |
+| 知识作业 ACL（容器内） | 另一把 key：`/jobs` 为空、`/jobs/{foreign}` 404、`/jobs/{foreign}/retry` 404 且 store 作业数不变；自己上传后列表/详情/重试正常 |
+| 聊天 run 拆分（容器内） | 同一诊断 run 两次追问 → 两个 chat run，文件 `seq` 各从 1 连续；跨 session 续读 403 且原文件字节数不变 |
+| 评测快照一致性 | 真实 `calibration-20261027T191726Z.json` 与当前题集/manifest/descriptor/store 比对：**0 差异** |
+
+## V13.2 本轮修掉的真实缺陷
+
+| 缺陷 | 暴露方式 | 修复 |
+|---|---|---|
+| `list_documents` 先分页后过滤 | 阅读代码 + 新增翻页用例 | 过滤下沉到 store，先过滤再 status/cursor/limit，`next_cursor` 取过滤后页尾 |
+| 作业路由无 principal 边界 | 容器内用第二把 key 复验 | 三个路由解析 key；单条不可见统一 404；retry 先鉴权再建作业 |
+| 请求 `run_id` 当聊天事件文件名 | 单测 + 容器内两次追问 | 每次请求生成 `chat_run_id`，请求 `run_id` 只用于追问上下文 |
+| 续读不校验事件归属 | 跨 session 复读 | `read_after(..., session_id=)`，不符抛 404；校验前置于去重 |
+| `purge_expired()` 无调用点 | 全仓 grep 无调用 | 接入 lifespan 启动清理（不新增后台线程） |
+| 网络异常不续读 | 前端新增用例 | catch 分支复用 EOF 的同一 `settleResume` |
+| "停止"留下待恢复位置 | 前端新增用例 | abort 后清 `CHAT_PENDING_KEY` |
+| 诊断路径知识检索无 principal | 新测试 `test_diagnosis_knowledge_principal.py` | owner 全链路传播；`need_principal_scope` 只在真需要时启用 |
+| `except TypeError` 后无条件重查 | 新测试（内部 TypeError 必须失败） | 调用前签名判断；真实错误保持 `RetrievalUnavailable` |
+
+## V13.3 对既有记录的修正
+
+- V12 表里"后端 809 passed"是**上一轮**的数字；本轮为 **849 passed, 1 skipped**（新增 40 条）。
+- V12 表里"前端 70 passed"；本轮 **72 passed**。
+- G5 结果表中"诊断路径的知识检索仍未接 principal"**本轮已修**（旧 LangChain 工具路径除外）。
+- G5 结果表中"chat 事件 TTL 无调用点"本轮已修；`chat_events` 的跨进程并发仍依赖
+  `O_APPEND` 小写入原子性，未加跨进程锁（不变）。
+- README 中"容器 healthy 即全栈可用"的旧读法已显式拆成 liveness 与 `capabilities`。
+
+历史事实（当时的镜像 digest、当时的时间点、当时的 809/70）不回改也不删除。
+
+## V13.4 对抗复核后追加修复的越权（同一轮内）
+
+六维复核 + 逐条反驳（35 条原始发现 → 10 条确认）暴露出五处本轮新代码引入或放大的越权，
+已在同一轮内修掉并加测试：
+
+| 越权 | 后果 | 修复 |
+|---|---|---|
+| 读写共用 `_enforce_document`（只看 owner 侧表） | "有 ACL、无 owner"的文档对陌生 principal 的 activate/delete 放行 → 跨 principal 删除 | 读写拆分：读 `document_visible_to`（404）、写 `document_writable_by`（owner 优先，无 owner 才认 ACL 成员；403） |
+| retry 只校验"可见" | 只读 ACL 成员能把 active revision 回滚到旧版本 | retry 要求写权限，不可见时 404 |
+| 同名 source_uri 上传无归属校验 | 他人文档的 active revision 被替换成注入内容 | 上传/导入前预检，非法 → 409 |
+| 删除后遗留作业重新可见 | 删除动作把 404 变 200，响应含 `source_uri`/错误信息 | 文档不存在时作业一律不可见 |
+| claim 在 submit 之后 | claim 失败仍返回 202，上传者在自己的列表/详情里看不到刚上传的文档 | claim 提前到提交之前，失败即 409；ACL 补充留在提交之后 |
+
+另外两处"文档照代码"的修正：`need_principal_scope` 简化为"有身份就启用"（报告 §6 已同步）；
+`store_document_ids` 校验让"同一 embedder 换整批文档"能被识别。

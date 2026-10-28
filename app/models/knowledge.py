@@ -26,7 +26,7 @@ IndexStatus = Literal["ready", "degraded", "unavailable", "invalid_index"]
 
 
 class DocumentItem(BaseModel):
-    """文档列表中的一行（契约 2.1）。"""
+    """文档列表中的一行（契约 2.1；G5 增加有效期与 ACL 计数）。"""
 
     document_id: str
     title: str = ""
@@ -41,6 +41,11 @@ class DocumentItem(BaseModel):
     product: str = ""
     product_version: str = ""
     license_id: str = ""
+    #: ISO 日期（YYYY-MM-DD）；空串表示不限。有效期只在检索过滤里生效。
+    valid_from: str = ""
+    valid_until: str = ""
+    #: 文档级 ACL 的成员数；**不返回成员身份**，避免把“谁能看”泄漏给列表调用方。
+    acl_count: int = 0
     pending_revision: str | None = None
 
 
@@ -104,10 +109,30 @@ class ImportRequest(BaseModel):
 
     当前仅支持白名单目录内的 ``source_id``；``url`` 会返回 400 并说明原因
     （需要外网抓取与 SSRF 校验，不在本模块的所有权范围内）。
+
+    可选元数据（G5）：只接收调用方**明确提供**的事实，不做推断。日期与
+    principal 的合法性由 ``knowledge_store.normalize_document_metadata`` 统一
+    校验（非法值 400），这里不复制第二套规则。
     """
 
     source_id: str | None = None
     url: str | None = None
+    os_family: str | None = None
+    product: str | None = None
+    product_version: str | None = None
+    valid_from: str | None = None
+    valid_until: str | None = None
+    acl_principals: list[str] | None = None
+
+    def metadata(self) -> dict[str, object]:
+        """只返回确实提供的字段（未提供 = 不改动已有标注）。"""
+        provided = {
+            field: getattr(self, field)
+            for field in ("os_family", "product", "product_version",
+                          "valid_from", "valid_until", "acl_principals")
+            if getattr(self, field) is not None
+        }
+        return provided
 
 
 class ActivateRequest(BaseModel):

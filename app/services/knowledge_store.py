@@ -38,6 +38,19 @@
   或引用。旧向量仍保留，用于回滚（``activate_revision``），但不再作为当前知识。
 - 保留旧向量与“失败批次的残片清理”是两件事（A02）：新 revision 的写入失败必须
   按**全部预生成候选 ID** 幂等回滚，清理失败要如实记录并可在 retry 时重做。
+
+检索可见性（G5：文档级过滤）：
+
+- ``visible_documents(principal_id, ...)`` 是“哪些文档的哪个 revision 允许进入
+  候选”的单一事实来源。它同时考虑 active revision、有效期、文档级 ACL
+  （``acl_principals``）与 OS/产品/版本条件；检索适配器把它合成到 Milvus 表达式，
+  未授权文档的分片在 top-k **之前**就被排除，不会进入 reranker 或模型上下文。
+- 单租户 demo 开关 ``KNOWLEDGE_TENANT_MODE``（``single`` 默认 / ``multi``）只从
+  配置读取：single 下没有 owner 的旧文档对任何已认证 principal 可见（与今天
+  一致）；multi 下没有 owner 的文档对非 dev principal 不可见（fail closed）。
+- 过滤是**精确匹配**而非语义推断：OS/产品按去空白、大小写不敏感相等；只有纯数字
+  版本（如 ``262``）允许在后接分隔符时前缀匹配（``262.1`` 命中 ``262``），
+  ``RHEL 9`` 这类自由文本只做相等匹配。
 """
 
 from __future__ import annotations
@@ -46,6 +59,7 @@ import base64
 import hashlib
 import json
 import os
+import re
 import tempfile
 import threading
 import time
@@ -57,9 +71,10 @@ from typing import Any, Iterable
 
 from loguru import logger
 
-from app.config import config
-from app.core.milvus_client import milvus_manager
 from app.api import file as file_api
+from app.config import config
+from app.core import principal as acl
+from app.core.milvus_client import milvus_manager
 from app.services.document_splitter_service import document_splitter_service
 from app.services.vector_embedding_service import (
     DescriptorMismatch,
@@ -121,6 +136,38 @@ class InvalidCursor(ValueError):
     """分页 cursor 非法（不是本服务生成的）。"""
 
 
+class InvalidFilter(ValueError):
+    """检索/文档过滤条件非法（日期、principal 值或范围）。
+
+    继承 ``ValueError``：路由层既有的 ``_map_error`` 会把它映射成 400，
+    不会退化成“忽略过滤、返回全部候选”。
+    """
+
+
+#: 一次检索允许的文档允许列表上限。超过上限说明过滤条件已经失控（例如某
+#: principal 拥有上千文档），此时返回全部候选会泄漏未授权内容，因此明确拒绝。
+MAX_VISIBLE_DOCUMENTS = 512
+
+#: 文档元数据里允许入库的自由文本字段（空串表示“未标注”）。
+METADATA_TEXT_FIELDS = (
+    "os_family",
+    "product",
+    "product_version",
+    "license_id",
+)
+
+#: 允许出现在 ``acl_principals`` 里的 principal_id 形状：与 ``app.core.principal``
+#: 生成的 ``principal:<key指纹|dev>`` 一致。只允许安全字符，避免把表达式注入
+#: 或路径片段写进侧表/检索条件。
+_PRINCIPAL_ID_RE = re.compile(r"^principal:[A-Za-z0-9_.-]{1,96}$")
+
+#: 有效期字段允许的格式：ISO 日期（``YYYY-MM-DD``）。只接受日期，不接受
+#: 带时区的时间戳——有效期是“按天”的业务边界，混入时区会产生边界日歧义。
+_DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+
+#: 纯数字版本（``262``）的后缀分隔符；其它自由文本只做相等匹配。
+_NUMERIC_VERSION_RE = re.compile(r"^(\d+)([.\-_+].*)?$")
+
 # ── 小工具 ───────────────────────────────────────────────────
 
 
@@ -178,6 +225,181 @@ def document_id_for(source_uri: str) -> str:
 def revision_for(content: bytes) -> str:
     """内容 sha256 前 16 位，前缀 ``rev-``（契约样例风格）。"""
     return f"rev-{hashlib.sha256(content).hexdigest()[:16]}"
+
+
+# ── 文档元数据 / 过滤条件（G5） ─────────────────────────────
+
+
+def normalize_date(value: Any, *, field: str) -> str:
+    """校验 ``YYYY-MM-DD`` 日期；空值表示“不限”，非法值抛 :class:`InvalidFilter`。
+
+    只接受日期而不是完整时间戳：有效期是“按天生效”的业务边界，允许混入
+    时区会让“边界日当天是否可见”变得不可解释。
+    """
+    text = str(value or "").strip()
+    if not text:
+        return ""
+    if not _DATE_RE.match(text):
+        raise InvalidFilter(f"{field} 必须是 YYYY-MM-DD 格式的日期: {text}")
+    try:
+        datetime.strptime(text, "%Y-%m-%d")
+    except ValueError as exc:
+        raise InvalidFilter(f"{field} 不是合法日期: {text}") from exc
+    return text
+
+
+def normalize_principal_list(value: Any, *, field: str = "acl_principals") -> list[str]:
+    """校验文档级 ACL 的 principal 列表：去重、保持顺序、限制长度。
+
+    拒绝不合法形状（例如带空格/引号/路径片段的字符串）：这些值会进入检索表达式
+    与侧表，宁可 400 也不把它们当成“某个身份”。
+    """
+    if value is None:
+        return []
+    if isinstance(value, str):
+        # 单个字符串按逗号分隔，便于 multipart 表单传多值（HTTP 层也支持重复字段）。
+        candidates = list(value.split(","))
+    elif isinstance(value, (list, tuple)):
+        candidates = list(value)
+    else:
+        raise InvalidFilter(f"{field} 必须是 principal 字符串列表")
+    result: list[str] = []
+    for item in candidates:
+        text = str(item or "").strip()
+        if not text:
+            continue
+        if not _PRINCIPAL_ID_RE.match(text):
+            raise InvalidFilter(
+                f"{field} 含非法 principal 值（应形如 principal:dev 或 principal:key-…）: "
+                f"{text[:80]}"
+            )
+        if text not in result:
+            result.append(text)
+    if len(result) > 64:
+        raise InvalidFilter(f"{field} 最多 64 项")
+    return result
+
+
+def normalize_document_metadata(payload: dict[str, Any] | None) -> dict[str, Any]:
+    """把可选元数据规范成可落盘的形状；只处理已知字段，忽略其它键。
+
+    未知键被忽略而不是报错：现有调用方（脚本/旧前端）可能附带任意标注字段，
+    这里不改变它们的行为。新字段全部可空，空串表示“未标注”，而不是“匹配任何值”。
+    """
+    data = {str(key): value for key, value in (payload or {}).items()}
+    normalized: dict[str, Any] = {}
+    for field in METADATA_TEXT_FIELDS:
+        if field not in data:
+            continue
+        text = str(data.get(field) or "").strip()
+        if len(text) > 120:
+            raise InvalidFilter(f"{field} 过长（最多 120 字符）")
+        normalized[field] = text
+    for field in ("valid_from", "valid_until"):
+        if field in data:
+            normalized[field] = normalize_date(data.get(field), field=field)
+    if "acl_principals" in data:
+        normalized["acl_principals"] = normalize_principal_list(data.get("acl_principals"))
+    start = normalized.get("valid_from")
+    end = normalized.get("valid_until")
+    if start and end and start > end:
+        raise InvalidFilter(f"valid_from({start}) 晚于 valid_until({end})")
+    return normalized
+
+
+def _normalized_text(value: Any) -> str:
+    """比较用文本：去首尾空白 + 大小写归一（不做任何语义推断）。"""
+    return str(value or "").strip().casefold()
+
+
+def _filter_matches(document_value: Any, wanted: Any, *, allow_prefix: bool = False) -> bool:
+    """文档字段是否满足筛选值。
+
+    - 未给筛选值 → 不过滤；
+    - 文档未标注（空）→ **不匹配**（“未标注”不等于“匹配”，否则筛选形同虚设）；
+    - 相等（大小写/空白归一）→ 匹配；
+    - 仅纯数字版本允许“前缀 + 分隔符”匹配（``262`` 命中 ``262.1``），
+      ``RHEL 9`` 这类自由文本只做相等匹配，避免把版本号猜成别的语义。
+    """
+    wanted_text = _normalized_text(wanted)
+    if not wanted_text:
+        return True
+    document_text = _normalized_text(document_value)
+    if not document_text:
+        return False
+    if document_text == wanted_text:
+        return True
+    if allow_prefix and _NUMERIC_VERSION_RE.match(wanted_text):
+        if document_text.startswith(wanted_text) and len(document_text) > len(wanted_text):
+            return document_text[len(wanted_text)] in ".-_+"
+    return False
+
+
+def _valid_on(document: dict[str, Any], day: str) -> bool:
+    """有效期判断：``valid_from <= day <= valid_until``，空表示不限。"""
+    start = str(document.get("valid_from") or "")
+    end = str(document.get("valid_until") or "")
+    if start and day < start:
+        return False
+    if end and day > end:
+        return False
+    return True
+
+
+def _tenant_mode() -> str:
+    """租户语义开关（只来自 ``Settings``，不读请求头/客户端 tenant_id）。"""
+    mode = str(getattr(config, "knowledge_tenant_mode", "single") or "single").strip().lower()
+    return "multi" if mode == "multi" else "single"
+
+
+def _owner_acl_visible(
+    owner: str | None,
+    acl_principals: Iterable[str] | None,
+    principal_id: str,
+    mode: str,
+) -> bool:
+    """文档级读取权限的唯一谓词（检索、文档列表、作业列表共用）。
+
+    显式 ACL 是“谁能读”的完整答案：上传路径会把 owner 一并写进 ACL，所以有
+    ACL 时不再看 owner。没有 ACL 的旧文档沿用 owner 规则；owner 也没有时，
+    单租户（``single``）保持“已认证即可读”，多租户（``multi``）除 dev 之外
+    fail closed。规则只写一次，避免检索、文档列表、作业列表三处各自漂移——
+    同一个人在同一份数据上得到“列表可见、检索不可见”才是真正的越权来源。
+    """
+    principal = str(principal_id or "").strip()
+    members = list(acl_principals or [])
+    if members:
+        return principal in members
+    owner_text = str(owner or "").strip()
+    if owner_text:
+        return owner_text == principal
+    return not (mode == "multi" and principal != acl.DEV_PRINCIPAL_ID)
+
+
+def _owner_acl_writable(
+    owner: str | None,
+    acl_principals: Iterable[str] | None,
+    principal_id: str,
+    mode: str,
+) -> bool:
+    """文档级**写**权限（activate / delete / retry / 覆盖上传）。
+
+    与读取谓词共用同一份事实，但**不能**直接复用：写操作会改变 active revision
+    或删掉数据，若照抄“有 ACL 就能读 → 就能写”，一个只读共享成员就能把别人的
+    文档回滚到旧版本或整份删除。规则：
+
+    - 记录了 owner：只有 owner 本人；
+    - 没有 owner 但有 ACL：ACL 成员（他们是这份文档唯一的归属线索）；
+    - 两者都没有：单租户沿用“已认证即可写”的旧语义，多租户除 dev 外 fail closed。
+    """
+    principal = str(principal_id or "").strip()
+    owner_text = str(owner or "").strip()
+    if owner_text:
+        return owner_text == principal
+    members = list(acl_principals or [])
+    if members:
+        return principal in members
+    return not (mode == "multi" and principal != acl.DEV_PRINCIPAL_ID)
 
 
 #: 文档级锁表（复用 vector_index_service.source_lock 的思路，但 key 是 document_id）。
@@ -323,16 +545,25 @@ class KnowledgeStore:
         title: str,
         content: bytes,
         source_kind: str = "manual",
-        metadata: dict[str, str] | None = None,
+        metadata: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         """接收一份内容，创建（或复用）索引作业并交给后台 worker。
 
         幂等规则：同一 ``document_id`` + 同一 ``revision`` 已存在
         ``queued/running/ready`` 作业时直接返回它，不重复写入。
+
+        ``metadata`` 是可选的**文档级**标注（OS/产品/版本/有效期/ACL）。它只在
+        **本次调用新建文档记录**时生效：同一个 ``document_id`` 已存在时忽略
+        metadata（不覆盖、不追加），因为存储层无法判断“这次上传者是否有权改别人
+        的标注/ACL”——允许写入等于让同名上传者把私有文档的 ACL 改成自己。已有的
+        元数据字段保持原值，旧调用方不传元数据的行为完全不变。非法日期/principal
+        抛 :class:`InvalidFilter`（路由层映射 400），绝不会被静默丢弃。
         """
         document_id = document_id_for(source_uri)
         revision = revision_for(content)
-        meta = metadata or {}
+        # 先校验再落任何状态：非法元数据必须在创建作业/写内容之前失败，
+        # 否则会留下一个永远无法修复标注的 staged 作业。
+        meta = normalize_document_metadata(metadata)
         job: dict[str, Any] | None = None
         duplicate = False
 
@@ -361,9 +592,19 @@ class KnowledgeStore:
                     "product": meta.get("product", ""),
                     "product_version": meta.get("product_version", ""),
                     "license_id": meta.get("license_id", ""),
+                    "valid_from": meta.get("valid_from", ""),
+                    "valid_until": meta.get("valid_until", ""),
+                    "acl_principals": list(meta.get("acl_principals") or []),
                     "revisions": {},
                 }
                 self._data["documents"][document_id] = doc
+            else:
+                # 已存在的文档：只补齐新字段的默认值，不应用本次 metadata
+                # （见 docstring：否则同名上传可以把别人的私有文档开放给自己）。
+                doc.setdefault("valid_from", "")
+                doc.setdefault("valid_until", "")
+                doc.setdefault("acl_principals", [])
+                doc["updated_at"] = _now()
             revision_record = doc["revisions"].get(revision)
             if revision_record is None:
                 revision_record = {
@@ -618,16 +859,109 @@ class KnowledgeStore:
                 raise NotFound(f"作业不存在: {job_id}")
             return self._job_response(job)
 
-    def list_jobs(self, *, status: str | None = None, limit: int = 20) -> list[dict]:
+    def job_document_id(self, job_id: str) -> str:
+        """作业对应的 ``document_id``（不存在抛 :class:`NotFound`）。
+
+        单条作业的鉴权必须在读取详情/创建新作业**之前**完成：路由先用它取文档，
+        再用 :meth:`document_visible_to` 判定，避免仅凭已知 job_id 就暴露
+        ``source_uri``、错误信息或制造新作业。
+        """
+        with self._lock:
+            job = self._data["jobs"].get(job_id)
+            if job is None:
+                raise NotFound(f"作业不存在: {job_id}")
+            return str(job.get("document_id") or "")
+
+    def has_document(self, document_id: str) -> bool:
+        """文档记录是否存在（路由用它区分 404 与鉴权失败）。"""
+        with self._lock:
+            return document_id in self._data["documents"]
+
+    def document_visible_to(self, document_id: str, principal_id: str) -> bool:
+        """``principal_id`` 能否看到该文档（单条作业鉴权用）。
+
+        与列表过滤共用 :func:`_owner_acl_visible`；文档记录已不存在（被删除、
+        作业仍保留）时返回 ``False``：作业里带着 ``source_uri``、错误信息与正文
+        片段，删除文档后把它重新暴露出去等于"删除动作本身成了后门"。
+        """
+        principal = str(principal_id or "").strip()
+        mode = _tenant_mode()
+        with self._lock:
+            doc = self._data["documents"].get(document_id)
+            if doc is None:
+                return False
+            members = list(doc.get("acl_principals") or [])
+        owner = None if members else acl.resource_owner("knowledge_document", document_id)
+        return _owner_acl_visible(owner, members, principal, mode)
+
+    def document_writable_by(self, document_id: str, principal_id: str) -> bool:
+        """``principal_id`` 能否修改该文档（activate / delete / retry / 覆盖上传）。
+
+        与读取分开，而且**owner 优先**：读取把"显式 ACL"当作完整答案（G5 规则），
+        但写入不能这样——``_claim_uploaded_document`` 会把上传者同时写进 owner
+        侧表与 ACL，若写入也先看 ACL，那么"ACL 里有我、owner 是别人"的文档照样
+        能被改。写入只认 owner；只有确实没有 owner 记录时，才把 ACL 成员当作
+        唯一的归属线索。文档不存在时返回 ``False``（由调用方映射成 404）。
+        """
+        principal = str(principal_id or "").strip()
+        mode = _tenant_mode()
+        with self._lock:
+            doc = self._data["documents"].get(document_id)
+            if doc is None:
+                return False
+            members = list(doc.get("acl_principals") or [])
+        owner = acl.resource_owner("knowledge_document", document_id)
+        return _owner_acl_writable(owner, members, principal, mode)
+
+    def list_jobs(self, *, status: str | None = None, limit: int = 20,
+                  principal_id: str | None = None) -> list[dict]:
+        """列出最近作业；给定 ``principal_id`` 时只返回其可见文档的作业。
+
+        文档记录与作业列表在同一把 ``self._lock`` 里读出：分两次取锁会得到
+        “作业列表是旧的、文档归属是新的”这种拼接快照，过滤结果不可解释。
+        过滤发生在 ``jobs[:limit]`` 之前，别人的作业不会吃掉当前用户的 ``limit``。
+        """
         if status and status not in JOB_STATUSES:
             raise ValueError(f"未知作业状态: {status}")
+        if principal_id is None:
+            with self._lock:
+                jobs = list(self._data["jobs"].values())
+            jobs.sort(key=lambda item: (item.get("created_at") or "",
+                                        item.get("job_id") or ""), reverse=True)
+            if status:
+                jobs = [job for job in jobs if job.get("status") == status]
+            return [self._job_response(job) for job in jobs[:limit]]
+
+        principal = str(principal_id or "").strip()
+        mode = _tenant_mode()
         with self._lock:
             jobs = list(self._data["jobs"].values())
+            documents = {
+                document_id: list(doc.get("acl_principals") or [])
+                for document_id, doc in self._data["documents"].items()
+            }
         jobs.sort(key=lambda item: (item.get("created_at") or "", item.get("job_id") or ""),
                   reverse=True)
         if status:
             jobs = [job for job in jobs if job.get("status") == status]
-        return [self._job_response(job) for job in jobs[:limit]]
+        visible: list[dict] = []
+        for job in jobs:
+            document_id = str(job.get("document_id") or "")
+            if document_id not in documents:
+                # 文档已被删除、作业仍保留为历史：不返回。作业响应里有
+                # ``source_uri`` 与 ``error.message``（可能含正文片段），把它
+                # 重新暴露出去等于"删除动作打开了后门"。
+                continue
+            members = documents[document_id]
+            owner = None if members else acl.resource_owner(
+                "knowledge_document", document_id
+            )
+            if not _owner_acl_visible(owner, members, principal, mode):
+                continue
+            visible.append(job)
+            if len(visible) >= limit:
+                break
+        return [self._job_response(job) for job in visible]
 
     def retry_job(self, job_id: str) -> dict[str, Any]:
         """重试失败作业：创建新 job，旧 job 原样保留为历史。"""
@@ -645,6 +979,11 @@ class KnowledgeStore:
             existing = self._find_job_locked(document_id, revision)
             if existing is not None and existing.get("status") == "ready":
                 raise Conflict("该 revision 已索引成功，无需重试")
+            if existing is not None and existing.get("status") in _ACTIVE_JOB_STATUSES:
+                # 并发重试同一失败作业：已经有新的 queued/running 作业在跑，
+                # 直接返回它（duplicate=True），不再创建第二个——否则同一
+                # revision 会被两批 worker 同时写入/回滚，互相删对方的行。
+                return self._job_response(existing, duplicate=True)
             content_path = old.get("content_path") or ""
             if not content_path or not Path(content_path).is_file():
                 raise Conflict("原始内容文件已不存在，无法重试；请重新上传")
@@ -718,16 +1057,55 @@ class KnowledgeStore:
             "product": doc.get("product", ""),
             "product_version": doc.get("product_version", ""),
             "license_id": doc.get("license_id", ""),
+            "valid_from": doc.get("valid_from", ""),
+            "valid_until": doc.get("valid_until", ""),
+            # 只暴露数量：列出具体 principal 会把“谁能看这份文档”泄漏给无关调用方。
+            "acl_count": len(doc.get("acl_principals") or []),
             "pending_revision": pending if pending != active else None,
         }
 
     def list_documents(self, *, limit: int = 20, cursor: str = "",
-                       status: str | None = None) -> tuple[list[dict], str | None]:
+                       status: str | None = None,
+                       principal_id: str | None = None) -> tuple[list[dict], str | None]:
+        """分页列出文档；给定 ``principal_id`` 时只列该 principal 可见的文档。
+
+        可见性必须在 ``status``、``cursor`` 与 ``limit`` **之前**过滤：先全局分页
+        再过滤会让别人文档吃掉当前用户的 ``limit``，出现空页或漏掉后续可见项
+        （旧实现在路由层过滤，正是这个缺陷）。可见性按**原始文档记录**判定
+        （owner 侧表 + ``acl_principals``），不要求 active revision / 有效期——
+        文档列表要如实显示 pending、failed 与过期文档，那是管理视图而不是检索。
+
+        ``principal_id=None`` 保持旧行为（不过滤），供内部调用方使用。
+        """
         if status and status not in ("active", "pending"):
             raise ValueError(f"未知文档状态: {status}")
-        with self._lock:
-            items = [self._document_item_locked(doc)
-                     for doc in self._data["documents"].values()]
+        items: list[dict]
+        if principal_id is None:
+            with self._lock:
+                items = [self._document_item_locked(doc)
+                         for doc in self._data["documents"].values()]
+        else:
+            principal = str(principal_id or "").strip()
+            mode = _tenant_mode()
+            with self._lock:
+                candidates = [
+                    (
+                        self._document_item_locked(doc),
+                        str(doc.get("document_id") or ""),
+                        list(doc.get("acl_principals") or []),
+                    )
+                    for doc in self._data["documents"].values()
+                ]
+            items = []
+            for item, document_id, members in candidates:
+                # ACL 侧表是另一个小 JSON 文件：不放在存储锁内读，避免持锁做 I/O。
+                # 没有显式 ACL 时才需要 owner（有 ACL 时 owner 不参与判定）。
+                owner = None if members else acl.resource_owner(
+                    "knowledge_document", document_id
+                )
+                if not _owner_acl_visible(owner, members, principal, mode):
+                    continue
+                items.append(item)
         items.sort(key=lambda item: (item.get("updated_at") or "",
                                      item.get("document_id") or ""), reverse=True)
         if status:
@@ -922,6 +1300,107 @@ class KnowledgeStore:
                     continue
                 result[document_id] = str(active)
             return result
+
+    def visible_documents(
+        self,
+        principal_id: str,
+        *,
+        os_family: Any = None,
+        product: Any = None,
+        product_version: Any = None,
+        at_date: Any = None,
+    ) -> dict[str, str]:
+        """``document_id -> active revision``：此刻对 ``principal_id`` 可检索的文档。
+
+        这是检索侧**唯一**的可见性来源，候选过滤与后置核对都读它，避免两处规则
+        漂移。同时满足：
+
+        - **active revision**：``staged``/``failed``/``superseded`` 一律不可见；
+        - **有效期**：``valid_from <= at_date <= valid_until``（空表示不限；默认今天）；
+        - **文档级 ACL**：``acl_principals`` 非空时必须包含该 principal；为空时沿用
+          owner 规则（有 owner 就只能本人；没有 owner 由租户模式决定）；
+        - **OS/产品/版本**：只在调用方给出筛选值时才过滤；文档未标注（空）视为不匹配。
+
+        返回空字典表示“确实没有可见文档”，不是依赖故障；过滤条件非法抛
+        :class:`InvalidFilter`，调用方必须映射成明确的错误状态，不能退化成不过滤。
+        """
+        principal = str(principal_id or "").strip()
+        if not principal:
+            raise InvalidFilter("principal_id 不能为空")
+        day = normalize_date(at_date, field="at_date") or datetime.now().strftime("%Y-%m-%d")
+        os_value = str(os_family or "").strip()
+        product_value = str(product or "").strip()
+        version_value = str(product_version or "").strip()
+        mode = _tenant_mode()
+
+        with self._lock:
+            candidates = []
+            for document_id, doc in self._data["documents"].items():
+                active = str(doc.get("active_revision") or "")
+                record = (doc.get("revisions") or {}).get(active) or {}
+                candidates.append({
+                    "document_id": document_id,
+                    "active": active,
+                    # 指针与记录状态必须在同一个快照里读取：分开读取会允许
+                    # “指针已切换、记录还是旧状态”的中间态被当成可见。
+                    "revision_status": record.get("status"),
+                    "valid_from": doc.get("valid_from", ""),
+                    "valid_until": doc.get("valid_until", ""),
+                    "acl_principals": list(doc.get("acl_principals") or []),
+                    "os_family": doc.get("os_family", ""),
+                    "product": doc.get("product", ""),
+                    "product_version": doc.get("product_version", ""),
+                })
+
+        visible: dict[str, str] = {}
+        for item in candidates:
+            document_id = item["document_id"]
+            active = item["active"]
+            if not active or item["revision_status"] != "active":
+                # 与 ``active_revisions`` 一致：指针与记录状态不一致时保守不可见。
+                continue
+            if not _valid_on(item, day):
+                continue
+            acl_list = item["acl_principals"]
+            # 有显式 ACL 时 owner 不参与判定，也就不必读侧表（小 JSON 文件，
+            # 每条文档一次）。规则本身只在 ``_owner_acl_visible`` 里写一份。
+            owner = None if acl_list else acl.resource_owner(
+                "knowledge_document", document_id
+            )
+            if not _owner_acl_visible(owner, acl_list, principal, mode):
+                continue
+            if not _filter_matches(item["os_family"], os_value):
+                continue
+            if not _filter_matches(item["product"], product_value):
+                continue
+            if not _filter_matches(
+                item["product_version"], version_value, allow_prefix=True
+            ):
+                continue
+            visible[document_id] = active
+        return visible
+
+    def add_acl_principal(self, document_id: str, principal_id: str) -> bool:
+        """把某个 principal 追加进文档级 ACL（幂等）；文档不存在返回 ``False``。
+
+        上传时只用它给“刚由本人认领”的文档补上 uploader，避免把本来属于别人的
+        文档顺手开放给上传者。
+        """
+        if not str(principal_id or "").strip():
+            raise InvalidFilter("principal_id 不能为空")
+        member = normalize_principal_list([principal_id])[0]
+        with self._lock:
+            doc = self._data["documents"].get(document_id)
+            if doc is None:
+                return False
+            current = list(doc.get("acl_principals") or [])
+            if member in current:
+                return True
+            current.append(member)
+            doc["acl_principals"] = current
+            doc["updated_at"] = _now()
+            self._save_locked()
+            return True
 
     def snapshot(self) -> dict[str, Any]:
         """只读快照（测试/诊断用）；不暴露给 HTTP。"""
@@ -1227,6 +1706,30 @@ def active_revisions() -> dict[str, str]:
     except Exception as exc:  # noqa: BLE001 - 可见性读取失败不能伪造命中
         logger.warning(f"读取 active revision 快照失败: {type(exc).__name__}: {exc}")
         raise
+
+
+def visible_documents(
+    principal_id: str,
+    *,
+    os_family: Any = None,
+    product: Any = None,
+    product_version: Any = None,
+    at_date: Any = None,
+) -> dict[str, str]:
+    """检索侧入口：委托 ``current_store().visible_documents``。
+
+    读取失败时**向上抛**：把异常吞成空字典会让上层把“依赖故障”当成“没有文档”，
+    若反过来吞成“全部可见”则会泄漏未授权内容。两种情况都不可接受，所以让检索
+    适配器把它映射成明确的 ``unavailable``。
+    """
+    return current_store().visible_documents(
+        principal_id,
+        os_family=os_family,
+        product=product,
+        product_version=product_version,
+        at_date=at_date,
+    )
+
 
 
 def get_store() -> KnowledgeStore:

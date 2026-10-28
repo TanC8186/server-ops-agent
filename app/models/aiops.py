@@ -5,7 +5,7 @@ AIOps 请求和响应模型
 import re
 from datetime import datetime, timedelta, timezone
 from typing import Optional, List, Dict, Any, Literal, Union
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 
 #: 单次诊断允许回溯的最长时间窗。
@@ -56,6 +56,16 @@ class TimeWindow(BaseModel):
 class AIOpsRequest(BaseModel):
     """AIOps 诊断请求"""
 
+    # ConfigDict 取代 class Config：后者在 Pydantic 2.13 已弃用、3.0 移除。
+    # 只迁移写法，语义完全不变（原本也只有 json_schema_extra 一项）。
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "session_id": "session-123"
+            }
+        }
+    )
+
     session_id: Optional[str] = Field(
         default="default",
         description="会话ID，用于追踪诊断历史"
@@ -100,13 +110,6 @@ class AIOpsRequest(BaseModel):
             raise ValueError("target_candidate_id 必须是服务端签发的候选 ID")
         return text
 
-    class Config:
-        json_schema_extra = {
-            "example": {
-                "session_id": "session-123"
-            }
-        }
-
 
 class AlertInfo(BaseModel):
     """告警信息"""
@@ -124,8 +127,9 @@ class DiagnosisResponse(BaseModel):
     message: str = "success"
     data: Dict[str, Any]
     
-    class Config:
-        json_schema_extra = {
+    # 同 AIOpsRequest：配置写法迁移到 ConfigDict，示例 JSON 内容原样保留。
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "code": 200,
                 "message": "success",
@@ -142,3 +146,4 @@ class DiagnosisResponse(BaseModel):
                 }
             }
         }
+    )

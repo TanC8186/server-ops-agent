@@ -160,3 +160,120 @@
 10. **parent 回填**：`document_splitter_service` 已在 child 分片上携带 `_parent_id`/`_parent_text`，但检索与引用仍按 child 呈现，完整 parent 回填未闭环。
 11. **DK-03 正文质量**：文件与哈希齐全，但正文提取偏短，需人工核对提取质量（不是哈希校验能替代的）。
 12. **独立盲测**：`eval/rag/dev.jsonl` 仅 14 条且阈值在该集上拟合，**没有独立 blind 集**，满分不能作为泛化结论。
+
+---
+
+# G5 增量状态（2026-10-28，第四轮）
+
+本节只记**本轮新增/改变**的项；上面 1–7 节的历史状态保留原样（包括已过时的数字与缺口），
+不覆盖、不删除。完整结果见 [G5_RESULTS_2026-10-28.md](G5_RESULTS_2026-10-28.md)。
+
+## G5.1 结论摘要（本轮实测）
+
+| 维度 | 状态 |
+|---|---|
+| 后端测试 | **809 passed, 1 skipped, 1 warning**（164.42s） |
+| 前端 | `npm test` **70 passed**；`tsc -b` / `oxlint` / `vite build` 通过 |
+| 真实 Milvus | v2.5.10 `biz`，COSINE 384；检索前过滤的复合 expr、校准、生成评测都在真实 collection 上跑过 |
+| 真实 LLM | `DeepSeek-V4.1-Flash-1017`，生成评测 12 条 0 失败 |
+| 真实浏览器 | **容器内后端 + 真实 Milvus**：双实例点选、引用卡片、SSE 续读、刷新恢复、失败重试 |
+| 镜像 | **`sha256:d93d673ee7d2…`，10.7 GB**，当前工作区重建，compose healthy |
+
+## G5.2 新增能力
+
+| 项 | 已实现 | 已单测 | 已验证 |
+|---|---|---|---|
+| calibration 集（80 条，blind 冻结） | `eval/rag/calibrate-dev2.jsonl` | `tests/test_calibration_eval.py`（34 条，含 blind sha256 锁定） | 真实 Milvus 检索 + 对照 |
+| 分域 gate 校准 | `scripts/eval_calibration.py`，产物 `gate_profile` | 桶回退/阈值选择纯函数 | 真实 Milvus（80 行，0 失败） |
+| 生成层三层指标 | `scripts/eval_generation.py` | `--dry-run` 组装校验 | 真实 LLM 12 条 |
+| 检索前 OS/产品/版本/有效期/ACL 过滤 | `visible_documents()` + 双 `in` expr + 后置核对 | `tests/test_knowledge_filters.py`（24 条） | 真实 Milvus 复合 expr |
+| 单租户/多租户开关 | `KNOWLEDGE_TENANT_MODE` | `tests/test_knowledge_filters.py` | 否（配置语义，单测覆盖） |
+| 聊天事件落盘与按 seq 续读 | `app/services/chat_events.py` + `GET /api/chat/events/{run_id}` | `tests/test_chat_events.py`（9）+ `test_run_context_and_chat.py`（3） | 真实浏览器 + 容器内 HTTP |
+| 前端断流续读 / tab 恢复 / 引用卡片 / 目标绑定可见 | `web/src/chat.ts`、`ChatPanel.tsx`、`state.ts`、`view.ts`、`App.tsx` | `npm test` 70 条 | 真实浏览器（截图 5 张） |
+| 跨进程 trace 锁 | `app/observability.py`（msvcrt/flock，有界等待） | `tests/test_soak_concurrency.py`（真实 4 子进程） | Windows 实测；POSIX 仅静态审查 |
+| retry 幂等 / retention 饥饿修复 | `knowledge_store.retry_job`、`runs.purge_expired_traces` | `test_soak_concurrency.py`、`test_trace_retention.py` | 真实文件系统 |
+| MCP 同名双实例目录 | `AIOPS_SERVICES_FILE` + `services.staging.json` | 间接（`test_server_env_isolation.py` 未追加断言） | 真实 3 个 MCP 进程 + 浏览器 |
+| CI/Compose 防陈旧镜像 | `ci.yml` docker job、`make docker-build-fresh`、compose 注释 | YAML/`compose config` 校验 | **否**（未在 GitHub 上跑过） |
+| fastmcp 2.14 → 3.4.0 | `uv.lock` + `uv sync --frozen` | 既有 MCP server 测试 | 三个 server 真实注册工具 |
+
+## G5.3 本轮修掉的真实缺陷
+
+1. **`.venv-train/` 打进镜像**：`COPY . .` 层 5.41 GB → 22.9 MB（镜像 18.9 → 10.7 GB）。
+2. **fastmcp 2.14.x 的 `@mcp.tool()` 返回不可调用对象**：`uv sync --frozen` 后
+   `search_service_logs` 等 9 条测试 `TypeError`；锁到 fastmcp 3.4.0 解决，23 处调用点不用改。
+3. **并发 retry 产生多个新 job**：8 线程实测 8 个 → 1 个。
+4. **retention 扫描窗口饥饿**：250 新鲜 + 50 过期连续 3 轮 `deleted=0` → 过期全删。
+5. **chat 事件不落盘**：断流后无法续读；现按 `run_id` 落盘 + `after_seq` 续读。
+6. **“模型自己拒答”被记成误答**：单列 `model_refusals_in_answered`（本轮实测 0 条命中，
+   口径偏严，未为了让数字好看而改判）。
+
+## G5.4 仍然未实现/未验证（与 G5_RESULTS §8 一致）
+
+- 诊断路径（`app/agent/aiops/*`）的知识检索仍未带 principal。
+- CUDA torch 未替换（配方已实测可行，未改 `uv.lock`）；镜像不含 HF 权重。
+- PyMilvus ORM → MilvusClient 未迁移；`pymilvus>=2.3.5` 下限未钉住。
+- SSH 只读联调、真实中文 IME/读屏器未执行。
+- `by_category` 只能诊断；`by_product` 负样本来自全局；生成评测只 12/80 条。
+- CI docker job、POSIX 文件锁分支未在真实环境跑过。
+
+---
+
+# G6 增量状态（2026-10-28，第五轮）
+
+本轮只做权限与聊天流一致性收尾，未新增泛化防御层或统一兜底框架。
+完整数字、分母与不能据此下的结论见 `G6_RESULTS_2026-10-28.md`。
+
+## G6.1 交付项
+
+| 项 | 实现位置 | 单测 | 真实依赖验证 |
+|---|---|---|---|
+| 知识库作业的 principal 边界 | `knowledge_store._owner_acl_visible` + `list_documents/list_jobs(principal_id=)` + `job_document_id/document_visible_to`；`api/knowledge.py` 三个作业路由解析 key、单条不可见统一 404、retry 先鉴权 | `tests/test_knowledge_jobs_acl.py`（6） | 容器内另一把 key：列表空、详情 404、retry 404 且作业数不变 |
+| 隐藏文档不消耗分页 limit | 过滤前置于 `status`/`cursor`/`limit`，`next_cursor` 取过滤后页尾 | 同上（翻页恰好不重不漏） | 同上（真实 store） |
+| 诊断 run 与聊天流 run 拆分 | `api/chat.py` 每次请求生成 `chat_run_id`；`chat_events` 落盘带 `session_id`、续读按 session 校验 | `test_run_context_and_chat.py`、`test_chat_events.py` | 容器内两次追问 → 两个 run、两个文件 seq 各从 1 连续 |
+| 聊天流生命周期 | lifespan 启动清理；前端网络异常走同一有界续读；停止清 pending；单活动标签页写进界面与 README | `web/src/chat.test.ts` | 容器内 403 跨会话续读 + 原文件不变 |
+| 诊断路径 RAG 可见性 | `need_principal_scope` + `knowledge_wiring`/`runtime_tools`/`local_runtime`/`cloud_multi`/`run_diagnostic` 的 owner 传播 | `tests/test_diagnosis_knowledge_principal.py`（8） | 否（fake 向量库 + 真实 store；A03 本地 embedding 约束不变） |
+| 评测快照一致性 | `eval_generation._verify_profile_consistency` + `eval_calibration._store_evidence` | `test_calibration_eval.py` | 真实 G5 产物：0 差异 |
+| 检索器不再吞 TypeError | `knowledge_service._supports_expr` 前置签名判断 | 同上 | 否（真实 langchain_milvus 签名已核） |
+| 口径修正 | README 拆 liveness/readiness；"冒烟"→"抽样生成评测"；kind 固定 | — | — |
+
+## G6.2 本轮修掉的真实缺陷
+
+1. **list_documents 先分页后过滤**：隐藏文档吃掉 `limit`，`next_cursor` 跳过可见项。
+2. **list_jobs / get_job / retry_job 完全没有 principal 边界**：知道 job_id 就能读状态、
+   错误信息，并对别人的文档发起 retry（会真的创建新作业）。
+3. **同一诊断 run 追问两次丢事件**：请求 `run_id` 被当事件文件名，`seq` 都从 1，
+   续读按 `event_id` 去重把第二次静默丢弃。
+4. **续读只校验会话归属，不校验事件归属**：拿到已知 chat run 的其它 session 可读到内容。
+5. **`chat_events.purge_expired()` 没有调用点**：所谓 24h TTL 从未生效。
+6. **网络异常不续读**：只有 EOF 分支续读，网络层报错直接判失败。
+7. **"停止"被当成待恢复流**：刷新后会把主动取消的流当成断线重连。
+8. **诊断路径知识检索不带 principal**：multi 下能命中无权文档。
+9. **`except TypeError` 无条件重查**：真实查询的 TypeError 被吞成"不过滤再查一次"，
+   静默扩大候选范围（正是 G6 明令禁止的降级）。
+
+## G6.3 仍未做（与 G6_RESULTS §9 一致）
+
+- 旧知识工具路径（`app/tools/knowledge_tool.py`、`rag_agent_service.py`）仍未接 principal。
+- 多 key 账号体系不存在（单生效 API Key）；多租户只在测试内以不同 `principal_id` 验证。
+- 真实 TCP 断线（后端在链路上被切断）未验证；本轮只验证客户端截断/网络异常后的续读。
+- SSH 只读 staging、CUDA torch、PyMilvus ORM、GitHub CI docker job、Linux flock、
+  真实 IME/读屏器：均未验证，仍按独立任务登记。
+- 本机 apt 源不稳（502），镜像用只改 apt 步骤的本地 Dockerfile 变体构建；
+  仓库 `Dockerfile` 未改。
+
+## G6.4 对抗复核后追加修复（同一轮）
+
+六维复核 35 条原始发现 → 10 条经反驳确认，其中 5 条是本轮新代码引入或放大的越权，
+已在同一轮修掉并各自有测试：
+
+1. **读写判定混用**：`_enforce_document` 只看 owner 侧表，"有 ACL、无 owner"的文档对
+   陌生 principal 可 activate/delete。→ 拆成 `document_visible_to`（读）与
+   `document_writable_by`（写，owner 优先）。
+2. **retry 越权回滚**：只校验"可见"，只读 ACL 成员能把 active revision 回滚。→ 要求写权限。
+3. **同名覆盖**：`document_id` 由 source_uri 派生，B 用同名上传可替换 A 的检索内容。→ 提交前 409。
+4. **删除后作业复活**：文档记录消失后作业按"无 owner"判定，删除把 404 变 200。→ 一律不可见。
+5. **claim 顺序**：提交后才 claim，失败仍 202，上传者看不到自己的文档。→ claim 前移。
+
+另修：`need_principal_scope` 简化为"有身份就启用"（dev 也走同一可见性规则）；
+`store_document_ids` 参与 profile 一致性校验；`retrieve_knowledge` 加进 logs 专科目录
+（supervisor 提示词一直承诺知识库能力，目录里却没有，模型照做会被判未授权并让整次运行失败）。

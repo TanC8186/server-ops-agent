@@ -88,20 +88,46 @@ def _resolve_instance(service_name: str, instance_id: str = None) -> tuple:
     return (instance_id or service_name), None
 
 
+#: 默认服务清单（仓库根 services.json）。保留这个名字是因为它是“默认值”，不是
+#: 当前生效值；实际读取一律走 :func:`services_file_path`。
 SERVICES_FILE = Path(__file__).resolve().parent.parent / "services.json"
+
+#: 覆盖服务清单路径的环境变量名。staging 需要同名双实例目录，而生产清单不允许
+#: 被测试数据污染，所以路径必须可切换；默认不设置时行为与历史实现完全一致。
+SERVICES_FILE_ENV = "AIOPS_SERVICES_FILE"
+
+
+def services_file_path() -> Path:
+    """返回本次读取生效的服务清单路径。
+
+    每次调用都重新读环境变量而不是在 import 时固化：``read_env`` 不写
+    ``os.environ``，测试和运维可以在进程启动后再切换目录做同名实例演练
+    （见 G5_INFRA_NOTES.md 的 staging 验证命令）。
+
+    相对路径按仓库根解析而不是当前工作目录：MCP server 由 entrypoint 从不同
+    目录拉起，CWD 不可依赖，否则同一份配置会读到不同文件。
+    """
+    override = read_env(SERVICES_FILE_ENV, "").strip()
+    if not override:
+        return SERVICES_FILE
+    candidate = Path(override).expanduser()
+    if not candidate.is_absolute():
+        candidate = SERVICES_FILE.parent / candidate
+    return candidate
 
 
 def _get_service_list() -> list:
-    """从 services.json 读取服务清单；缺失时返回空列表而不是伪造条目。"""
+    """从服务清单读取服务条目；缺失时返回空列表而不是伪造条目。"""
+    path = services_file_path()
     try:
-        with open(SERVICES_FILE, encoding="utf-8") as f:
+        with open(path, encoding="utf-8") as f:
             data = json.load(f)
         services = data.get("services", [])
         if not isinstance(services, list):
             raise ValueError("services 字段必须是数组")
         return services
     except FileNotFoundError:
-        logger.warning(f"服务清单不存在: {SERVICES_FILE}")
+        logger.warning(f"服务清单不存在: {path}")
         return []
     except (json.JSONDecodeError, ValueError) as e:
         logger.error(f"服务清单格式错误: {e}")

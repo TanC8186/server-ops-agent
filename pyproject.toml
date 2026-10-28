@@ -71,6 +71,21 @@ target-version = ['py311']
 [tool.ruff]
 line-length = 100
 target-version = "py311"
+exclude = [
+    ".git",
+    "__pycache__",
+    ".venv",
+    "venv",
+    "logs",
+    "*.pyc",
+    "*.egg-info",
+]
+
+# Ruff 0.2+ 把 select/ignore/isort/per-file-ignores 这类“检查规则”配置移到了
+# [tool.ruff.lint] 下；留在顶层会打印 deprecation 警告，未来大版本会直接报错。
+# 这里只迁移位置，规则集合与忽略项逐字不变——真要把 I 的 import 排序跑一遍
+# 需要单独一轮格式化提交，否则大量无关 diff 会掩盖本次真正的变更。
+[tool.ruff.lint]
 select = [
     "E",   # pycodestyle errors
     "W",   # pycodestyle warnings
@@ -86,20 +101,11 @@ ignore = [
     "C901",  # too complex
     "W191",  # indentation contains tabs
 ]
-exclude = [
-    ".git",
-    "__pycache__",
-    ".venv",
-    "venv",
-    "logs",
-    "*.pyc",
-    "*.egg-info",
-]
 
-[tool.ruff.per-file-ignores]
+[tool.ruff.lint.per-file-ignores]
 "__init__.py" = ["F401"]  # unused imports in __init__.py
 
-[tool.ruff.isort]
+[tool.ruff.lint.isort]
 known-first-party = ["app"]
 combine-as-imports = true
 

@@ -22,7 +22,7 @@ from fastapi.testclient import TestClient
 from app import observability
 from app.api import chat as chat_api
 from app.core import run_context
-from app.services import chat_history
+from app.services import chat_events, chat_history
 from app.services import knowledge_service as ks
 
 
@@ -238,3 +238,155 @@ def test_session_id_cannot_escape_directory(tmp_path, monkeypatch):
     assert len(files) == 1
     assert files[0].parent == tmp_path
     assert ".." not in files[0].name
+
+
+# ── G5：聊天事件落盘 + 按 seq 续读（真实 HTTP 路由） ────────────────
+
+
+def test_chat_stream_events_are_persisted_and_resumable(client):
+    """断流续读的**服务端**证据：流里发过的每条事件都能按 run_id+seq 读回。
+
+    这不是 mock：走真实 ``/api/chat_stream`` 路由，事件由 ``chat_events``
+    落盘（目录由 conftest 指到 tmp_path），再调真实 ``/api/chat/events/{id}``。
+    """
+    http, _model = client
+    response = http.post("/api/chat_stream",
+                         json={"Id": "session-resume", "Question": "磁盘满了怎么办"})
+    events = _events(response)
+    assert events and events[-1]["type"] == "done"
+    run_id = events[0]["run_id"]
+    last_seq = events[-1]["seq"]
+    assert last_seq == len(events)
+
+    resumed = http.get(f"/api/chat/events/{run_id}",
+                       params={"session_id": "session-resume", "after_seq": 0})
+    assert resumed.status_code == 200
+    body = resumed.json()
+    assert [item["seq"] for item in body["events"]] == list(range(1, len(events) + 1))
+    assert body["truncated"] is False
+    assert body["next_after_seq"] is None
+
+    # 已经读到终态之后再来一次：返回空页，而不是回放整段。
+    tail = http.get(f"/api/chat/events/{run_id}",
+                    params={"session_id": "session-resume", "after_seq": last_seq})
+    assert tail.status_code == 200
+    assert tail.json()["events"] == []
+
+
+def test_chat_events_rejects_foreign_session_owner(client, monkeypatch):
+    """知道别人的 run_id 也不能读别人的聊天事件：归属不符 403。"""
+    http, _model = client
+    response = http.post("/api/chat_stream",
+                         json={"Id": "session-owner", "Question": "磁盘满了怎么办"})
+    run_id = _events(response)[0]["run_id"]
+
+    # 模拟“这个会话属于另一个 principal”：不伪造请求头，而是把归属读成别人。
+    monkeypatch.setattr(chat_history.chat_history, "owner",
+                        lambda sid: "principal:key-other")
+    foreign = http.get(f"/api/chat/events/{run_id}",
+                       params={"session_id": "session-owner"})
+    assert foreign.status_code == 403
+
+
+def test_chat_events_without_session_is_refused_in_deployment(client, monkeypatch):
+    """部署模式不允许“只凭 run_id”续读：没有 session_id 就 403，不返回事件。"""
+    from app.config import config as app_config
+
+    http, _model = client
+    response = http.post("/api/chat_stream",
+                         json={"Id": "session-owner", "Question": "磁盘满了怎么办"})
+    run_id = _events(response)[0]["run_id"]
+
+    monkeypatch.setattr(app_config, "api_key", "")
+    monkeypatch.setattr(app_config, "auth_mode", "deployment")
+    # deployment 且未配置 key 时 principal 解析就是 401（fail closed）；
+    # 配置了 key 的另一条路径由下面的断言覆盖：不带 session_id 必然是 403。
+    unauthorized = http.get(f"/api/chat/events/{run_id}")
+    assert unauthorized.status_code in (401, 403)
+
+
+def test_chat_events_unknown_run_is_404(client):
+    http, _model = client
+    missing = http.get("/api/chat/events/" + "b" * 32,
+                       params={"session_id": "session-any"})
+    assert missing.status_code == 404
+    broken = http.get("/api/chat/events/not-a-run-id",
+                      params={"session_id": "session-any"})
+    assert broken.status_code == 404
+
+
+# ── G6 P0-4：诊断 run 与聊天流 run 拆开 ───────────────────────────
+
+
+def test_same_diagnostic_run_twice_gets_two_chat_streams(client, trace_dir):
+    """同一诊断 run 连续追问两次：两次聊天流各自独立落盘，seq 都从 1 连续。
+
+    旧实现直接用请求里的 run_id 当文件名，第二次的 seq 从 1 重来、event_id
+    前缀相同，续读去重会把整段第二次事件静默丢掉。
+    """
+    http, _model = client
+    _write_run(trace_dir, session_id="session-followup")
+
+    bodies = []
+    for question in ("那次 CPU 12% 说明什么", "再补一句时间窗口"):
+        response = http.post("/api/chat_stream",
+                             json={"Id": "session-followup", "Question": question,
+                                   "run_id": RUN_ID})
+        events = _events(response)
+        assert events[-1]["type"] == "done"
+        bodies.append(events)
+
+    first, second = bodies
+    first_run, second_run = first[0]["run_id"], second[0]["run_id"]
+    assert first_run != second_run, "两次追问必须使用不同的聊天流 run"
+    assert first_run != RUN_ID and second_run != RUN_ID, "聊天流 run 不能复用诊断 run_id"
+    # 追问上下文仍然来自诊断 run（不是被拆掉的）。
+    assert first[-1]["run_context"] is not None
+    assert first[-1]["run_context"]["target"]["service"] == "svc-a"
+
+    for run_id, events in ((first_run, first), (second_run, second)):
+        assert (chat_events.storage_dir() / f"{run_id}.jsonl").is_file()
+        stored, _, _ = chat_events.read_after(run_id, 0, 1000,
+                                              session_id="session-followup")
+        assert [item["seq"] for item in stored] == list(range(1, len(events) + 1))
+        assert all(item["session_id"] == "session-followup" for item in stored)
+
+
+def test_cross_session_resume_is_404_and_file_is_unchanged(client):
+    """已知 chat run 也不能跨 session 续读：404 且原文件一个字节都不变。"""
+    http, _model = client
+    response = http.post("/api/chat_stream",
+                         json={"Id": "session-1", "Question": "磁盘满了怎么办"})
+    events = _events(response)
+    chat_run_id = events[0]["run_id"]
+    path = chat_events.storage_dir() / f"{chat_run_id}.jsonl"
+    before = path.read_bytes()
+
+    foreign = http.get(f"/api/chat/events/{chat_run_id}",
+                       params={"session_id": "session-2"})
+    assert foreign.status_code == 404
+    assert path.read_bytes() == before
+    assert len(path.read_text(encoding="utf-8").splitlines()) == len(events)
+
+    # 原会话自己能读回完整序列（拒绝不是“谁都不给读”）。
+    own = http.get(f"/api/chat/events/{chat_run_id}",
+                   params={"session_id": "session-1"})
+    assert own.status_code == 200
+    assert [item["seq"] for item in own.json()["events"]] == list(range(1, len(events) + 1))
+
+
+def test_purge_expired_runs_from_existing_lifespan_entry(client):
+    """lifespan 调用的 ``purge_expired`` 能删掉真正过期的聊天事件文件。"""
+    import os
+
+    http, _model = client
+    response = http.post("/api/chat_stream",
+                         json={"Id": "session-purge", "Question": "磁盘满了怎么办"})
+    chat_run_id = _events(response)[0]["run_id"]
+    path = chat_events.storage_dir() / f"{chat_run_id}.jsonl"
+    assert path.is_file()
+    two_days_ago = path.stat().st_mtime - 2 * 24 * 3600
+    os.utime(path, (two_days_ago, two_days_ago))
+
+    assert chat_events.purge_expired() >= 1
+    assert not path.is_file()

@@ -40,3 +40,24 @@ def test_discovery_tools_are_allowed():
 )
 def test_write_or_arbitrary_execution_tools_are_not_allowed(name):
     assert name not in runtime_tools.READ_ONLY_TOOLS
+
+
+def test_cloud_multi_supervisor_can_assign_knowledge_tool():
+    """supervisor 的提示词承诺了"logs 可查知识库"，目录里就必须有它。
+
+    G6 复核实测：提示词写着"logs 可查询日志、工单或知识库"，但
+    ``SPECIALIST_TOOLS['logs']`` 不含 ``retrieve_knowledge``；模型照着提示词
+    分配它会被判"未授权工具"并让整次运行直接 error，云端多智能体路径上知识库
+    从未真正可用。
+    """
+    from app.agent.aiops import cloud_multi, runtime_tools
+
+    assert "retrieve_knowledge" in cloud_multi.SPECIALIST_TOOLS["logs"]
+    assert "retrieve_knowledge" in runtime_tools.READ_ONLY_TOOLS
+
+
+def test_knowledge_tool_is_not_assigned_to_metrics():
+    """知识检索只给 logs 专科：metrics 专科的目录必须保持纯指标查询。"""
+    from app.agent.aiops import cloud_multi
+
+    assert "retrieve_knowledge" not in cloud_multi.SPECIALIST_TOOLS["metrics"]

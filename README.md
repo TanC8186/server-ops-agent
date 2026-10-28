@@ -94,6 +94,30 @@ npm test           # node --experimental-strip-types --test src/*.test.ts
 .venv/Scripts/python.exe scripts/eval_retrieval.py --k 3            # 切分+embedding+cosine 基线
 ```
 
+RAG 三层评测（检索 / 门控 / 生成，都需要真实 Milvus；生成层还需要真实 LLM）：
+
+```bash
+# 1) 在独立的 calibration 集上拟合分域阈值（不在 blind 上拟合，脚本会硬性拒绝）
+.venv/Scripts/python.exe scripts/eval_calibration.py --store data/acceptance/milvus-e2e-store.json
+# 2) 用某组阈值跑任一题集（--set 改题集；blind 的 sha256 由测试锁定，不会被改）
+.venv/Scripts/python.exe scripts/eval_blind.py \
+    --set eval/rag/calibrate-dev2.jsonl --threshold 0.5135 \
+    --store data/acceptance/milvus-e2e-store.json
+# 3) 生成层：真实模型 + 真实 Milvus，引用支持率 / 事实正确率 / 无答案误答率分别报告
+.venv/Scripts/python.exe scripts/eval_generation.py --limit 12 \
+    --store data/acceptance/milvus-e2e-store.json
+```
+
+本轮（G5）的真实数字、分母与**不能据此下的结论**见
+[G5_RESULTS_2026-10-28.md](docs/claude-code-handoff/G5_RESULTS_2026-10-28.md)。
+工程维护（Pydantic/Ruff/Docker/CI/MCP 同名实例）的实测命令见
+[G5_INFRA_NOTES.md](docs/claude-code-handoff/G5_INFRA_NOTES.md)。
+G6 的权限与聊天流一致性收尾（作业 ACL、诊断 run 与聊天流 run 拆分、评测快照一致性）
+见 [G6_RESULTS_2026-10-28.md](docs/claude-code-handoff/G6_RESULTS_2026-10-28.md)。
+
+生成层产物里的 `kind` 是 `generation_eval_llm_sampled`；读取 `gate_profile` 前会核对
+题集 sha256、语料 manifest、embedding descriptor 与当前 store，对不上直接停止。
+
 真实运行过的结果与未验证项见 [VALIDATION_RESULTS.md](docs/claude-code-handoff/VALIDATION_RESULTS.md)，
 逐项实施状态见 [IMPLEMENTATION_STATUS.md](docs/claude-code-handoff/IMPLEMENTATION_STATUS.md)，
 浏览器检查见 [BROWSER_CHECK.md](docs/BROWSER_CHECK.md)，部署见 [DEPLOYMENT.md](docs/DEPLOYMENT.md)。
@@ -216,14 +240,33 @@ web/                 React + Vite 前端
 
 - **知识问答会话历史落盘到 JSON**（`data/chat/`，有 TTL 与条数上限），但仍是单进程文件锁；
   多实例部署前必须换成共享存储。
+- **聊天流只支持一个活动标签页**：同一浏览器多标签页共享 `oncall.chat.pending`，
+  后发的流会覆盖续读位置；不做跨标签页同步。
 - **鉴权可选**：`AUTH_MODE=deployment` 时未配置密钥会拒绝启动；`dev` 模式不做鉴权。
   有并发准入闸门（`max_concurrent_diagnostics`），没有按 IP 的限流。
+- **`/health` 的 `status=healthy` 只表示进程活着**：Milvus/RAG/模型可用性在
+  `data.capabilities` 里单独报告（`rag` 可能是 `unavailable`/`invalid_index`）。
+  容器 `healthy` 与“知识库可用”是两件事，验收报告必须分开写。
 - **评测集是合成的**：5 条诊断场景 + 240 条训练数据均为模板生成并校验，不是真实工单。
   `eval/rag/dev.jsonl` 的 14 条检索问题同样是维护者编写，且阈值在该集上拟合，
   **不是盲测结论**。
-- **RAG 未做混合检索**：只有 dense top-k + 适用性门控，没有 rerank。
-- **真实 Milvus 未验收**：本轮所有向量相关测试使用 fake store 或内存 cosine；
-  collection 描述符、索引度量与写入原子性没有在真实 Milvus 上端到端验证。
+- **RAG 未做混合检索**：只有 dense top-k + 适用性门控，没有 rerank。门控阈值需要在
+  **独立的 calibration 集**上拟合（`scripts/eval_calibration.py`），不能拿 blind 集调参；
+  当前两组工作点见 [G5_RESULTS](docs/claude-code-handoff/G5_RESULTS_2026-10-28.md) §1.3。
+- **真实 Milvus 已验证检索/写入/回滚/失败清理**（v2.5.10，见
+  [MILVUS_ACCEPTANCE_2026-10-27.md](docs/claude-code-handoff/MILVUS_ACCEPTANCE_2026-10-27.md)），
+  但仍是**单机、11 篇文档、单一 embedding 模型**，没有容量/并发/多副本数据。
+- **多租户做到“文档级 ACL + 检索前过滤”，问答与诊断共用同一可见性规则**：
+  `KNOWLEDGE_TENANT_MODE=multi` 下无 owner 的文档对非 dev principal fail closed；
+  `/api/chat` 与诊断路径的 `retrieve_knowledge` 都经 `VectorStoreRetriever(principal_id=…)`，
+  没有第二套过滤器。**读写分开**：读按 owner/ACL 判定（不可见统一 404），
+  activate/delete/retry/覆盖上传只认 owner（无 owner 时才认 ACL 成员），
+  所以"共享阅读"不会顺带拿到"回滚/删除"。**部署形态仍要求单 API Key**
+  （一个进程只有一个生效密钥），因此“A 看不到 B 的文档”在测试里用不同 principal_id 验证，
+  不是多用户账号体系。
+- **SSH 只读联调未执行**：没有获授权的 staging 主机，`servers/ssh_server.py` 的安全边界只有单测。
+- **镜像 10.7 GB**：仍包含 CUDA 版 torch（应用只用 CPU）；替换为 CPU wheel 的配方已实测可行，
+  但会改变全平台依赖解析，尚未落地。
 - **11 页核心语料仍未完成许可人工核对**：其中 4 份（SD-02、LK-01、RH-01 与 RH-02 待抓）
   的许可状态是 `needs_review`，在此之前只能作为内部验证数据。
 - **0.5B 尚未跑通**：对学习率敏感，两次训练分别发散/停滞；当前用 1.5B + 4-bit 作为端侧方案。

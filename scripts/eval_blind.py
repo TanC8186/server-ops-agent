@@ -35,6 +35,11 @@
 
     # 快速冒烟：只跑前 5 行
     ./.venv/Scripts/python.exe scripts/eval_blind.py --limit 5
+
+``--set`` 可以指定别的题集（G5 的 ``calibrate-dev2.jsonl``）。校验规则完全相同，
+但产物会换 ``kind``/文件名前缀，并写 ``report_label: calibration``——
+calibration 上拟合出来的阈值不能当成 blind 报告引用，这条约束由脚本本身执行，
+不依赖使用者自觉。
 """
 
 from __future__ import annotations
@@ -101,20 +106,54 @@ _ANCHOR_PATTERN = re.compile(r"锚点\s*=\s*([A-Z]{2}-\d{2})「(.+?)」")
 # ── 输入 ──────────────────────────────────────────────────
 
 
-def load_blind(limit: int = 0) -> list[dict]:
-    if not BLIND_FILE.is_file():
-        raise SystemExit(f"缺少盲测集: {BLIND_FILE}")
+#: G5 分域校准集。阈值会在它上面拟合，因此**不是** blind：产物换文件名与 kind，
+#: 并由 ``dataset_label`` 标注，禁止把它当 blind 报告复述。
+CALIBRATION_FILE = ROOT / "eval" / "rag" / "calibrate-dev2.jsonl"
+
+#: 校准行可选携带的域字段（取值来自 normalized manifest，不是语义推断）。
+OPTIONAL_DOMAIN_KEYS = {"os_family", "product", "product_version"}
+
+#: 生成式评测用的参考答案要点；必须能从锚点派生出可核验的 token。
+OPTIONAL_REFERENCE_KEY = "reference_points"
+
+
+def load_rows(path: Path, limit: int = 0) -> list[dict]:
+    """读 JSONL 题集；``limit`` 只截取返回条数，不参与校验。"""
+    if not path.is_file():
+        raise SystemExit(f"缺少题集: {path}")
     rows: list[dict] = []
-    for lineno, line in enumerate(
-            BLIND_FILE.read_text(encoding="utf-8").splitlines(), 1):
+    for lineno, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
         line = line.strip()
         if not line:
             continue
         try:
             rows.append(json.loads(line))
         except json.JSONDecodeError as exc:
-            raise SystemExit(f"blind.jsonl 第 {lineno} 行不是合法 JSON: {exc}") from exc
+            raise SystemExit(f"{path.name} 第 {lineno} 行不是合法 JSON: {exc}") from exc
     return rows[:limit] if limit else rows
+
+
+def load_blind(limit: int = 0) -> list[dict]:
+    """兼容旧调用：盲测集。"""
+    return load_rows(BLIND_FILE, limit)
+
+
+def dataset_label(path: Path) -> str:
+    """题集身份。只有 frozen blind 才是 ``blind``。
+
+    判据是**内容 hash**（不是文件名）：把 blind 复制成别的文件名再跑，仍然
+    会被认成 blind 并套用"不得在其上拟合"的约束。文件名层面把 calibration
+    结果叫成 blind，是这次分域校准最容易犯的口径错误（在 calibration 上拟合
+    的阈值被当成盲测结论引用），所以由代码而不是文档来保证。
+    """
+    try:
+        if path.is_file() and BLIND_FILE.is_file() and \
+                _sha256_file(path) == _sha256_file(BLIND_FILE):
+            return "blind"
+        resolved = path.resolve()
+    except OSError:
+        resolved = path
+    return "blind" if resolved == BLIND_FILE.resolve() else "calibration"
 
 
 def _corpus_texts() -> dict[str, str]:
@@ -147,11 +186,57 @@ def _anchor_problems(rid: str, row: dict, corpus: dict[str, str]) -> list[str]:
     return problems
 
 
-def validate(rows: list[dict]) -> list[str]:
-    """schema + 可追溯性校验。返回问题列表（空表示通过）。"""
+def _optional_domain_problems(rid: str, row: dict, manifest: dict[str, dict],
+                              corpus: dict[str, str]) -> list[str]:
+    """校准行的域字段必须来自 manifest、参考答案要点必须来自锚点所在正文。
+
+    gate 会按 product 分桶拟合阈值；如果 product 写错，桶就落到了错误的语料上，
+    产出的阈值看起来合理但对着错文档生效。同理，reference_points 若只是自己
+    编的短语，事实正确率就变成了"答案里有没有出现这句话"，而不是"有没有答对"。
+    所以这里逐条对齐 manifest 与语料正文。
+    """
+    problems: list[str] = []
+    source_id = (row.get("expected_ids") or [""])[0]
+    known = manifest.get(source_id, {})
+    for key in OPTIONAL_DOMAIN_KEYS:
+        if key not in row:
+            problems.append(f"{rid}: 缺少可选域字段 {key}（分域校准需要）")
+            continue
+        value = str(row.get(key) or "")
+        if not value:
+            problems.append(f"{rid}: 域字段 {key} 为空")
+        elif key in known and value != str(known.get(key) or ""):
+            problems.append(
+                f"{rid}: 域字段 {key}={value!r} 与 manifest 的 "
+                f"{known.get(key)!r} 不一致")
+    references = row.get(OPTIONAL_REFERENCE_KEY)
+    if references is None:
+        problems.append(f"{rid}: 缺少 {OPTIONAL_REFERENCE_KEY}（事实正确率的判定依据）")
+    elif not isinstance(references, list) or not references:
+        problems.append(f"{rid}: {OPTIONAL_REFERENCE_KEY} 必须是非空字符串数组")
+    elif not all(isinstance(item, str) and item.strip() for item in references):
+        problems.append(f"{rid}: {OPTIONAL_REFERENCE_KEY} 含空项")
+    else:
+        text = (corpus.get(source_id) or "").lower()
+        for point in references:
+            if point.lower() not in text:
+                problems.append(
+                    f"{rid}: reference_point {point!r} 不在 {source_id} 正文中"
+                    "（要点必须能从锚点所在原文派生）")
+    return problems
+
+
+def validate(rows: list[dict], *, label: str = "blind") -> list[str]:
+    """schema + 可追溯性校验。返回问题列表（空表示通过）。
+
+    ``label="calibration"`` 时追加域字段/参考答案要点检查，并把行数区间
+    换成 calibration 的 60–100；其余判定与 blind **完全相同**——校准集同样
+    不允许出现语料里查不到的题。
+    """
     problems: list[str] = []
     seen: set[str] = set()
     expected_text = _corpus_texts()
+    manifest = _manifest_domains()
     for row in rows:
         rid = str(row.get("id") or "<无 id>")
         missing = REQUIRED_KEYS - set(row)
@@ -182,13 +267,41 @@ def validate(rows: list[dict]) -> list[str]:
         # 可追溯性：可答题必须在 notes 里声明锚点，且锚点短语真的在语料正文中。
         if not row["expect_no_answer"]:
             problems.extend(_anchor_problems(rid, row, expected_text))
-    if len(rows) > 100 or len(rows) < 50:
-        problems.append(f"盲测集行数 {len(rows)} 不在 50–100 区间（若有缩减理由需在 "
-                        f"eval/rag/README.md 记录）")
+            if label == "calibration":
+                problems.extend(_optional_domain_problems(
+                    rid, row, manifest, expected_text))
+    if len(rows) > 100 or len(rows) < (60 if label == "calibration" else 50):
+        problems.append(
+            f"{label} 题集行数 {len(rows)} 不在 "
+            f"{60 if label == 'calibration' else 50}–100 区间"
+            "（若有缩减理由需在 eval/rag/README.md 记录）")
     no_answer = sum(1 for row in rows if row.get("expect_no_answer"))
     if no_answer < 8:
         problems.append(f"expect_no_answer 行数 {no_answer} < 8（要求至少 8 条）")
+    if label == "calibration":
+        answerable = len(rows) - no_answer
+        ratio = answerable / len(rows) if rows else 0.0
+        if not 0.60 <= ratio <= 0.80:
+            problems.append(
+                f"calibration 可答题占比 {ratio:.3f} 不在 0.60–0.80（分域 gate 需要"
+                "可答题与无答案题都有足够样本，偏斜会让阈值只拟合到一边）")
     return problems
+
+
+def _manifest_domains() -> dict[str, dict]:
+    """``source_id -> {os_family, product, product_version}``（来自 normalized manifest）。"""
+    if not MANIFEST_FILE.is_file():
+        return {}
+    entries = json.loads(MANIFEST_FILE.read_text(encoding="utf-8")).get("entries", [])
+    return {
+        entry["id"]: {
+            "os_family": entry.get("os_family", ""),
+            "product": entry.get("product", ""),
+            "product_version": entry.get("product_version", ""),
+        }
+        for entry in entries
+        if entry.get("id")
+    }
 
 
 def load_doc_map(store_file: Path) -> dict[str, str]:
@@ -400,6 +513,12 @@ def run_rows(rows: list[dict], threshold: float, doc_map: dict[str, str],
             "expected_ids": sorted(expected),
             "expect_no_answer": bool(row["expect_no_answer"]),
             "notes": row["notes"],
+            # 分域字段与参考答案要点原样带进逐行结果：calibration 拟合与生成式
+            # 评测都直接消费这份逐行数据，避免两处各读一遍题集而口径漂移。
+            "os_family": row.get("os_family", ""),
+            "product": row.get("product", ""),
+            "product_version": row.get("product_version", ""),
+            "reference_points": list(row.get("reference_points") or []),
             "error": error,
             "top_doc_ids": doc_ids,
             "top_scores": [round(chunk.score, 4) for chunk in chunks],
@@ -535,7 +654,9 @@ def summarize(results: list[dict], threshold: float,
     }
 
 
-def build_manifest(threshold: dict, store_file: Path) -> dict:
+def build_manifest(threshold: dict, store_file: Path,
+                   dataset_file: Path = BLIND_FILE,
+                   label: str = "blind") -> dict:
     facts = milvus_facts()
     commit = dirty = None
     try:
@@ -563,6 +684,12 @@ def build_manifest(threshold: dict, store_file: Path) -> dict:
         "knowledge_store_file": store_file.relative_to(ROOT).as_posix()
         if store_file.is_relative_to(ROOT) else str(store_file),
         "threshold": threshold,
+        # 题集身份：blind 与 calibration 各自记自己的 hash，且都带 report_label，
+        # 避免把 calibration 的产物当成盲测结论引用。
+        "report_label": label,
+        "dataset_file": dataset_file.relative_to(ROOT).as_posix()
+        if dataset_file.is_relative_to(ROOT) else str(dataset_file),
+        "dataset_sha256": _sha256_file(dataset_file) if dataset_file.is_file() else "missing",
         "blind_file": BLIND_FILE.relative_to(ROOT).as_posix(),
         "blind_file_sha256": _sha256_file(BLIND_FILE) if BLIND_FILE.is_file() else "missing",
         "retrieval_k": RETRIEVAL_K,
@@ -570,7 +697,10 @@ def build_manifest(threshold: dict, store_file: Path) -> dict:
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="盲测检索评测（真实 Milvus）")
+    parser = argparse.ArgumentParser(description="检索评测（真实 Milvus）")
+    parser.add_argument("--set", dest="dataset", type=str, default="",
+                        help="题集路径（默认 eval/rag/blind.jsonl；"
+                             "eval/rag/calibrate-dev2.jsonl 会按 calibration 口径标注）")
     parser.add_argument("--limit", type=int, default=0, help="只跑前 N 行（冒烟）")
     parser.add_argument("--dry-run", action="store_true",
                         help="只校验 schema，不连 Milvus、不写结果")
@@ -583,19 +713,22 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--timeout", type=float, default=15.0, help="单次检索超时（秒）")
     args = parser.parse_args(argv)
 
-    # 先校验**整份**文件：--limit 是冒烟开关，不能让它把"50–100 行""≥8 条无答案"
+    dataset_file = Path(args.dataset) if args.dataset else BLIND_FILE
+    label = dataset_label(dataset_file)
+
+    # 先校验**整份**文件：--limit 是冒烟开关，不能让它把行数区间、无答案条数
     # 这些约束绕过掉（否则 --limit 5 会变成合法的正式结果来源）。
-    all_rows = load_blind()
-    problems = validate(all_rows)
+    all_rows = load_rows(dataset_file)
+    problems = validate(all_rows, label=label)
     if problems:
-        print("盲测集校验失败：", file=sys.stderr)
+        print(f"{dataset_file.name} 校验失败（label={label}）：", file=sys.stderr)
         for problem in problems:
             print("  -", problem, file=sys.stderr)
         return 1
     rows = all_rows[:args.limit] if args.limit else all_rows
     counts = Counter(row["category"] for row in rows)
 
-    print(f"blind.jsonl: {len(rows)} 行")
+    print(f"{dataset_file.name}: {len(rows)} 行（label={label}）")
     for category, number in sorted(counts.items()):
         print(f"  {category:20s} {number}")
     print(f"  {'expect_no_answer':20s} {sum(1 for row in rows if row['expect_no_answer'])}")
@@ -632,12 +765,19 @@ def main(argv: list[str] | None = None) -> int:
 
     payload = {
         "generated_at_utc": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
-        "kind": ("blind_retrieval_milvus_smoke" if args.limit
-                 else "blind_retrieval_milvus"),
-        "note": ("真实 Milvus collection 上的检索评测。阈值沿用 dev 拟合结果，"
-                 "未在 blind 上拟合。指标只说明检索/门控行为，不说明回答事实正确性。"),
+        "kind": (f"{label}_retrieval_milvus_smoke" if args.limit
+                 else f"{label}_retrieval_milvus"),
+        "report_label": label,
+        "note": ("真实 Milvus collection 上的检索评测。指标只说明检索/门控行为，"
+                 "不说明回答事实正确性。" + (
+                     f"阈值来源={threshold['source']}，未在 blind 上拟合"
+                     "（若来源是 calibration，则这是'把 calibration 阈值套到 blind "
+                     "上看后果'的对照，不是重新拟合）。"
+                     if label == "blind" else
+                     "本文件是 calibration 集：阈值在 calibration 上拟合，"
+                     "不能作为盲测结论复述。")),
         "threshold": threshold,
-        "manifest": build_manifest(threshold, store_file),
+        "manifest": build_manifest(threshold, store_file, dataset_file, label),
         "elapsed_seconds": round(time.time() - started, 1),
         **summary,
         "rows": results,
@@ -645,8 +785,12 @@ def main(argv: list[str] | None = None) -> int:
 
     RESULT_DIR.mkdir(parents=True, exist_ok=True)
     stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
-    # --limit 是冒烟开关：产物加 smoke- 前缀，避免被当成正式盲测结果引用。
-    prefix = "blind-smoke" if args.limit else "blind"
+    # --limit 是冒烟开关：产物加 smoke- 前缀，避免被当成正式结果引用。
+    # calibration 题集用 calibration-retrieval- 前缀：``calibration-<UTC>.json``
+    # 这个名字属于 eval_calibration.py 的拟合产物，两者不能互相覆盖。
+    prefix = "blind" if label == "blind" else "calibration-retrieval"
+    if args.limit:
+        prefix = f"{prefix}-smoke"
     out_path = RESULT_DIR / f"{prefix}-{stamp}.json"
     out_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n",
                         encoding="utf-8", newline="\n")

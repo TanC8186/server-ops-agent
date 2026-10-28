@@ -8,6 +8,10 @@
   知识模式没有运维工具权限，事件带服务端分配的引用 ID。
 - ``run_id`` 是可选追问：服务端校验该 run 属于**当前会话**后才返回受控摘要，
   否则 ``run_context=null`` 并说明原因，绝不串到别的运行。
+- **诊断 run 与聊天流 run 分开（G6 P0-4）**：请求里的 ``run_id`` 只用于读取
+  追问上下文；每次请求另生成 ``chat_run_id``（32 位十六进制）作为 SSE 的
+  ``run_id``/``event_id`` 前缀与聊天事件文件名。两者混用会让同一诊断 run 的
+  两次追问写到同一个事件文件，第二次的 seq 从 1 重来后被续读去重静默丢弃。
 - **principal 归属（G3-3）**：会话历史与追问的 run 都带 principal 归属。
   ``load_run_context`` 现在同时校验 session 与 owner；会话历史在首次写入时
   ``claim`` 到当前 principal，读/清前先 ``authorize``。dev 模式所有请求映射到
@@ -32,7 +36,7 @@ import json
 import uuid
 from typing import Any, AsyncGenerator
 
-from fastapi import APIRouter, Header, HTTPException
+from fastapi import APIRouter, Header, HTTPException, Query
 from loguru import logger
 from sse_starlette.sse import EventSourceResponse
 
@@ -45,7 +49,7 @@ from app.core.run_context import (
 )
 from app.models.request import ChatRequest, ClearRequest
 from app.models.response import ApiResponse, SessionInfoResponse
-from app.services import knowledge_service
+from app.services import chat_events, knowledge_service
 from app.services.chat_history import chat_history
 
 router = APIRouter()
@@ -134,19 +138,48 @@ class _ChatModel:
 _chat_model = _ChatModel()
 
 
-def _retriever():
-    """生产检索器：VectorStoreManager（真实 Milvus，失败时给出明确状态）。"""
-    return knowledge_service.VectorStoreRetriever()
+def _retriever(principal_id: str = "",
+               filters: knowledge_service.RetrievalFilters | None = None):
+    """生产检索器：VectorStoreManager（真实 Milvus，失败时给出明确状态）。
+
+    ``principal_id``/``filters`` 只影响“哪些文档能进入候选”（G5：文档级 ACL、
+    有效期、OS/产品/版本）。为空时行为与之前一致（只用 active revision）。
+    """
+    return knowledge_service.VectorStoreRetriever(
+        principal_id=principal_id or "", filters=filters
+    )
 
 
-def _event_frame(event: dict[str, Any], run_id: str, session_id: str,
+def _scoped_retriever(principal: acl.Principal,
+                      filters: knowledge_service.RetrievalFilters | None):
+    """把已解析的 principal 与请求过滤条件传给检索器。
+
+    保留 ``_retriever`` 作为注入接缝：旧接线/测试替身可能仍是零参数工厂。
+    这里只用 ``inspect.signature().bind`` **判断**能否接受两个参数（不真的调用），
+    避免“先调用再捕 ``TypeError``”——那会把检索内部抛出的 TypeError 误当成
+    接线不兼容，从而静默丢掉过滤条件。
+    """
+    import inspect
+
+    try:
+        inspect.signature(_retriever).bind(principal.principal_id, filters)
+    except (TypeError, ValueError):
+        return _retriever()
+    return _retriever(principal.principal_id, filters)
+
+
+def _event_frame(event: dict[str, Any], chat_run_id: str, session_id: str,
                  seq: int) -> dict[str, str]:
-    """统一 SSE 帧：保留字段由服务端补齐，业务字段同时平铺。"""
+    """统一 SSE 帧：保留字段由服务端补齐，业务字段同时平铺。
+
+    ``chat_run_id`` 是本次聊天流自己的 ID，不是请求里追问引用的诊断 run：
+    两者混用会让同一诊断 run 的两次追问落到同一个事件文件，从而互相丢弃。
+    """
     payload = {
         "schema_version": "1",
-        "event_id": f"{run_id}:{seq}",
+        "event_id": f"{chat_run_id}:{seq}",
         "seq": seq,
-        "run_id": run_id,
+        "run_id": chat_run_id,
         "session_id": session_id,
         "type": event.get("type"),
         "ts": event.get("ts"),
@@ -156,6 +189,15 @@ def _event_frame(event: dict[str, Any], run_id: str, session_id: str,
             continue
         payload[key] = value
     return {"event": "message", "data": json.dumps(payload, ensure_ascii=False, default=str)}
+
+
+def _frame_payload(frame: dict[str, str]) -> dict[str, Any]:
+    """取出 SSE 帧里的 JSON 载荷，供 ``chat_events`` 落盘（同一份字段，不再拼一次）。"""
+    try:
+        payload = json.loads(frame.get("data") or "{}")
+    except json.JSONDecodeError:  # pragma: no cover - _event_frame 总是写合法 JSON
+        return {}
+    return payload if isinstance(payload, dict) else {}
 
 
 def _question_with_run_context(question: str, context: dict[str, Any] | None) -> str:
@@ -198,20 +240,51 @@ def _history_warning(session_id: str) -> None:
     )
 
 
-async def _answer(question: str, session_id: str, run_id: str = "",
+def _retrieval_filters(request: ChatRequest) -> knowledge_service.RetrievalFilters | None:
+    """把请求里的可选 filters 转成检索器使用的过滤条件（G5）。
+
+    请求体里**没有** principal 字段：身份只来自服务端解析，客户端不能通过
+    filters 指定“我是谁”。日期合法性已在 ``ChatFilters`` 校验（非法 → 422）。
+    """
+    filters = getattr(request, "filters", None)
+    if filters is None:
+        return None
+    return knowledge_service.RetrievalFilters(
+        os_family=filters.os_family or "",
+        product=filters.product or "",
+        product_version=filters.product_version or "",
+        at_date=filters.at_date or "",
+    )
+
+
+async def _answer(question: str, session_id: str, chat_run_id: str = "",
                   run_context: dict[str, Any] | None = None,
-                  history: list[tuple[str, str]] | None = None
+                  history: list[tuple[str, str]] | None = None,
+                  principal: acl.Principal | None = None,
+                  filters: knowledge_service.RetrievalFilters | None = None,
                   ) -> AsyncGenerator[dict[str, Any], None]:
     """跑一次知识问答；run_context 追加在问题里但会单独回报。
+
+    ``chat_run_id`` 是**本次聊天流**的 ID，由调用方为每个请求生成。它只写进
+    事件字典的 ``run_id`` 字段，不落 trace、不进引用、不影响诊断 run 的
+    ``GET /api/runs/{run_id}``——所以它可以和请求里追问引用的诊断 ``run_id``
+    完全不同。
 
     ``history`` 是有界的历史窗口（role/content 对）。它只作为**对话上下文**
     传给 ``knowledge_service``，绝不能当成检索证据；实现里若还没有这个形参，
     就降级到旧行为并打一条结构化告警，绝不因为参数缺失而失败。
+
+    ``principal``/``filters`` 决定候选范围（G5）：principal 来自服务端解析，
+    绝不采信请求体里的身份；filters 只包含可核验的 OS/产品/版本/日期。
     """
     prompt = _question_with_run_context(question, run_context)
+    retriever = (
+        _scoped_retriever(principal, filters)
+        if principal is not None else _retriever()
+    )
     kwargs: dict[str, Any] = {
-        "retriever": _retriever(), "model": _chat_model,
-        "run_id": run_id or uuid.uuid4().hex,
+        "retriever": retriever, "model": _chat_model,
+        "run_id": chat_run_id or uuid.uuid4().hex,
     }
     if history:
         if _supports_history():
@@ -274,9 +347,14 @@ async def chat(request: ChatRequest,
     citations: list[dict[str, Any]] = []
     retrieval_status = ""
     outcome = "failed"
+    # 非流式同样要有自己的聊天流 run：request.run_id 只表示“追问引用的诊断
+    # run”，不能拿去当本次回答的身份。
+    chat_run_id = uuid.uuid4().hex
     try:
-        async for event in _answer(request.question, request.id, request.run_id or "",
-                                   run_context, _bound_history(request.id)):
+        async for event in _answer(request.question, request.id, chat_run_id,
+                                   run_context, _bound_history(request.id),
+                                   principal=principal,
+                                   filters=_retrieval_filters(request)):
             if event["type"] == "retrieval":
                 retrieval_status = str(event.get("status") or "")
             elif event["type"] == "done":
@@ -315,7 +393,10 @@ async def chat_stream(request: ChatRequest,
     _claim_session(request.id, principal)
 
     async def event_generator():
-        run_id = request.run_id or uuid.uuid4().hex
+        # 每次流式请求一个独立的聊天流 run。请求里的 run_id 只是“追问引用的
+        # 诊断 run”，拿它当事件文件名会让同一诊断 run 的两次追问写同一个文件，
+        # 第二次的 seq 从 1 重来，续读按 event_id 去重就把它们静默丢掉了。
+        chat_run_id = uuid.uuid4().hex
         seq = 0
         run_context = None
         context_note = ""
@@ -328,15 +409,20 @@ async def chat_stream(request: ChatRequest,
                     "追问的 run_id 不属于当前会话或不存在，本次只按知识库回答。"
                 )
                 seq += 1
-                yield _event_frame(
+                frame = _event_frame(
                     {"type": "status", "stage": "run_context", "message": context_note},
-                    run_id, request.id, seq,
+                    chat_run_id, request.id, seq,
                 )
+                chat_events.record(chat_run_id, _frame_payload(frame),
+                                   session_id=request.id)
+                yield frame
 
         terminal_sent = False
         try:
-            async for event in _answer(request.question, request.id, request.run_id or "",
-                                       run_context, history):
+            async for event in _answer(request.question, request.id, chat_run_id,
+                                       run_context, history,
+                                       principal=principal,
+                                       filters=_retrieval_filters(request)):
                 seq += 1
                 kind = event.get("type")
                 if kind == "done":
@@ -358,7 +444,12 @@ async def chat_stream(request: ChatRequest,
                         retrieval_status=str(event.get("retrieval_status") or ""),
                         outcome=str(event.get("outcome") or ""),
                     )
-                yield _event_frame(event, run_id, request.id, seq)
+                frame = _event_frame(event, chat_run_id, request.id, seq)
+                # 先落盘再发送：客户端断流后按 run_id+seq 续读必须能读到
+                # 已经收到过的每一条事件。落盘失败只记日志，不影响本次回答。
+                chat_events.record(chat_run_id, _frame_payload(frame),
+                                   session_id=request.id)
+                yield frame
                 if terminal_sent:
                     break
         except Exception as exc:  # noqa: BLE001
@@ -366,14 +457,67 @@ async def chat_stream(request: ChatRequest,
             if terminal_sent:
                 return
             seq += 1
-            yield _event_frame(
+            frame = _event_frame(
                 {"type": "done", "outcome": "failed", "reason": "知识问答失败",
                  "content": "知识问答失败，请稍后重试。", "citations": [],
                  "removed_citations": [], "run_context": run_context, "tool_calls": []},
-                run_id, request.id, seq,
+                chat_run_id, request.id, seq,
             )
+            chat_events.record(chat_run_id, _frame_payload(frame),
+                               session_id=request.id)
+            yield frame
 
     return EventSourceResponse(event_generator())
+
+
+@router.get("/chat/events/{run_id}")
+async def chat_stream_events(
+    run_id: str,
+    session_id: str = Query(default="", max_length=200),
+    after_seq: int = Query(default=0, ge=0),
+    limit: int = Query(default=chat_events.DEFAULT_READ_LIMIT, ge=1,
+                       le=chat_events.MAX_READ_LIMIT),
+    x_api_key: str | None = Header(default=None, alias="X-API-Key"),
+) -> dict:
+    """按 run_id + seq 续读聊天流事件（断流续读，见 ``app.services.chat_events``）。
+
+    鉴权与归属：沿用 **会话归属** 的判定（`_check_session`）。聊天流本身不带
+    principal 元数据，所以这里要求调用方同时给出会话 ID（``session_id`` 查询
+    参数）——只有该会话的 owner 能续读，别人的 run_id 猜中了也读不到。缺
+    session_id 时用 ``X-API-Key`` 解析出的 principal 在 **dev 模式** 下放行
+    （单机演示没有多用户），在 ``auth_mode=deployment`` 下拒绝。
+
+    除了会话归属，落盘记录里的 ``session_id`` 也必须与查询参数一致：会话归属
+    只证明“这个会话属于你”，不证明“这条事件是这个会话产生的”。两条检查
+    合起来，跨 session 即使拿到已知 chat run 也读不到别人的事件。
+
+    没有落盘记录（从未持久化 / 已过期 / run_id 非法 / 会话不符）统一 404：
+    返回空数组会让“记录被清理”和“这次流没有事件”无法区分，前端会把后者
+    当成“已读完”。
+    """
+    principal = _principal_for(x_api_key)
+    session_key = (session_id or "").strip()
+    if session_key:
+        _check_session(session_key, principal, action="session:read")
+    elif config.auth_mode != "dev":
+        raise HTTPException(
+            status_code=403,
+            detail="续读聊天事件必须提供 session_id（部署模式下不允许按 run_id 裸读）",
+        )
+    try:
+        events, truncated, next_after_seq = chat_events.read_after(
+            run_id, after_seq, limit, session_id=session_key
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except chat_events.ChatStreamNotFound as exc:
+        raise HTTPException(status_code=404, detail="该聊天流没有可续读的事件") from exc
+    return {
+        "run_id": run_id,
+        "events": events,
+        "truncated": truncated,
+        "next_after_seq": next_after_seq,
+    }
 
 
 @router.post("/chat/clear", response_model=ApiResponse)

@@ -147,6 +147,36 @@ function asRecords(items: unknown[]): Record<string, unknown>[] {
     !!item && typeof item === "object" && !Array.isArray(item));
 }
 
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null;
+}
+
+/**
+ * 目标绑定事件有两种形状，二者必须走同一条路径：
+ * - 实时 SSE：`{"type":"status","stage":"target_bound","target":{...}}`；
+ * - trace 回放：`{"event":"status","stage":"target_bound","target":{...}}`
+ *   （同一扁平结构），旧版本还可能直接发 `type:"target_bound"`。
+ *
+ * 只认 `type==="target_bound"` 会让 `LiveState.target` 永远是空的——后端
+ * 明明绑定成功，界面上却显示“未绑定”（G5 目标可见性反例）。
+ */
+export function isTargetBound(event: RunEvent): boolean {
+  const type = eventType(event);
+  if (type === "target_bound") return true;
+  if (type !== "status") return false;
+  return String(event.stage ?? "") === "target_bound";
+}
+
+/** 绑定目标的展示字段；服务端未给全时保持空串，不用服务名冒充实例/地域。 */
+export function boundTargetOf(event: RunEvent): Record<string, unknown> {
+  const target = asRecord(event.target);
+  if (target) return target;
+  // 旧服务端只带 service_name：保留服务名，其余字段留空（不编造）。
+  return { service: String(event.service_name ?? "") };
+}
+
 function stepIdForTool(event: RunEvent): string | null {
   if (event.step_id) return String(event.step_id);
   return null;
@@ -233,10 +263,9 @@ export function applyEvent(prev: LiveState, event: RunEvent, index = 0): LiveSta
     next.lifecycle = "target_required";
     next.candidates = asRecords((event.candidates as unknown[]) ?? []);
     next.error = String(event.reason ?? "");
-  } else if (type === "target_bound") {
-    next.target = (event.target as Record<string, unknown>) ?? {
-      service: event.service_name,
-    };
+  } else if (isTargetBound(event)) {
+    // 实时与回放共用同一条识别规则（见 isTargetBound 的说明）。
+    next.target = boundTargetOf(event);
   } else if (type === "agent_status") {
     const agent = String(event.agent ?? "");
     const status = String(event.status ?? "");

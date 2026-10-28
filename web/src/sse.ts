@@ -30,7 +30,15 @@ export interface RunEvent {
 
 export interface SseParserOptions {
   expectedMode?: ExecutionMode;
+  /**
+   * 终态事件名。诊断流用 `complete`/`error`（默认），知识问答流用 `done`/`error`
+   * ——两者的事件形状不同，但“终态只能出现一次”的语义相同，所以由调用方声明，
+   * 而不是在 `applyBlock` 里猜。默认值保持既有诊断行为不变。
+   */
+  terminalTypes?: readonly string[];
 }
+
+const DEFAULT_TERMINAL_TYPES: readonly string[] = ["complete", "error"];
 
 export type ParseOutcome =
   | { kind: "event"; event: RunEvent }
@@ -139,10 +147,27 @@ export interface StreamState {
   terminalSeen: boolean;
   lastSeq: number;
   seenEventIds: Set<string>;
+  /** 当前流的 run_id（来自事件信封）；续读与持久化都要用它。 */
+  runId: string;
 }
 
 export function createStreamState(): StreamState {
-  return { terminalSeen: false, lastSeq: 0, seenEventIds: new Set() };
+  return { terminalSeen: false, lastSeq: 0, seenEventIds: new Set(), runId: "" };
+}
+
+/**
+ * 去重 + 游标推进。`applyBlock` 与“非 SSE 来源的回放事件”（聊天续读拿到的
+ * JSON 数组）共用这一份实现，避免两处去重规则漂移。
+ * 返回 false 表示重复投递，调用方应丢弃。
+ */
+export function acceptEvent(event: RunEvent, state: StreamState): boolean {
+  if (event.event_id) {
+    if (state.seenEventIds.has(event.event_id)) return false;
+    state.seenEventIds.add(event.event_id);
+  }
+  if (typeof event.seq === "number" && event.seq > state.lastSeq) state.lastSeq = event.seq;
+  if (typeof event.run_id === "string" && event.run_id) state.runId = event.run_id;
+  return true;
 }
 
 /**
@@ -158,15 +183,23 @@ export function applyBlock(
 ): ParseOutcome[] {
   const event = parseSseBlock(block);
   if (!event) return [];
-  const outcomes: ParseOutcome[] = [];
 
-  if (event.event_id) {
-    if (state.seenEventIds.has(event.event_id)) return [];
-    state.seenEventIds.add(event.event_id);
-  }
-  if (typeof event.seq === "number") {
-    if (event.seq > state.lastSeq) state.lastSeq = event.seq;
-  }
+  if (!acceptEvent(event, state)) return [];
+  return applyEventToState(event, state, options);
+}
+
+/**
+ * 对已解析的事件做模式校验 + 终态识别（不做去重，`acceptEvent` 已完成）。
+ *
+ * 聊天续读拿到的是 JSON 事件数组而不是 SSE 文本块，但“重复投递只处理一次、
+ * 终态只出现一次”的规则必须与实时流完全一致，所以两条路径都收敛到这里。
+ */
+export function applyEventToState(
+  event: RunEvent,
+  state: StreamState,
+  options: SseParserOptions = {},
+): ParseOutcome[] {
+  const outcomes: ParseOutcome[] = [];
   if (
     options.expectedMode &&
     event.execution_mode &&
@@ -186,13 +219,14 @@ export function applyBlock(
     return outcomes;
   }
 
-  if (event.event === "complete" || event.event === "error") {
+  const terminalTypes = options.terminalTypes ?? DEFAULT_TERMINAL_TYPES;
+  if (terminalTypes.includes(event.event)) {
     if (state.terminalSeen) return outcomes;
     state.terminalSeen = true;
     outcomes.push({
       kind: "terminal",
       event,
-      outcome: event.event === "complete" ? "complete" : "error",
+      outcome: event.event === "error" ? "error" : "complete",
     });
     return outcomes;
   }

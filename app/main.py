@@ -15,6 +15,7 @@ from app.api import aiops, chat, file, health, knowledge, runs
 from app.config import config
 from app.core.auth import require_api_key, startup_check
 from app.core.milvus_client import milvus_manager
+from app.services import chat_events
 
 
 @asynccontextmanager
@@ -45,6 +46,15 @@ async def lifespan(app: FastAPI):
         runs.start_trace_purge_scheduler()
     except Exception as e:  # noqa: BLE001 - 启动路径不能因清理失败而中断
         logger.warning(f"⚠️  trace retention 后台任务启动失败: {type(e).__name__}")
+
+    # 聊天事件只在一次断流续读窗口内有意义：启动时清一次过期文件即可，
+    # 不为它再起一个后台线程。清理失败只告警，不能让进程起不来。
+    try:
+        removed = chat_events.purge_expired()
+        if removed:
+            logger.info(f"启动清理过期聊天事件: {removed} 个文件")
+    except Exception as e:  # noqa: BLE001 - 清理是运维动作，不是启动前提
+        logger.warning(f"⚠️  过期聊天事件清理失败: {type(e).__name__}")
 
     yield
 

@@ -3,6 +3,12 @@ name: CI
 on:
   push:
   pull_request:
+  workflow_dispatch:
+    inputs:
+      build_image:
+        description: "同时构建生产镜像（约 20 分钟，18GB 级）"
+        type: boolean
+        default: false
 
 jobs:
   test:
@@ -28,3 +34,51 @@ jobs:
 
       - name: Run tests
         run: uv run pytest -q
+
+  # 镜像构建只在“代码已进主分支”或手动触发时跑：PR 每个都跑一次 18GB 级构建，
+  # 既烧 runner 时间，又没人会去看结果。
+  #
+  # 关键约束（来自 DOCKER_ACCEPTANCE_2026-10-27 的真实发现）：`docker compose up`
+  # 在已有同名镜像时会复用陈旧镜像，把旧代码当成“刚验收过”。所以这里：
+  #   - 绝不用 latest 作为验收对象，tag 用 commit sha；
+  #   - --pull --no-cache 强制重建，不复用任何旧层；
+  #   - 构建后把 image id / digest / 大小写进 job summary，作为“本次提交产出的
+  #     到底是哪个镜像”的可核对证据。
+  docker:
+    # push 到默认分支 或 手动勾选 build_image；fork PR 一律不跑。
+    if: >
+      (github.event_name == 'push' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch))
+      || (github.event_name == 'workflow_dispatch' && inputs.build_image)
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build image from current commit (no cache, pull base)
+        run: |
+          docker build --pull --no-cache -t "oncall-agent:${GITHUB_SHA}" .
+
+      - name: Record image identity in job summary
+        run: |
+          set -euo pipefail
+          IMAGE="oncall-agent:${GITHUB_SHA}"
+          IMAGE_ID="$(docker image inspect "${IMAGE}" --format '{{.Id}}')"
+          SIZE="$(docker image inspect "${IMAGE}" --format '{{.Size}}')"
+          REPO_DIGESTS="$(docker image inspect "${IMAGE}" --format '{{json .RepoDigests}}')"
+          {
+            echo "## Docker image (${GITHUB_SHA})"
+            echo ""
+            echo "| 项 | 值 |"
+            echo "|---|---|"
+            echo "| tag | \`${IMAGE}\` |"
+            echo "| image id | \`${IMAGE_ID}\` |"
+            echo "| size (bytes) | ${SIZE} |"
+            echo "| repo digests | \`${REPO_DIGESTS}\` |"
+            echo ""
+            echo "部署请使用上面的 image id / digest；不要用 \`latest\`，"
+            echo "也不要只跑 \`docker compose up\`（会复用同名旧镜像）。"
+          } >> "$GITHUB_STEP_SUMMARY"
+          echo "image id: ${IMAGE_ID}"

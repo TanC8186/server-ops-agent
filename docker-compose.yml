@@ -74,6 +74,17 @@ services:
   # ═══════════════════════════════════════════════════════════
   # On-Call Agent 主应用
   # ═══════════════════════════════════════════════════════════
+  # 陈旧镜像陷阱（实测，见 docs/claude-code-handoff/DOCKER_ACCEPTANCE_2026-10-27.md）：
+  # `docker compose up` 在本地已存在同名镜像时会**直接复用**它，不会因为 build:
+  # 段存在就重建；于是就绪的容器可能跑着几天前的代码，验收结论却记到当前提交上。
+  # 因此：
+  #   - 重新验收当前提交前，先 `make docker-build-fresh`（--pull --no-cache），再
+  #     `docker compose up -d --force-recreate app`；
+  #   - 或者按 image id / digest 部署（`image: oncall-agent@sha256:...`）而不是
+  #     让 compose 自行解析 tag；
+  #   - 不要用 `latest` 作为验收对象：同名 tag 被覆盖后，无法从产物反推它对应哪个提交。
+  # 这里不写 `image:` 字段是有意的——保持现有的「本地 build + 命名卷」默认行为不变，
+  # 只把约束写清楚；改默认行为会让所有现存启动脚本同时改变语义。
   app:
     container_name: oncall-agent
     build:

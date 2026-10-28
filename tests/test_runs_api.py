@@ -458,3 +458,39 @@ def test_seq_to_position_cursor_handoff_does_not_redeliver(trace_dir, client):
 
     assert duplicates == 0, f"分页重复投递 {duplicates} 条"
     assert len(seen) == 2_500, f"事件不完整: {len(seen)}/2500（共投递 {delivered}）"
+
+
+def test_stale_run_without_terminal_is_abandoned_but_complete_one_is_not(
+    trace_dir, client, monkeypatch
+):
+    """24 小时静默 + 无终态 → abandoned；同样静的 run_complete → 仍 completed。
+
+    时间用 ``os.utime`` 构造（把 mtime 拨回 24 小时前），不是真的等待；两个 run
+    同时存在，证明判定看的是"有没有终态"，而不是"文件旧不旧"。
+    """
+    import os
+
+    monkeypatch.setenv(runs.ABANDONED_AFTER_ENV, str(24 * 3600))
+    stale = "a" * 32
+    done = "b" * 32
+    _write_trace(trace_dir, stale, [
+        {"event": "run_start", "ts": "2026-10-27T00:00:00", "session_id": "s1"},
+        {"event": "tool_step", "step": "a"},
+    ])
+    _write_trace(trace_dir, done, [
+        {"event": "run_start", "ts": "2026-10-27T00:00:00", "session_id": "s2"},
+        {"event": "run_complete", "duration_ms": 7},
+    ])
+    for run_id in (stale, done):
+        path = trace_dir / "traces" / f"{run_id}.jsonl"
+        stamp = path.stat().st_mtime - 24 * 3600
+        os.utime(path, (stamp, stamp))
+
+    listed = {run["run_id"]: run for run in client.get("/api/runs").json()["runs"]}
+
+    assert listed[stale]["abandoned"] is True
+    assert listed[stale]["lifecycle"] == "abandoned"
+    assert listed[stale]["status"] == "abandoned"
+    assert listed[done]["abandoned"] is False
+    assert listed[done]["lifecycle"] == "completed"
+    assert listed[done]["status"] == "ok"

@@ -12,14 +12,18 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import {
+  boundTarget,
   candidateKey,
   chatOutcomeLabel,
+  citationAnchorId,
   citationCards,
   evalManifestSummary,
   jobStatusLabel,
   knowledgeStatusLabel,
+  linkCitationMarks,
   removedCitationsText,
   retrievalLabel,
+  safeSourceUri,
   targetCandidates,
   targetRequestBody,
 } from "./view.ts";
@@ -183,6 +187,8 @@ test("引用卡片只读取服务端字段", () => {
       snippet: "先看 inode",
       score: 0.8123,
       document_id: "doc-1",
+      revision: "rev-abcdef0123456789",
+      heading_path: ["磁盘", "容量排查"],
     },
     { id: "K2", document_id: "doc-2" },
   ]);
@@ -195,12 +201,62 @@ test("引用卡片只读取服务端字段", () => {
     snippet: "先看 inode",
     score: 0.8123,
     documentId: "doc-1",
+    revision: "rev-abcdef0123456789",
+    headingPath: "磁盘 > 容量排查",
   });
-  // 缺失标题时回退到 document_id，不编造来源
+  // 缺失标题时回退到 document_id，不编造来源；版本/章节缺失保持空串。
   assert.equal(cards[1].title, "doc-2");
   assert.equal(cards[1].sourceUri, "");
   assert.equal(cards[1].score, 0);
+  assert.equal(cards[1].revision, "");
+  assert.equal(cards[1].headingPath, "");
   assert.deepEqual(citationCards("nope"), []);
+});
+
+test("G5 引用来源：只有绝对 http(s) 才能成为链接", () => {
+  assert.equal(safeSourceUri("https://example.invalid/a#b"), "https://example.invalid/a#b");
+  assert.equal(safeSourceUri("  http://example.invalid/x  "), "http://example.invalid/x");
+
+  // 协议注入：javascript:/data:/file: 一律不渲染成链接。
+  for (const bad of [
+    "javascript:alert(1)",
+    "JaVaScRiPt:alert(1)",
+    "data:text/html,<script>alert(1)</script>",
+    "file:///C:/secret.txt",
+    "vbscript:msgbox",
+    // 控制字符拆开协议名后，浏览器仍会按脚本解释。
+    "\tjava\nscript:alert(1)",
+    "java\u0000script:alert(1)",
+    // 反斜杠变体与相对地址
+    "https:\\\\example.invalid\\a",
+    "/manual/disk.md",
+    "mailto:ops@example.invalid",
+    "",
+  ]) {
+    assert.equal(safeSourceUri(bad), null, `不应成为链接: ${bad}`);
+  }
+  assert.equal(safeSourceUri(undefined), null);
+});
+
+test("G5 正文 [K#] 只在同一 turn 的引用集合内变成锚点", () => {
+  const html = '<p>先看 inode [K1]，再看容量 [K2]，最后 [K9]。</p>';
+  const linked = linkCitationMarks(html, ["K1"]);
+  assert.match(linked, /href="#citation-K1"/);
+  assert.match(linked, /data-citation-id="K1"/);
+  // 本轮不存在的编号（可能是上一轮的引用）保持纯文本，不造死链。
+  assert.match(linked, /\[K2\]/);
+  assert.match(linked, /\[K9\]/);
+  assert.equal((linked.match(/class="citation-mark"/g) ?? []).length, 1);
+
+  // 标签属性里出现的 [K1] 绝不能被替换（会破坏 HTML 结构）。
+  const withAttr = '<a title="[K1]" href="https://example.invalid">x</a>';
+  assert.equal(linkCitationMarks(withAttr, ["K1"]), withAttr);
+
+  // 没有引用时不改动正文。
+  assert.equal(linkCitationMarks(html, []), html);
+  assert.equal(citationAnchorId("K1"), "citation-K1");
+  // 非法字符不会进入 id（避免属性注入/重复 id）。
+  assert.equal(citationAnchorId('K1" onclick="x'), "citation-K1__onclick__x");
 });
 
 test("检索状态五种取值互不混淆，invalid_index 不等于 unavailable", () => {
@@ -308,4 +364,20 @@ test("A12：<=1180px 使用内联 inspector 替代入口（与 CSS 断点一致�
   assert.equal(usesInlineInspector(1100), true);
   assert.equal(usesInlineInspector(1181), false);
   assert.equal(usesInlineInspector(1440), false);
+});
+
+test("G5 RunInspector 的已绑定目标：有服务名才算绑定，实例/地域不编造", () => {
+  assert.deepEqual(
+    boundTarget({ service: "orders", instance_id: "i-a", region: "r-a", topics: ["t"] }),
+    { service: "orders", instanceId: "i-a", region: "r-a", topics: ["t"] },
+  );
+  // 旧服务端字段名
+  assert.deepEqual(
+    boundTarget({ service_name: "orders", region_code: "ap-guangzhou" }),
+    { service: "orders", instanceId: "", region: "ap-guangzhou", topics: [] },
+  );
+  // 未绑定：null（界面显示“未绑定”），而不是一个空壳对象。
+  assert.equal(boundTarget(null), null);
+  assert.equal(boundTarget({ instance_id: "i-a" }), null);
+  assert.equal(boundTarget({ service: "  " }), null);
 });

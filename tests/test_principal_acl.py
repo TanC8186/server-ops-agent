@@ -366,3 +366,197 @@ def test_knowledge_upload_records_owner(knowledge_env):
     assert response.status_code == 202, response.text
     document_id = response.json()["document_id"]
     assert acl.resource_owner("knowledge_document", document_id) == acl.DEV_PRINCIPAL_ID
+
+
+# ── 6. 文档级 ACL 在检索路径生效（G5） ──────────────────────
+
+
+class _SearchableVectorStore:
+    """向量库替身：保留真实 Document，供检索适配器做后置核对。
+
+    刻意**不解析** ``expr``（把全部行都返回）：这样“B 检索不到 A 的私有文档”
+    只能由检索路径自身的文档级过滤保证，而不是靠数据库碰巧过滤对了。
+    """
+
+    score_kind = "similarity"
+    metric_type = "COSINE"
+    collection_name = "biz"
+
+    def __init__(self) -> None:
+        self.rows: list = []
+        self.exprs: list[str | None] = []
+
+    def _ensure_initialized(self) -> bool:
+        return True
+
+    def add_documents(self, documents, *, ids=None):
+        self.rows.extend(list(documents))
+        return list(ids or [])
+
+    def delete_by_ids(self, ids) -> int:
+        return 0
+
+    def delete_by_document(self, document_id: str) -> int:
+        self.rows = [
+            document for document in self.rows
+            if (document.metadata or {}).get("_document_id") != document_id
+        ]
+        return 0
+
+    def similarity_search_with_score(self, query, k=3, *, expr=None):
+        self.exprs.append(expr)
+        return [(document, 0.9) for document in self.rows][:k]
+
+
+@pytest.fixture()
+def acl_retrieval_env(tmp_path, monkeypatch):
+    """真实 KnowledgeStore + 真实 VectorStoreRetriever；只替换向量 I/O。"""
+    from app.services import knowledge_service, knowledge_store as store_module
+
+    monkeypatch.setenv(store_module.STORE_FILE_ENV, str(tmp_path / "knowledge" / "store.json"))
+    vectors = _SearchableVectorStore()
+    monkeypatch.setattr(store_module, "vector_store_manager", vectors)
+
+    class _Splitter:
+        def split_document(self, content, source, *, document_id, revision):
+            from langchain_core.documents import Document
+
+            return [Document(page_content=content, metadata={
+                "_source": source,
+                "_document_id": document_id,
+                "_revision": revision,
+                "_chunk_id": f"{document_id}:{revision}:1",
+            })]
+
+    monkeypatch.setattr(store_module, "document_splitter_service", _Splitter())
+    store_module.reset_store()
+    store = store_module.get_store()
+
+    def upload(text: str, *, source: str, owner: str) -> str:
+        accepted = store.submit_document(source_uri=source, title=source, content=text.encode())
+        store_module.wait_for_job(accepted["job_id"], timeout=10.0)
+        acl.claim_owner("knowledge_document", accepted["document_id"], owner)
+        return accepted["document_id"]
+
+    yield {"store": store, "vectors": vectors, "upload": upload,
+           "retriever": knowledge_service.VectorStoreRetriever,
+           "store_module": store_module}
+    store_module.reset_store()
+
+
+def test_private_document_is_not_retrievable_by_another_principal(acl_retrieval_env):
+    """A 上传的私有文档，B 的检索既拿不到候选也拿不到片段。"""
+    env = acl_retrieval_env
+    private_id = env["upload"]("ALICE ONLY runbook", source="upload://alice.md",
+                               owner=ALICE)
+    shared_id = env["upload"]("public runbook", source="upload://public.md", owner=BOB)
+
+    chunks_b = env["retriever"](env["vectors"], principal_id=BOB).search("runbook", 5)
+
+    texts = [chunk.text for chunk in chunks_b]
+    assert texts == ["public runbook"]
+    expr = env["vectors"].exprs[-1] or ""
+    assert private_id not in expr, "未授权文档 ID 不得进入预过滤表达式"
+    assert shared_id in expr
+    assert all(chunk.document_id != private_id for chunk in chunks_b)
+
+    chunks_a = env["retriever"](env["vectors"], principal_id=ALICE).search("runbook", 5)
+    assert [chunk.text for chunk in chunks_a] == ["ALICE ONLY runbook"]
+
+
+def test_uploaded_document_gets_uploader_in_acl(knowledge_env):
+    """上传时把当前 principal 写进文档级 ACL；列表只暴露数量，不暴露成员。"""
+    response = knowledge_env["client"].post(
+        "/api/knowledge/documents",
+        files={"file": ("acl-private.md", b"# private\n\nbody\n", "text/markdown")},
+        data={"os_family": "RHEL", "valid_until": "2027-12-31"},
+    )
+    assert response.status_code == 202, response.text
+    # ACL 在上传响应前已写入；等作业终态是为了不让后台 worker 跨用例继续跑。
+    store_api.wait_for_job(response.json()["job_id"], timeout=15.0)
+    document_id = response.json()["document_id"]
+    snapshot = store_api.get_store().snapshot()["documents"][document_id]
+    assert snapshot["acl_principals"] == [acl.DEV_PRINCIPAL_ID]
+    assert snapshot["os_family"] == "RHEL"
+    assert snapshot["valid_until"] == "2027-12-31"
+
+    listing = knowledge_env["client"].get("/api/knowledge/documents").json()
+    item = next(doc for doc in listing["documents"] if doc["document_id"] == document_id)
+    assert item["acl_count"] == 1
+    assert item["valid_until"] == "2027-12-31"
+    # 响应里不得出现任何 ACL 成员身份。
+    assert acl.DEV_PRINCIPAL_ID not in json.dumps(item, ensure_ascii=False)
+    assert "acl_principals" not in item
+
+
+def test_upload_rejects_invalid_metadata(knowledge_env):
+    bad_date = knowledge_env["client"].post(
+        "/api/knowledge/documents",
+        files={"file": ("bad-date.md", b"# x\n\nbody\n", "text/markdown")},
+        data={"valid_from": "2026/01/01"},
+    )
+    assert bad_date.status_code == 400, bad_date.text
+    assert "valid_from" in bad_date.json()["detail"]
+
+    bad_principal = knowledge_env["client"].post(
+        "/api/knowledge/documents",
+        files={"file": ("bad-acl.md", b"# y\n\nbody\n", "text/markdown")},
+        data={"acl_principals": "everyone"},
+    )
+    assert bad_principal.status_code == 400, bad_principal.text
+    assert knowledge_env["client"].get("/api/knowledge/jobs").json()["jobs"] == []
+
+
+def test_import_accepts_optional_metadata_and_rejects_invalid_date(knowledge_env):
+    """导入路径同样接受可选元数据；非法日期 400 且不创建作业。"""
+    ok = knowledge_env["client"].post(
+        "/api/knowledge/import",
+        json={"source_id": "aiops-docs/disk_high_usage.md",
+              "os_family": "RHEL", "product_version": "262",
+              "valid_from": "2026-01-01", "valid_until": "2027-12-31"},
+    )
+    assert ok.status_code == 202, ok.text
+    # 等作业进入终态：否则后台 worker 会在 fixture 拆除后继续跑，污染日志与下一条用例。
+    store_api.wait_for_job(ok.json()["job_id"], timeout=15.0)
+    document_id = ok.json()["document_id"]
+    document = store_api.get_store().snapshot()["documents"][document_id]
+    assert document["os_family"] == "RHEL"
+    assert document["product_version"] == "262"
+    assert document["valid_from"] == "2026-01-01"
+    assert document["valid_until"] == "2027-12-31"
+
+    bad = knowledge_env["client"].post(
+        "/api/knowledge/import",
+        json={"source_id": "aiops-docs/disk_high_usage.md", "valid_until": "31/12/2027"},
+    )
+    assert bad.status_code == 400, bad.text
+    assert "valid_until" in bad.json()["detail"]
+    # 只统计原作业：非法请求不得产生新作业。
+    assert len(knowledge_env["client"].get("/api/knowledge/jobs").json()["jobs"]) == 1
+
+
+def test_upload_does_not_open_someone_elses_document(knowledge_env):
+    """同一 source_uri 属于别人时，上传被拒绝（而不是"202 但不改 ACL"）。
+
+    旧行为只保证"上传者没被加进别人 ACL"，但新 revision 仍会被索引并**激活**
+    到那份文档上：owner/ACL 不变，检索内容却被替换。G6 复核实测确认了这条越权，
+    所以现在的口径是**提交前就拒绝**（409），文档一个字节都不动。
+    """
+    content = b"# shared\n\nprivate body\n"
+    document_id = store_api.document_id_for("upload://shared-private.md")
+    acl.claim_owner("knowledge_document", document_id, ALICE)
+
+    response = knowledge_env["client"].post(
+        "/api/knowledge/documents",
+        files={"file": ("shared-private.md", content, "text/markdown")},
+    )
+    assert response.status_code == 409, response.text
+
+    snapshot = store_api.get_store().snapshot()
+    assert acl.resource_owner("knowledge_document", document_id) == ALICE
+    # 文档记录可能还不存在（首次上传被拒），存在时也必须是"未被改动"。
+    doc = snapshot["documents"].get(document_id)
+    if doc is not None:
+        assert doc["acl_principals"] == [], "上传者不得借同名上传进入别人的 ACL"
+        assert doc["active_revision"] != store_api.revision_for(content), \
+            "被拒绝的上传不得激活到别人的文档上"

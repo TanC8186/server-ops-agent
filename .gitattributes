@@ -1,0 +1,28 @@
+# 统一文本换行：不要依赖每个 clone 的 core.autocrlf。
+#
+# 为什么必须有这个文件：`eval/rag/blind.jsonl` 与 `eval/rag/calibrate-dev2.jsonl`
+# 的身份按**字节 sha256** 绑定（测试锁定 + 评测产物里的 fitted_on.sha256）。
+# 如果 Windows 上 core.autocrlf=true 的 clone 把它们转成 CRLF，字节 sha256 就变了：
+# `test_blind_file_sha256_unchanged` 会把"没被改过"的 frozen 集判成被改过，
+# `eval_generation` 的一致性校验也会把同一份题集判成"换了一份"。
+* text=auto eol=lf
+
+# 题库与产物：字节级身份，强制 LF。
+*.jsonl text eol=lf
+*.json  text eol=lf
+*.md    text eol=lf
+*.py    text eol=lf
+*.ts    text eol=lf
+*.tsx   text eol=lf
+*.yml   text eol=lf
+*.yaml  text eol=lf
+*.sh    text eol=lf
+*.toml  text eol=lf
+
+# 二进制：不做任何换行转换与 diff。
+*.png  binary
+*.pem  binary
+*.zip  binary
+*.gguf binary
+*.safetensors binary
+*.bin  binary
