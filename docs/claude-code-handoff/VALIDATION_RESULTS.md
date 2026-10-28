@@ -1019,3 +1019,44 @@ PyMilvus ORM 迁移未做；生成式评测只 12/80 条。
 
 另外两处"文档照代码"的修正：`need_principal_scope` 简化为"有身份就启用"（报告 §6 已同步）；
 `store_document_ids` 校验让"同一 embedder 换整批文档"能被识别。
+
+---
+
+# V14. 第六轮：G7 上传归属一致性、评测快照与发布收尾（2026-10-29）
+
+身份：base `ed13769` / code `de9d36e` / HEAD `b27f9f4` / 本轮提交 `024aad3`。
+历史 V1–V13 记录原样保留；本节只引用当前提交与当前产物。
+
+## V14.1 本轮实测
+
+| 项 | 结果 |
+|---|---|
+| 后端 pytest | **874 passed, 1 skipped, 1 warning**（102.06 s） |
+| 前端 | **74 passed**；`tsc -b` / `oxlint` / `vite build` 通过 |
+| 标准 Dockerfile 构建 | **成功**（仓库原始 `Dockerfile`，30 步，`--no-cache`） |
+| 镜像 | `sha256:19b5710e2cfd…`，10 681 408 761 B，`revision=b27f9f4…`，`source=github.com/TanC8186/On_Call_Agent` |
+| Compose | app / etcd / MinIO / Milvus 四服务 healthy；attu 因本机 8000 被无关进程占用未起 |
+| 鉴权 | 无 key 401 / 错 key 401 / 对 key 200（deployment） |
+| 能力分层 | liveness=healthy、milvus=connected、rag=ready、**mcp=degraded（未首次加载）**、diagnosis_local=unconfigured |
+| 评测快照 | 真实 profile 对真实 store：0 mismatch / 0 evidence missing；store 清空后 4 条硬差异 |
+
+## V14.2 本轮修掉的真实缺陷
+
+| 缺陷 | 后果 | 修复 |
+|---|---|---|
+| metadata 校验晚于 owner 写入 | 非法 `valid_from` 返回 400 却留下幽灵 owner；同名上传永久 409 且 API 无法自愈（DELETE 404） | 校验前移到 claim 之前 |
+| 失败上传私有化共享文档 | 一次 400 请求即可把"无 owner 共享文档"变成上传者私有 | 同上；claim 不再发生 |
+| 提交失败不回滚 owner | 向量库故障后 owner 残留，同名重传被拒 | claim 记录 `owner_before`，只在本次新建时回滚；新增条件删除 `release_owner_if` |
+| 读取谓词"ACL 非空即忽略 owner"（含 4 处调用点抑制） | ACL seal 失败时上传者 202 成功却看不到自己的文档/作业/检索结果 | 谓词改 `owner OR ACL`，四处调用点无条件读 owner |
+| ACL seal 静默失败 | 部分成功被包装成完全成功 | 响应带 `acl_sealed=false` |
+| 快照校验对空集合短路 | profile 13 份 vs 当前 0 份 → 0 条硬差异，静默复用旧阈值 | 空集合判硬差异；descriptor 空集合同理 |
+| `consistency` 被无条件覆写 | `mismatch_ignored_explicit_threshold` 与 partial 被吞成 ok | 改 if/elif/else |
+| `_store_evidence` UnboundLocalError | 损坏 store 抛未初始化变量，不是明确失败 | 结构化返回 `store_read_error`；main 明确报错 return 1 |
+| 取样命名仍是 smoke | kind/前缀/help 继续用"冒烟"语义 | 统一 `_sampled` / `-sampled` / "抽样" |
+
+## V14.3 与历史记录的差异
+
+- G6 报告写"镜像用临时 `.g6-local.Dockerfile` + `--network host` 构建"——**本轮已用仓库原始 `Dockerfile` 重新构建成功**，临时变体不再参与，且已删除。
+- G6 报告的身份表述（"未提交"/"dirty"）已统一为 base/code/HEAD 三字段。
+- 本轮**未执行 `--pull`**：`registry-1.docker.io` 直连超时，基础镜像用本机已有副本。不得写成 `--pull --no-cache` 构建通过。
+- 本轮未执行双模式对比（P2），也未改动任何生成层数字。

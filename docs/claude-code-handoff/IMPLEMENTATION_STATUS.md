@@ -277,3 +277,42 @@
 另修：`need_principal_scope` 简化为"有身份就启用"（dev 也走同一可见性规则）；
 `store_document_ids` 参与 profile 一致性校验；`retrieve_knowledge` 加进 logs 专科目录
 （supervisor 提示词一直承诺知识库能力，目录里却没有，模型照做会被判未授权并让整次运行失败）。
+
+---
+
+# G7 增量状态（2026-10-29，第六轮）
+
+身份：base `ed13769` / code `de9d36e` / HEAD `b27f9f4` / 本轮提交 `024aad3`。
+完整数字与分母见 `G7_RESULTS_2026-10-29.md`。
+
+## G7.1 交付项
+
+| 项 | 实现位置 | 测试 | 真实依赖验证 |
+|---|---|---|---|
+| metadata 前移到 claim 之前 | `api/knowledge.py` 上传/导入两条路径 | `tests/test_knowledge_upload_consistency.py`（11） | 容器内实测 400 后 ACL 侧表 0 条 doc owner |
+| 提交失败回滚本次新建 owner | `_claim_uploaded_document` 返回 `owner_before` + `_release_uncommitted_owner` | 同上 | 容器内 2 个 owner 全部对应真实文档，无孤儿 |
+| 条件删除归属 | `principal.release_owner_if` | 同上（含并发语义） | — |
+| 读取谓词 owner OR ACL | `knowledge_store._owner_acl_visible` + 四处调用点 | 同上 + 既有 ACL 套件 | 容器内 seal 失败仍可列出/查作业/检索 |
+| `acl_sealed=false` 如实标注 | `_seal_uploaded_document` 返回 bool | 同上 | 容器内上传响应核对 |
+| 快照空集合判 mismatch | `eval_generation._verify_profile_consistency` | `test_calibration_eval.py`（+9） | 真实 profile 0 mismatch；store 清空 4 条硬差异 |
+| `consistency` 不再被覆写 | `eval_generation.main` if/elif/else | 同上 | — |
+| 损坏 store 明确失败 | `eval_calibration._store_evidence` + `main` | 同上 | 实测 main 返回 1 并打印原因 |
+| 取样命名统一 sampled | `eval_blind.py`、`eval_generation.py` 注释、README | `tests/test_eval_naming.py`（新） | — |
+| 镜像 provenance | `Dockerfile`（runtime ARG/LABEL）、`ci.yml` 校验步骤、`Makefile` | YAML 解析 + 镜像 label 内省 | **标准 Dockerfile 构建成功**，revision 与 commit 一致 |
+| ignore 规则补漏 | `.gitignore` / `.dockerignore` 的 `.env*`、`.g7*`、`tmp/` | 构建上下文仿真 | 逐项 EXCLUDED 核对 |
+
+## G7.2 本轮修掉的真实缺陷
+
+见 `VALIDATION_RESULTS.md` §V14.2（9 条）。要点：幽灵 owner、失败上传私有化共享文档、
+提交失败不回滚、读谓词忽略 owner（含 4 处调用点抑制）、ACL seal 静默失败、
+快照空集合短路、`consistency` 被覆写、`UnboundLocalError`、smoke 命名残留。
+
+## G7.3 仍未做（与 G7_RESULTS §6 一致）
+
+- SSH 只读 staging、真实 TCP 断线、CUDA torch 替换、PyMilvus ORM 迁移、
+  GitHub CI docker job 实跑、Linux flock、真实 IME/读屏器：均未验证。
+- **`--pull` 未执行**（registry 直连超时）；本轮是 `--no-cache` + 本机已有基础镜像。
+- attu 未启动（本机 8000 被无关进程占用）。
+- **双模式对比（P2）未执行**：需要一次真实的本地 QLoRA + cloud_multi 同批任务运行。
+- 单 API Key：多租户验证均以测试内不同 `principal_id` 构造。
+- 聊天事件跨进程追加仍只适合单 app 进程。

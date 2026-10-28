@@ -114,6 +114,8 @@ RAG 三层评测（检索 / 门控 / 生成，都需要真实 Milvus；生成层
 [G5_INFRA_NOTES.md](docs/claude-code-handoff/G5_INFRA_NOTES.md)。
 G6 的权限与聊天流一致性收尾（作业 ACL、诊断 run 与聊天流 run 拆分、评测快照一致性）
 见 [G6_RESULTS_2026-10-28.md](docs/claude-code-handoff/G6_RESULTS_2026-10-28.md)。
+G7 的上传归属一致性、评测快照边界与镜像 provenance（含标准 Dockerfile 构建的
+commit/digest）见 [G7_RESULTS_2026-10-29.md](docs/claude-code-handoff/G7_RESULTS_2026-10-29.md)。
 
 生成层产物里的 `kind` 是 `generation_eval_llm_sampled`；读取 `gate_profile` 前会核对
 题集 sha256、语料 manifest、embedding descriptor 与当前 store，对不上直接停止。
@@ -256,6 +258,9 @@ web/                 React + Vite 前端
 - **真实 Milvus 已验证检索/写入/回滚/失败清理**（v2.5.10，见
   [MILVUS_ACCEPTANCE_2026-10-27.md](docs/claude-code-handoff/MILVUS_ACCEPTANCE_2026-10-27.md)），
   但仍是**单机、11 篇文档、单一 embedding 模型**，没有容量/并发/多副本数据。
+- **读权限是 `owner OR ACL`，写权限只认 owner**：上传时 owner 与文档级 ACL 一起写；
+  ACL 补写失败也不会让上传者看不到自己的文档（早期"ACL 非空即忽略 owner"的写法
+  会让人 202 成功却什么都做不了，已修）。
 - **多租户做到“文档级 ACL + 检索前过滤”，问答与诊断共用同一可见性规则**：
   `KNOWLEDGE_TENANT_MODE=multi` 下无 owner 的文档对非 dev principal fail closed；
   `/api/chat` 与诊断路径的 `retrieve_knowledge` 都经 `VectorStoreRetriever(principal_id=…)`，
@@ -266,6 +271,8 @@ web/                 React + Vite 前端
   不是多用户账号体系。
 - **SSH 只读联调未执行**：没有获授权的 staging 主机，`servers/ssh_server.py` 的安全边界只有单测。
 - **镜像 10.7 GB**：仍包含 CUDA 版 torch（应用只用 CPU）；替换为 CPU wheel 的配方已实测可行，
+  但会改变全平台依赖解析，尚未落地。镜像带 `org.opencontainers.image.revision` 标签，
+  可用 `docker image inspect` 反查它是哪次 commit 构建的。
   但会改变全平台依赖解析，尚未落地。
 - **11 页核心语料仍未完成许可人工核对**：其中 4 份（SD-02、LK-01、RH-01 与 RH-02 待抓）
   的许可状态是 `needs_review`，在此之前只能作为内部验证数据。
