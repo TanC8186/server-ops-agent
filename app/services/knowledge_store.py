@@ -360,19 +360,24 @@ def _owner_acl_visible(
 ) -> bool:
     """文档级读取权限的唯一谓词（检索、文档列表、作业列表共用）。
 
-    显式 ACL 是“谁能读”的完整答案：上传路径会把 owner 一并写进 ACL，所以有
-    ACL 时不再看 owner。没有 ACL 的旧文档沿用 owner 规则；owner 也没有时，
-    单租户（``single``）保持“已认证即可读”，多租户（``multi``）除 dev 之外
-    fail closed。规则只写一次，避免检索、文档列表、作业列表三处各自漂移——
-    同一个人在同一份数据上得到“列表可见、检索不可见”才是真正的越权来源。
+    **owner 永远能读自己的文档，ACL 是在此之上的共享名单**（``owner OR ACL``）：
+    早先的写法是"ACL 非空就完全忽略 owner"，于是 ACL 补写失败、或上传时显式
+    指定了别人的 id，上传者就会看不到自己刚上传的文档与作业——202 成功却什么
+    都做不了。反过来，owner 也能挡住"ACL 里恰好有某个已轮换掉的 principal"这类
+    历史残留：读取侧不能因为名单过时就把归属者锁在门外。
+
+    两者都没有时，单租户（``single``）保持"已认证即可读"，多租户（``multi``）
+    除 dev 之外 fail closed。
     """
     principal = str(principal_id or "").strip()
+    owner_text = str(owner or "").strip()
+    if owner_text and owner_text == principal:
+        return True
     members = list(acl_principals or [])
     if members:
         return principal in members
-    owner_text = str(owner or "").strip()
     if owner_text:
-        return owner_text == principal
+        return False
     return not (mode == "multi" and principal != acl.DEV_PRINCIPAL_ID)
 
 
@@ -883,6 +888,9 @@ class KnowledgeStore:
         与列表过滤共用 :func:`_owner_acl_visible`；文档记录已不存在（被删除、
         作业仍保留）时返回 ``False``：作业里带着 ``source_uri``、错误信息与正文
         片段，删除文档后把它重新暴露出去等于"删除动作本身成了后门"。
+
+        ``owner`` **无条件**读取（不再"有 ACL 就传 None"）：谓词本身是
+        ``owner OR ACL``，调用点若先把 owner 抹成 None，改谓词等于没改。
         """
         principal = str(principal_id or "").strip()
         mode = _tenant_mode()
@@ -891,7 +899,7 @@ class KnowledgeStore:
             if doc is None:
                 return False
             members = list(doc.get("acl_principals") or [])
-        owner = None if members else acl.resource_owner("knowledge_document", document_id)
+        owner = acl.resource_owner("knowledge_document", document_id)
         return _owner_acl_visible(owner, members, principal, mode)
 
     def document_writable_by(self, document_id: str, principal_id: str) -> bool:
@@ -953,9 +961,9 @@ class KnowledgeStore:
                 # 重新暴露出去等于"删除动作打开了后门"。
                 continue
             members = documents[document_id]
-            owner = None if members else acl.resource_owner(
-                "knowledge_document", document_id
-            )
+            # owner 无条件读：谓词是 ``owner OR ACL``，这里抹成 None 会让
+            # "ACL 补写失败的上传者"看不到自己的作业。
+            owner = acl.resource_owner("knowledge_document", document_id)
             if not _owner_acl_visible(owner, members, principal, mode):
                 continue
             visible.append(job)
@@ -1099,10 +1107,8 @@ class KnowledgeStore:
             items = []
             for item, document_id, members in candidates:
                 # ACL 侧表是另一个小 JSON 文件：不放在存储锁内读，避免持锁做 I/O。
-                # 没有显式 ACL 时才需要 owner（有 ACL 时 owner 不参与判定）。
-                owner = None if members else acl.resource_owner(
-                    "knowledge_document", document_id
-                )
+                # owner 无条件读（谓词是 ``owner OR ACL``）。
+                owner = acl.resource_owner("knowledge_document", document_id)
                 if not _owner_acl_visible(owner, members, principal, mode):
                     continue
                 items.append(item)
@@ -1362,11 +1368,9 @@ class KnowledgeStore:
             if not _valid_on(item, day):
                 continue
             acl_list = item["acl_principals"]
-            # 有显式 ACL 时 owner 不参与判定，也就不必读侧表（小 JSON 文件，
-            # 每条文档一次）。规则本身只在 ``_owner_acl_visible`` 里写一份。
-            owner = None if acl_list else acl.resource_owner(
-                "knowledge_document", document_id
-            )
+            # owner 无条件读（小 JSON 文件，每条文档一次）：谓词是 ``owner OR ACL``，
+            # 这里抹成 None 会让"ACL 补写失败的上传者"检索不到自己的文档。
+            owner = acl.resource_owner("knowledge_document", document_id)
             if not _owner_acl_visible(owner, acl_list, principal, mode):
                 continue
             if not _filter_matches(item["os_family"], os_value):

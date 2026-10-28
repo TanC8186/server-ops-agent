@@ -268,6 +268,46 @@ def claim_owner(kind: str, resource_id: str, principal_id: str) -> bool:
     return record_owner(kind, resource_id, principal_id, overwrite=False)
 
 
+def release_owner_if(kind: str, resource_id: str, principal_id: str) -> bool:
+    """**条件删除**归属记录：只有当前 owner 仍是 ``principal_id`` 时才删。
+
+    与 ``record_owner(..., "")`` 的区别是安全性而不是功能：无条件删除会让"回滚
+    本次失败请求"变成"删掉别人刚建好的记录"。上传路径在提交失败时回滚，必须
+    用这个而不是裸删——同一个 principal 的并发上传会派生出同一个 ``document_id``，
+    其中一方失败时不能把另一方刚写下的归属一起抹掉。
+
+    返回 ``True`` 表示"现在这条记录不存在了"（本来就没有，或确实是本人被删）。
+    """
+    try:
+        key = _record_key(kind, resource_id)
+    except ValueError as exc:
+        logger.error(f"释放资源归属失败（参数非法）: {exc}")
+        return False
+    expected = str(principal_id or "").strip()
+    if not expected:
+        logger.error("释放资源归属失败：principal_id 不能为空")
+        return False
+    path = _acl_path()
+    try:
+        with _LOCK:
+            owners = _read_acl()
+            current = owners.get(key)
+            if current != expected:
+                # 已经不存在，或已属于别人：都不该由本次请求删除。
+                return current is None
+            owners.pop(key, None)
+            temp = path.with_name(f"{path.name}.tmp")
+            temp.write_text(
+                json.dumps({"version": 1, "owners": owners}, ensure_ascii=False, indent=1),
+                encoding="utf-8",
+            )
+            os.replace(temp, path)
+        return True
+    except OSError as exc:
+        logger.error(f"释放资源归属失败: {path}: {exc}")
+        return False
+
+
 def resource_owner(kind: str, resource_id: str) -> str | None:
     """读取资源归属；没有记录或种类非法时返回 ``None``（= 无 owner 信息）。"""
     try:

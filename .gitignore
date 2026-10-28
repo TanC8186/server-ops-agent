@@ -50,6 +50,11 @@ CLAUDE.md
 .env
 .env.local
 .env.*.local
+# 除模板外的所有 env 变体：历史上有过 .env.docker 被误入库的先例（3adcdc2 建、
+# 94fbc85 删），而 `.env.local` 这类白名单式规则覆盖不到 .env.docker /
+# .env.production / .envrc。只放行提交用的模板。
+.env*
+!.env.example
 
 # SSH Keys
 *.pem
@@ -117,5 +122,8 @@ web/dist/
 # Scratch
 .ui-check.png
 
-# 本地排障 scratch 与构建变体（不入库）
+# 本地排障 scratch、构建变体与临时探针目录（.g6*/.g7*/tmp 等都不得入库）
 .g6*
+.g7*
+.tmp*/
+tmp/

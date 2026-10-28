@@ -703,3 +703,197 @@ def test_profile_consistency_detects_different_document_set(tmp_path):
     differences = eval_generation._verify_profile_consistency({}, profile, store_b)
     assert any("文档集合与拟合时不同" in item for item in differences)
     assert any("拟合用的 store 与本次不同" in item for item in differences)
+
+
+# ── G7：空集合 / 损坏 store 的一致性边界 ──────────────────
+
+
+def _hard(differences: list[str]) -> list[str]:
+    """只保留"对不上"的条目，排除证据缺失。"""
+    return [item for item in differences
+            if not item.startswith(eval_generation._EVIDENCE_MISSING)]
+
+
+def test_profile_consistency_empty_document_set_is_mismatch(tmp_path):
+    """profile 记了 13 份文档、当前 store 是空对象：必须判 mismatch。
+
+    旧实现在内层用 ``current_ids and ...`` 短路，``current_ids == []`` 时一条差异
+    都不产生，于是"13 份 vs 0 份"被记成 partial 后继续复用旧阈值——这正是
+    G7 验收场景 2 想拦住的行为。
+    """
+    store = tmp_path / "milvus-e2e-store.json"
+    store.write_text(json.dumps({"documents": {}}), encoding="utf-8")
+    profile = {"global": 0.5, "fitted_on": {"store_evidence": {
+        "knowledge_store_file": str(store),
+        "store_document_ids": [f"doc-{i}" for i in range(13)],
+        "store_document_descriptor_hashes": ["sha256:same"],
+        "embedding_descriptor_hash": "sha256:same",
+    }}}
+    differences = eval_generation._verify_profile_consistency({}, profile, store)
+    hard = _hard(differences)
+    assert hard, "空 store 必须产生硬差异，而不是只有证据缺失"
+    assert any("没有任何文档" in item for item in hard)
+
+
+def test_profile_consistency_empty_descriptor_hash_set_is_mismatch(tmp_path):
+    """profile 有 descriptor hash、当前 docs 全部没有 hash：必须判 mismatch。"""
+    store = tmp_path / "milvus-e2e-store.json"
+    store.write_text(json.dumps({"documents": {
+        "doc-1": {"source_uri": "https://example.invalid/a"},
+        "doc-2": {"source_uri": "https://example.invalid/b"},
+    }}), encoding="utf-8")
+    profile = {"global": 0.5, "fitted_on": {"store_evidence": {
+        "knowledge_store_file": str(store),
+        "store_document_ids": ["doc-1", "doc-2"],
+        "embedding_descriptor_hash": "sha256:expected",
+        "store_document_descriptor_hashes": ["sha256:expected"],
+    }}}
+    differences = eval_generation._verify_profile_consistency({}, profile, store)
+    hard = _hard(differences)
+    assert any("没有任何 embedding descriptor hash" in item for item in hard)
+    # 集合比对那一支同样不能因为"当前为空"就短路跳过。
+    assert any("descriptor-hash 集合与拟合时不同" in item for item in hard)
+
+
+def test_profile_consistency_missing_store_file_is_loud(tmp_path):
+    """store 文件不存在是"证据缺失 + 明确失败"，不能被读成一致。"""
+    missing = tmp_path / "not-there.json"
+    profile = {"global": 0.5, "fitted_on": {"store_evidence": {
+        "knowledge_store_file": str(missing),
+        "store_document_ids": ["doc-1"],
+    }}}
+    differences = eval_generation._verify_profile_consistency({}, profile, missing)
+    assert any("store 文件不存在" in item for item in _hard(differences))
+
+
+def test_store_evidence_corrupt_json_is_structured_not_unbound(tmp_path):
+    """损坏 store 读不到时返回带 store_read_error 的结构，不抛 UnboundLocalError。
+
+    旧实现 try 里赋值 ``store``、except 只重置 ``document_hashes``、return 里仍
+    引用 ``store``：损坏 JSON 时直接 UnboundLocalError，连"哪份 store 坏了"都丢了。
+    """
+    store = tmp_path / "broken.json"
+    store.write_text('{"documents": {"doc-1": ', encoding="utf-8")
+    evidence = eval_calibration._store_evidence(store)
+    assert evidence["store_read_error"]
+    assert "JSONDecodeError" in evidence["store_read_error"]
+    assert evidence["store_document_ids"] == []
+    assert evidence["store_document_descriptor_hashes"] == []
+
+
+def test_store_evidence_corrupt_descriptor_does_not_raise(tmp_path, monkeypatch):
+    """descriptor 文件的 OSError/编码错误与 ValueError 一样降级为空 hash。"""
+    descriptor = tmp_path / "embedding_descriptor.json"
+    descriptor.write_bytes(b"\xff\xfe not json")
+    monkeypatch.setattr(eval_calibration, "DESCRIPTOR_FILE", descriptor)
+    store = tmp_path / "store.json"
+    store.write_text(json.dumps({"documents": {}}), encoding="utf-8")
+    evidence = eval_calibration._store_evidence(store)
+    assert evidence["embedding_descriptor_hash"] == ""
+    assert evidence["store_read_error"] == ""
+
+
+def test_eval_calibration_main_reports_corrupt_store(tmp_path, capsys):
+    """损坏 store 在 main 层给出"store 文件损坏：<path>"并返回 1，不裸 traceback。"""
+    store = tmp_path / "broken.json"
+    store.write_text("{not json", encoding="utf-8")
+    code = eval_calibration.main(["--store", str(store)])
+    assert code == 1
+    err = capsys.readouterr().err
+    assert "store 文件损坏" in err
+    assert str(store) in err
+
+
+def test_generation_threshold_with_mismatch_is_not_ok(tmp_path, monkeypatch):
+    """带 --threshold 又存在 mismatch 时，产物 status 必须是
+    ``mismatch_ignored_explicit_threshold``，且 differences 非空。
+
+    旧实现在 if 分支之后无条件重建 consistency，把 913 行写下的 mismatch 状态
+    覆盖成 ok——产物里看不出这份 profile 已经不能用。
+    """
+    async def _fake_run(_args, _rows, _profile):
+        return [], 0.0
+
+    # 当前 store 是空文档集合，profile 却记了两份：明确对不上。
+    store = tmp_path / "milvus-e2e-store.json"
+    store.write_text(json.dumps({"documents": {}}), encoding="utf-8")
+    profile = {"global": 0.5, "_source": "eval/rag/results/fake.json",
+               "fitted_on": {"store_evidence": {
+                   "knowledge_store_file": str(store),
+                   "store_document_ids": ["doc-1", "doc-2"],
+               }}}
+
+    monkeypatch.setattr(eval_generation, "_run", _fake_run)
+    monkeypatch.setattr(eval_generation, "RESULT_DIR", tmp_path)
+    monkeypatch.setattr(eval_generation, "ROOT", tmp_path)
+    monkeypatch.setattr(eval_generation, "milvus_facts", lambda: {"connected": False})
+    monkeypatch.setattr(eval_generation, "_load_gate_profile",
+                        lambda _explicit: (profile, []))
+    # doc_map 在这里不参与一致性判定，给一个非空映射让 main 走过前置检查。
+    monkeypatch.setattr(eval_generation, "load_doc_map",
+                        lambda _store: ({"doc-1": "SD-01"}, {"doc-1": "u"}))
+
+    assert eval_generation.main(
+        ["--limit", "2", "--threshold", "0.5", "--store", str(store)]) == 0
+    payload = json.loads(
+        sorted(tmp_path.glob("generation-*.json"))[0].read_text(encoding="utf-8"))
+    consistency = payload["gate"]["consistency"]
+    assert consistency["status"] == "mismatch_ignored_explicit_threshold"
+    assert consistency["differences"]
+
+
+def test_generation_stops_before_model_when_store_has_no_documents(tmp_path, monkeypatch):
+    """空 store 必须在读 profile / 调模型之前停下，且文案点明"无法校验 profile 快照"。
+
+    这条挡住的是"旧阈值还能读 ⇒ 还能用"的误读：documents 为空时一致性校验连
+    对照物都没有，继续跑出来的误答率不属于任何一份快照。
+    """
+    store = tmp_path / "milvus-e2e-store.json"
+    store.write_text(json.dumps({"documents": {}}), encoding="utf-8")
+
+    def _boom(*_args, **_kwargs):
+        raise AssertionError("空 store 不允许调用模型")
+
+    monkeypatch.setattr(eval_generation, "load_doc_map", lambda _store: ({}, {}))
+    monkeypatch.setattr(eval_generation, "_run", _boom)
+    monkeypatch.setattr(eval_generation, "_load_gate_profile",
+                        lambda _explicit: ({"global": 0.5}, []))
+
+    with pytest.raises(SystemExit) as excinfo:
+        eval_generation.main(["--limit", "2", "--store", str(store)])
+    message = str(excinfo.value)
+    assert "无法校验 profile 快照" in message
+    assert "没有任何可映射文档" in message
+
+
+def test_generation_partial_consistency_is_announced(tmp_path, monkeypatch, capsys):
+    """证据缺失时可继续，但 stdout 必须明确写"产物不可当作完整验收"。"""
+    async def _fake_run(_args, _rows, _profile):
+        return [], 0.0
+
+    store = tmp_path / "milvus-e2e-store.json"
+    store.write_text(json.dumps({"documents": {}}), encoding="utf-8")
+    # 只有 store 文档集合这一项证据，其余（题集/manifest/descriptor/路径）全缺。
+    profile = {"global": 0.5, "_source": "eval/rag/results/fake.json",
+               "fitted_on": {"store_evidence": {}}}
+
+    monkeypatch.setattr(eval_generation, "_run", _fake_run)
+    monkeypatch.setattr(eval_generation, "RESULT_DIR", tmp_path)
+    monkeypatch.setattr(eval_generation, "ROOT", tmp_path)
+    monkeypatch.setattr(eval_generation, "milvus_facts", lambda: {"connected": False})
+    monkeypatch.setattr(eval_generation, "_load_gate_profile",
+                        lambda _explicit: (profile, []))
+    monkeypatch.setattr(eval_generation, "load_doc_map",
+                        lambda _store: ({"doc-1": "SD-01"}, {"doc-1": "u"}))
+
+    assert eval_generation.main(
+        ["--limit", "2", "--threshold", "0.5", "--store", str(store)]) == 0
+    out = capsys.readouterr().out
+    assert "本次一致性校验不完整" in out
+    assert "产物不可当作完整验收" in out
+    payload = json.loads(
+        sorted(tmp_path.glob("generation-*.json"))[0].read_text(encoding="utf-8"))
+    consistency = payload["gate"]["consistency"]
+    assert consistency["status"] == "partial"
+    assert consistency["differences"] == []
+    assert consistency["skipped"]

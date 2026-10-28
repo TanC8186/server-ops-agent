@@ -59,7 +59,27 @@ jobs:
 
       - name: Build image from current commit (no cache, pull base)
         run: |
-          docker build --pull --no-cache -t "oncall-agent:${GITHUB_SHA}" .
+          docker build --pull --no-cache \
+            --build-arg GIT_REVISION="${GITHUB_SHA}" \
+            -t "oncall-agent:${GITHUB_SHA}" .
+
+      # 追溯证据：镜像必须自称产自本次 commit。
+      # 这里不是"加一层防御"，而是把 Dockerfile 里的 revision 标签变成可执行的断言——
+      # label 取自镜像自身（docker image inspect），不是回显刚才那个变量，
+      # 否则写错了 ARG 名字也会"自证成功"。
+      - name: Verify image revision label matches commit
+        run: |
+          set -euo pipefail
+          IMAGE="oncall-agent:${GITHUB_SHA}"
+          REVISION="$(docker image inspect "${IMAGE}" \
+            --format '{{index .Config.Labels "org.opencontainers.image.revision"}}')"
+          echo "image revision label: ${REVISION}"
+          echo "expected commit     : ${GITHUB_SHA}"
+          if [ "${REVISION}" != "${GITHUB_SHA}" ]; then
+            echo "::error::镜像 org.opencontainers.image.revision='${REVISION}' 与 commit '${GITHUB_SHA}' 不一致"
+            exit 1
+          fi
+          echo "REVISION=${REVISION}" >> "$GITHUB_ENV"
 
       - name: Record image identity in job summary
         run: |
@@ -75,6 +95,7 @@ jobs:
             echo "|---|---|"
             echo "| tag | \`${IMAGE}\` |"
             echo "| image id | \`${IMAGE_ID}\` |"
+            echo "| revision label | \`${REVISION}\` |"
             echo "| size (bytes) | ${SIZE} |"
             echo "| repo digests | \`${REPO_DIGESTS}\` |"
             echo ""

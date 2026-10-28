@@ -33,7 +33,7 @@
     ./.venv/Scripts/python.exe scripts/eval_blind.py \
         --store data/acceptance/milvus-e2e-store.json
 
-    # 快速冒烟：只跑前 5 行
+    # 抽样：只处理前 5 道题（校验仍然针对整份题集）
     ./.venv/Scripts/python.exe scripts/eval_blind.py --limit 5
 
 ``--set`` 可以指定别的题集（G5 的 ``calibrate-dev2.jsonl``）。校验规则完全相同，
@@ -696,12 +696,35 @@ def build_manifest(threshold: dict, store_file: Path,
     }
 
 
+def result_kind(label: str, limit: int) -> str:
+    """产物 ``kind``。
+
+    ``--limit`` 只表示"这次处理多少题"，不是评测类型，所以 kind 只区分
+    全量 / 抽样两种；按具体条数再分档会让同一份东西在不同次运行里像两类结果。
+    """
+    if limit:
+        return f"{label}_retrieval_milvus_sampled"
+    return f"{label}_retrieval_milvus"
+
+
+def result_file_prefix(label: str, limit: int) -> str:
+    """产物文件名前缀。
+
+    calibration 题集用 ``calibration-retrieval-``：``calibration-<UTC>.json``
+    这个名字属于 eval_calibration.py 的拟合产物，两者不能互相覆盖。
+    抽样产物加 ``-sampled`` 后缀，避免被当成全量结果引用。
+    """
+    base = "blind" if label == "blind" else "calibration-retrieval"
+    return f"{base}-sampled" if limit else base
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="检索评测（真实 Milvus）")
     parser.add_argument("--set", dest="dataset", type=str, default="",
                         help="题集路径（默认 eval/rag/blind.jsonl；"
                              "eval/rag/calibrate-dev2.jsonl 会按 calibration 口径标注）")
-    parser.add_argument("--limit", type=int, default=0, help="只跑前 N 行（冒烟）")
+    parser.add_argument("--limit", type=int, default=0,
+                        help="只处理前 N 道题（抽样；不影响对整份题集的校验）")
     parser.add_argument("--dry-run", action="store_true",
                         help="只校验 schema，不连 Milvus、不写结果")
     parser.add_argument("--threshold", type=float, default=None,
@@ -716,8 +739,8 @@ def main(argv: list[str] | None = None) -> int:
     dataset_file = Path(args.dataset) if args.dataset else BLIND_FILE
     label = dataset_label(dataset_file)
 
-    # 先校验**整份**文件：--limit 是冒烟开关，不能让它把行数区间、无答案条数
-    # 这些约束绕过掉（否则 --limit 5 会变成合法的正式结果来源）。
+    # 先校验**整份**文件：--limit 只决定这次处理多少题，不能让它把行数区间、
+    # 无答案条数这些约束绕过掉（否则 --limit 5 会变成合法的正式结果来源）。
     all_rows = load_rows(dataset_file)
     problems = validate(all_rows, label=label)
     if problems:
@@ -765,8 +788,7 @@ def main(argv: list[str] | None = None) -> int:
 
     payload = {
         "generated_at_utc": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
-        "kind": (f"{label}_retrieval_milvus_smoke" if args.limit
-                 else f"{label}_retrieval_milvus"),
+        "kind": result_kind(label, args.limit),
         "report_label": label,
         "note": ("真实 Milvus collection 上的检索评测。指标只说明检索/门控行为，"
                  "不说明回答事实正确性。" + (
@@ -785,13 +807,7 @@ def main(argv: list[str] | None = None) -> int:
 
     RESULT_DIR.mkdir(parents=True, exist_ok=True)
     stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
-    # --limit 是冒烟开关：产物加 smoke- 前缀，避免被当成正式结果引用。
-    # calibration 题集用 calibration-retrieval- 前缀：``calibration-<UTC>.json``
-    # 这个名字属于 eval_calibration.py 的拟合产物，两者不能互相覆盖。
-    prefix = "blind" if label == "blind" else "calibration-retrieval"
-    if args.limit:
-        prefix = f"{prefix}-smoke"
-    out_path = RESULT_DIR / f"{prefix}-{stamp}.json"
+    out_path = RESULT_DIR / f"{result_file_prefix(label, args.limit)}-{stamp}.json"
     out_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n",
                         encoding="utf-8", newline="\n")
 

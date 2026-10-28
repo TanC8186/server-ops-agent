@@ -72,6 +72,10 @@ DK-03 WS-01 WS-02 WS-03 WS-04`。
 语料 manifest hash、embedding descriptor hash、collection/metric/实体数、
 阈值来源）与 `denominators`。
 
+`--limit N` 只表示本次处理前 N 道题（抽样），不是另一种评测口径：此时产物改为
+`blind-sampled-<UTC>.json`、kind `blind_retrieval_milvus_sampled`；calibration 集
+同理为 `calibration-retrieval-sampled-<UTC>.json`。
+
 ## 指标口径
 
 - **Recall@k / MRR / nDCG@5**：分母是 `expected_ids` 非空的可答题（58 条）。
@@ -202,10 +206,11 @@ DK-03 WS-01 WS-02 WS-03 WS-04`。
 `SYSTEM_PROMPT`、同 `_build_messages`、同服务端引用消毒），只把模型换成
 `.env` 里的真实 `LLM_*`。产物 `eval/rag/results/generation-<UTC>.json` 三层指标
 **分别报告，不合成"问答准确率"**。产物的 `kind` 固定为
-`generation_eval_llm_sampled`（不按 `--limit` 分档）；历史产物文件名与它们自己的
-旧 `kind` 保留不动，以维持 provenance。读取 `gate_profile` 前会核对题集 sha256、
-语料 manifest、embedding descriptor 与当前 store 的 descriptor hash，不一致直接
-停止（见 `gate.consistency`）。
+`generation_eval_llm_sampled`（不按 `--limit` 分档）。检索类产物同理：新产物统一用
+sampled kind 与 `-sampled` 文件名前缀；历史 JSON 不重写、文件名与它们自己的旧 `kind`
+保留不动，provenance 以文件内的 `kind` 与 sha256 为准。读取 `gate_profile` 前会核对
+题集 sha256、语料 manifest、embedding descriptor 与当前 store 的 descriptor hash，
+不一致直接停止（见 `gate.consistency`）。
 
 | 指标 | 分母 | 说明 |
 |---|---|---|

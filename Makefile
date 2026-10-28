@@ -580,16 +580,28 @@ eval: eval-validate  ## 跑完整评测（需要 MCP + LLM 凭证）
 # --pull 拉最新基础镜像、--no-cache 不复用任何层；tag 用时间戳而不是 latest，
 # 避免“同名覆盖”再次把新旧镜像混为一谈。注意：构建前端产物需要 npm registry
 # 与基础镜像可达，构建失败时本目标直接退出非 0，不会留下半成品 tag。
-docker-build-fresh:  ## 无缓存重建生产镜像并打印 image id / digest / 大小
+#
+# 本机 apt 边缘节点 502 时，python-builder 阶段的 apt-get 会失败，本目标随之失败——
+# 这是环境问题，不是 Dockerfile 有问题。按 G7 明令：不得改用临时 Dockerfile
+#（如 .g6-local.Dockerfile）或 --network host 变体来"冒充标准构建"，
+# 那类产物不能当作仓库原始 Dockerfile 的构建证据；应改在 CI 上取真实结果。
+#
+# GIT_REVISION 以 build-arg 传给 Dockerfile，落进 org.opencontainers.image.revision
+# 标签；下面回读标签而不是回显变量，才能证明"打进镜像的"就是当前 commit。
+docker-build-fresh:  ## 无缓存重建生产镜像并打印 image id / revision / digest / 大小
 	@echo "$(YELLOW)重建生产镜像（--pull --no-cache，约 20 分钟）...$(NC)"
 	@TAG="oncall-agent:$$(date +%Y%m%d-%H%M%S)"; \
-	docker build --pull --no-cache -t "$$TAG" . || exit 1; \
+	REVISION="$$(git rev-parse HEAD)"; \
+	echo "$(YELLOW)构建 commit: $$REVISION$(NC)"; \
+	docker build --pull --no-cache --build-arg GIT_REVISION="$$REVISION" -t "$$TAG" . || exit 1; \
 	echo ""; \
 	echo "$(GREEN)镜像已构建: $$TAG$(NC)"; \
 	echo "  image id : $$(docker image inspect "$$TAG" --format '{{.Id}}')"; \
+	echo "  revision : $$(docker image inspect "$$TAG" --format '{{index .Config.Labels "org.opencontainers.image.revision"}}')"; \
 	echo "  size     : $$(docker image inspect "$$TAG" --format '{{.Size}}') bytes"; \
 	echo "  digest   : $$(docker image inspect "$$TAG" --format '{{join .RepoDigests ","}}')"; \
 	echo ""; \
+	echo "$(YELLOW)上面 revision 应等于 $$REVISION；不一致说明标签没打进去，别拿这个镜像当验收证据。$(NC)"; \
 	echo "$(YELLOW)部署请用上面的 tag/image id 并配合 --force-recreate，不要用 latest。$(NC)"
 
 web:  ## 构建前端

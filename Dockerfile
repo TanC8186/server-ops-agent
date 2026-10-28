@@ -102,6 +102,18 @@ COPY --from=web /web/dist ./web/dist
 # 目录必须存在于镜像中，命名卷首次创建时才会继承属主与权限。
 RUN mkdir -p uploads logs/traces eval/results data
 
+# 镜像 provenance：把构建时的 Git commit 写进 OCI revision 标签，之后用
+#   docker image inspect <tag> --format '{{index .Config.Labels "org.opencontainers.image.revision"}}'
+# 就能反查“这个镜像到底是哪次提交产出的”，不必依赖 tag 命名习惯。
+# 位置刻意放在所有重活之后：ARG/LABEL 的值随 commit 变化，若写在 stage 开头，
+# 每换一个 commit 都会让上面 4.9GB 的 venv COPY 层与 apt 层缓存失效。
+# source 是公开仓库地址，与 revision 一样都只是公开元数据——绝不可写入密钥或凭证。
+# 默认 unknown 也是刻意的：没显式传 --build-arg 时标签如实写 unknown，
+# 而不是回退成一个看起来可信的值（那样反而制造假的追溯证据）。
+ARG GIT_REVISION=unknown
+LABEL org.opencontainers.image.revision="${GIT_REVISION}" \
+      org.opencontainers.image.source="https://github.com/TanC8186/On_Call_Agent"
+
 EXPOSE 9900 8003 8004 8005
 
 COPY docker-entrypoint.sh /docker-entrypoint.sh

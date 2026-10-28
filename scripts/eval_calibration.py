@@ -337,27 +337,43 @@ def _store_evidence(store_file: Path) -> dict:
 
     store 文件本身的 sha256 只作快照标识：上传/重试会改写 jobs 与时间戳，
     所以一致性判定必须以 documents 的 descriptor hash 集合为准。
+
+    读不到 store 时（不存在 / 解析失败 / 编码错误）**结构化降级**而不是抛异常：
+    阈值本身已经拟合出来了，没有必要因为它丢失整份产物；但必须在证据里留下
+    ``store_read_error``，让读取方知道"这份 profile 的文档集合证据是空的、原因
+    是什么"，而不是把空列表误读成"拟合时 store 里就是 0 份文档"。
+
+    旧实现在 try 里赋值 ``store``、except 只重置 ``document_hashes``，然后在
+    return 里引用 ``store``，损坏 JSON 时直接 UnboundLocalError——连错误信息都
+    丢了。这里把 store 相关的两个字段都放到同一次解析里，一起兜底。
     """
     descriptor_hash = ""
     if DESCRIPTOR_FILE.is_file():
         try:
             descriptor_hash = str(json.loads(
                 DESCRIPTOR_FILE.read_text(encoding="utf-8")).get("hash", ""))
-        except ValueError:
+        except (OSError, ValueError, UnicodeDecodeError):
+            # OSError（权限/占用）与 UnicodeDecodeError（非 UTF-8 字节）都会以
+            # 前被漏掉，导致校准在这里半途抛异常。
             descriptor_hash = ""
     document_hashes: set[str] = set()
+    document_ids: list[str] = []
+    store_read_error = ""
     if store_file.is_file():
         try:
             store = json.loads(store_file.read_text(encoding="utf-8"))
-            for doc in (store.get("documents") or {}).values():
+            documents = store.get("documents") or {}
+            document_ids = sorted(str(key) for key in documents)
+            for doc in documents.values():
                 value = str(doc.get("embedding_descriptor_hash") or "")
                 if value:
                     document_hashes.add(value)
-        except ValueError:
+        except (OSError, ValueError, UnicodeDecodeError) as exc:
+            store_read_error = f"{type(exc).__name__}: {exc}"
             document_hashes = set()
+            document_ids = []
     return {
-        "store_document_ids": sorted(str(key) for key in (store.get("documents") or {}))
-        if store_file.is_file() else [],
+        "store_document_ids": document_ids,
         "corpus_manifest_sha256": _sha256_file(MANIFEST_FILE)
         if MANIFEST_FILE.is_file() else "missing",
         "embedding_descriptor_sha256": _sha256_file(DESCRIPTOR_FILE)
@@ -368,6 +384,8 @@ def _store_evidence(store_file: Path) -> dict:
         "knowledge_store_sha256": _sha256_file(store_file)
         if store_file.is_file() else "missing",
         "store_document_descriptor_hashes": sorted(document_hashes),
+        # 空字符串 = 读取成功；非空 = 读不到的原因（附异常类型）。
+        "store_read_error": store_read_error,
     }
 
 
@@ -412,7 +430,15 @@ def main(argv: list[str] | None = None) -> int:
     if not store_file.is_file():
         raise SystemExit(f"store 文件不存在: {store_file}")
     os.environ["KNOWLEDGE_STORE_FILE"] = str(store_file)
-    doc_map, store_uris = load_doc_map(store_file)
+    try:
+        doc_map, store_uris = load_doc_map(store_file)
+    except (OSError, ValueError, UnicodeDecodeError) as exc:
+        # load_doc_map 内部直接 json.loads，没有兜底：store 被写坏（半截文件、
+        # 非法 JSON）时以前会甩一个裸 traceback。这里给出定位信息后按失败退出，
+        # 让调用方拿到可读原因，而不是猜。
+        print(f"store 文件损坏：{store_file}（{type(exc).__name__}: {exc}）",
+              file=sys.stderr)
+        return 1
     if not doc_map:
         raise SystemExit(f"store {store_file} 里没有 document_id 能映射回 11 个 core id")
     unmapped = sorted(set(store_uris) - set(doc_map))

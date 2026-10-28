@@ -69,9 +69,9 @@ from scripts.eval_blind import (  # noqa: E402 - 需要先修好 sys.path
 
 RESULT_PREFIX = "generation"
 
-#: 产物 kind：所有抽样生成评测都用这个值。以前按 ``--limit <= 3`` 分出一个
-#: "smoke" 名字，但 limit 只是取样条数，不是评测类型；同一脚本换个 limit 就
-#: 换 kind，会让跨次比较与检索看起来像两种东西。
+#: 产物 kind：所有抽样生成评测都用这个值。``--limit`` 只是取样条数，不是评测
+#: 类型；让 kind 随 limit 变化，同一批题换个条数就会像两类结果，跨次比较和
+#: 检索对不上。
 GENERATION_KIND = "generation_eval_llm_sampled"
 
 #: 一致性校验里"证据缺失"条目的前缀。缺失与"对不上"要分开：前者说明这次
@@ -571,6 +571,12 @@ def _verify_profile_consistency(profile_payload: dict, profile: dict,
     differences: list[str] = []
     skipped: list[str] = []
 
+    # ⑀ 拟合当时 store 就读不出来：那份 profile 的"文档集合证据"本来就是空的，
+    # 空列表不能和"拟合时确实没有文档"混为一谈，所以先明确记成证据缺失。
+    fitted_store_error = str(evidence.get("store_read_error") or "")
+    if fitted_store_error:
+        skipped.append(f"拟合时 store 无法解析（{fitted_store_error}）")
+
     # ① 题集：profile 记的 sha256 必须等于当前磁盘上的题集字节。
     fitted_sha = str(fitted_on.get("sha256") or "") or expected("dataset_sha256")
     dataset_path = str(manifest.get("dataset_file") or fitted_on.get("dataset") or "")
@@ -605,7 +611,10 @@ def _verify_profile_consistency(profile_payload: dict, profile: dict,
         try:
             current_descriptor_hash = str(json.loads(
                 DESCRIPTOR_FILE.read_text(encoding="utf-8")).get("hash", ""))
-        except ValueError:
+        except (OSError, ValueError, UnicodeDecodeError):
+            # 与 _store_evidence 保持一致：权限/占用（OSError）和非 UTF-8 字节
+            # （UnicodeDecodeError）也会让这份 descriptor 读不出来，同样降级成
+            # "取不到当前 hash"，由下面的比对如实报出来。
             current_descriptor_hash = ""
     if not expected_descriptor_sha and not expected_descriptor_hash:
         skipped.append("profile 未记录 embedding descriptor")
@@ -628,7 +637,12 @@ def _verify_profile_consistency(profile_payload: dict, profile: dict,
     # 看的向量"与"这次要检索的向量"是否同一套编码器的直接证据。
     document_hashes: set[str] = set()
     document_ids: list[str] = []
-    if store_file.is_file():
+    # store 的三种状态必须分开：不存在（没有证据）/ 存在但解析失败（数据坏了）/
+    # 存在且解析成功（有证据可核对）。把它们混成"没差异"是最危险的，因为调用方
+    # 会把它读成"一致"。
+    store_exists = store_file.is_file()
+    store_read_error = ""
+    if store_exists:
         try:
             store = json.loads(store_file.read_text(encoding="utf-8"))
             documents = store.get("documents") or {}
@@ -638,11 +652,27 @@ def _verify_profile_consistency(profile_payload: dict, profile: dict,
                 if doc.get("embedding_descriptor_hash")
             }
             document_ids = sorted(str(key) for key in documents)
-        except ValueError:
+        except (OSError, ValueError, UnicodeDecodeError) as exc:
+            store_read_error = f"{type(exc).__name__}: {exc}"
             document_hashes = set()
             document_ids = []
+    store_ok = store_exists and not store_read_error
+    if not store_exists:
+        differences.append(f"store 文件不存在：{store_file}（拟合快照无从核对）")
+    elif store_read_error:
+        differences.append(
+            f"store 文件无法解析：{store_file}（{store_read_error}）")
     if not document_hashes:
-        skipped.append(f"store {store_file.name} 里没有 documents 的 descriptor hash")
+        if store_ok and expected_descriptor_hash:
+            # profile 记了当时那套编码器，当前却一份 hash 都取不到：这说明当前
+            # store 不可能产出当时那批向量，属于"对不上"，而不是"少核了一项"。
+            differences.append(
+                f"当前 store {store_file.name} 的 documents 里没有任何 "
+                f"embedding descriptor hash，与 profile 记录的 "
+                f"{expected_descriptor_hash} 无法对应")
+        elif store_ok:
+            skipped.append(
+                f"store {store_file.name} 里没有 documents 的 descriptor hash")
     elif expected_descriptor_hash:
         mismatched = sorted(h for h in document_hashes
                             if h not in (expected_descriptor_hash,
@@ -680,7 +710,20 @@ def _verify_profile_consistency(profile_payload: dict, profile: dict,
     recorded_ids = evidence.get("store_document_ids")
     current_ids = sorted(document_ids)
     if isinstance(recorded_ids, list) and recorded_ids:
-        if current_ids and sorted(map(str, recorded_ids)) != current_ids:
+        if not store_ok:
+            # store 读不到就没有"当前文档集合"可比，上面的 store 差异已经记录了
+            # 具体原因（不存在 / 无法解析），这里不重复报。
+            pass
+        elif not current_ids:
+            # 旧实现在这里用 ``current_ids and ...`` 短路：当前 0 份文档时一条差异
+            # 都不产生，于是"13 份 vs 0 份"被记成 partial 后继续复用旧阈值。
+            # 拟合时至少有 recorded_ids 份文档，现在一份都没有，绝不可能是同一份
+            # 快照——这是 mismatch，不是证据缺失。
+            differences.append(
+                f"store 的文档集合与拟合时不同：profile 记录了 "
+                f"{len(recorded_ids)} 份文档，当前 store {store_file.name} 里"
+                f"没有任何文档，无法证明与拟合快照一致")
+        elif sorted(map(str, recorded_ids)) != current_ids:
             missing = sorted(set(map(str, recorded_ids)) - set(current_ids))
             added = sorted(set(current_ids) - set(map(str, recorded_ids)))
             differences.append(
@@ -691,11 +734,13 @@ def _verify_profile_consistency(profile_payload: dict, profile: dict,
 
     recorded_doc_hashes = evidence.get("store_document_descriptor_hashes")
     if isinstance(recorded_doc_hashes, list) and recorded_doc_hashes:
-        if document_hashes and set(map(str, recorded_doc_hashes)) != document_hashes:
+        if store_ok and set(map(str, recorded_doc_hashes)) != document_hashes:
+            # 同样去掉 ``document_hashes and`` 短路：当前集合为空说明当前 docs
+            # 一个 hash 都没写（或没有 docs），与拟合时的非空集合必然不同。
             differences.append(
                 "store 里 documents 的 descriptor-hash 集合与拟合时不同："
                 f"profile={sorted(map(str, recorded_doc_hashes))[:3]}… "
-                f"当前={sorted(document_hashes)[:3]}…")
+                f"当前={sorted(document_hashes)[:3] or '空'}")
     elif not recorded_doc_hashes:
         skipped.append("profile 未记录拟合时 store 文档的 descriptor-hash 集合")
 
@@ -867,7 +912,13 @@ def main(argv: list[str] | None = None) -> int:
     os.environ["KNOWLEDGE_STORE_FILE"] = str(store_file)
     doc_map, store_uris = load_doc_map(store_file)
     if not doc_map:
-        raise SystemExit(f"store {store_file} 里没有 document_id 能映射回 11 个 core id")
+        # 这里必须在读 profile、调模型之前停下：documents 为空时一致性校验没有
+        # 对照物，"旧阈值还能读"会被误当成"还能用"。文案里点名 store 为空这件
+        # 事，避免被读成"映射规则需要修"。
+        raise SystemExit(
+            f"store 里没有任何可映射文档，无法校验 profile 快照：{store_file}"
+            "（documents 为空，或没有 document_id 能映射回 11 个 core id）；"
+            "请先完成索引再跑生成层评测。")
 
     from app.config import config
 
@@ -904,13 +955,13 @@ def main(argv: list[str] | None = None) -> int:
         for reason in skipped_evidence:
             print(f"  （一致性校验跳过：{reason}）")
         if differences:
-            consistency = {"status": "mismatch", "differences": differences,
-                           "skipped": skipped_evidence}
             if args.threshold is not None:
                 # 显式阈值会覆盖 profile（`_resolve_threshold` 的 explicit 分支），
                 # 此时不一致只影响"profile 元数据"，不影响本次实际门控。阻断没有
                 # 依据，但必须让调用方看见"这份 profile 已经不能用"。
-                consistency["status"] = "mismatch_ignored_explicit_threshold"
+                consistency = {"status": "mismatch_ignored_explicit_threshold",
+                               "differences": differences,
+                               "skipped": skipped_evidence}
                 print("gate profile 与当前快照不一致，已按 --threshold 继续；"
                       "产物里的 gate.profile 不可引用：", file=sys.stderr)
                 for item in differences:
@@ -922,11 +973,18 @@ def main(argv: list[str] | None = None) -> int:
                 raise SystemExit(
                     "换 collection/store 后不得静默复用旧阈值；请重新跑 "
                     "scripts/eval_calibration.py，或用 --threshold 显式给出阈值。")
-        # 证据齐全才是 ok；只有部分证据可核对时标 partial，避免报告把"没核到"
-        # 读成"核对通过"。
-        consistency = {
-            "status": "partial" if skipped_evidence else "ok",
-            "differences": [], "skipped": skipped_evidence}
+        elif skipped_evidence:
+            # 证据缺失 ≠ 一致，但也没有任何"对不上"的证据，所以允许继续跑；
+            # 代价是产物只能当 partial 读。这一行必须出现在 stdout 里，否则
+            # 看终端的人会把 partial 的产物当成完整验收。
+            consistency = {"status": "partial", "differences": [],
+                           "skipped": skipped_evidence}
+            print("本次一致性校验不完整（缺 "
+                  + "；".join(skipped_evidence)
+                  + "），产物不可当作完整验收")
+        else:
+            # 真的每项证据都核对过且一致，才写 ok。
+            consistency = {"status": "ok", "differences": [], "skipped": []}
         # 父产物 manifest 已核对过，不必再整份嵌进 gate.profile 里重复一遍。
         profile.pop("_manifest", None)
     else:

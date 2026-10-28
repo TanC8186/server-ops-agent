@@ -140,9 +140,8 @@ def _ensure_no_foreign_document(source_uri: str, principal: acl.Principal) -> No
         )
 
 
-def _claim_uploaded_document(document_id: str, principal: acl.Principal) -> None:
-    """**提交之前**声明归属：claim owner（只占空位），再把本人写进文档级 ACL 由
-    :func:`_seal_uploaded_document` 在提交成功后补。
+def _claim_uploaded_document(document_id: str, principal: acl.Principal) -> str | None:
+    """**提交之前**声明归属；返回 claim 之前的 owner（用于失败回滚）。
 
     为什么提前：``submit_document`` 会立刻落盘、排队并可能开始索引；等它返回
     再 claim 时，一旦 claim 失败（同名文档已属于别人 / ACL 侧表不可写），路由
@@ -150,9 +149,14 @@ def _claim_uploaded_document(document_id: str, principal: acl.Principal) -> None
     （前端把它当查询失败并清空 pendingJob）。提前 claim 把"要么拿到归属、要么
     在创建任何状态前被拒绝"变成同一步。
 
-    失败时抛 409，而不是只打一条 warning：这是"同名文档属于别人"，与
-    :func:`_ensure_no_foreign_document` 的拒绝口径一致。
+    返回值是 ``claim 之前的 owner``：``None`` 表示"本次新建的归属记录"，提交
+    失败时必须回滚；非 ``None`` 表示文档本来就归属本人，失败时不能动它。
+    调用方只用它决定"要不要回滚"，不引入任何事务框架。
+
+    失败时抛 409（同名文档属于别人），与 :func:`_ensure_no_foreign_document`
+    的拒绝口径一致。
     """
+    owner_before = acl.resource_owner("knowledge_document", document_id)
     if not acl.claim_owner("knowledge_document", document_id, principal.principal_id):
         raise HTTPException(
             status_code=409,
@@ -166,20 +170,47 @@ def _claim_uploaded_document(document_id: str, principal: acl.Principal) -> None
             status_code=409,
             detail="文档归属记录写入后校验不一致，已停止（请检查 PRINCIPAL_ACL_FILE）",
         )
+    return owner_before
 
 
-def _seal_uploaded_document(document_id: str, principal: acl.Principal) -> None:
-    """提交成功后的收尾：把上传者写进文档级 ACL（幂等）。
+def _release_uncommitted_owner(document_id: str, principal: acl.Principal,
+                               owner_before: str | None) -> None:
+    """提交失败时回滚**本次新建的** owner 记录（条件删除）。
 
-    这一步失败不影响已排队的索引（只记 ERROR）：owner 侧表已经记录了归属，
-    读取/写入判定都能正常工作；ACL 只是"显式成员名单"的补充。
+    只回滚 ``owner_before is None`` 的那一次：文档原本就归属本人时，这次失败
+    与归属无关，删掉会让下一次同名上传被误判成"别人的文档"。即使走到回滚，
+    也用 :func:`principal.release_owner_if` 做比较后再删——同一 principal 的
+    并发上传会派生同一个 ``document_id``，无条件删除会抹掉对方刚写下的记录。
+
+    回滚失败只记 ERROR：此时请求已经要以失败返回，再抛异常只会盖掉真实原因。
+    """
+    if owner_before is not None:
+        return
+    try:
+        released = acl.release_owner_if(
+            "knowledge_document", document_id, principal.principal_id
+        )
+        if not released:
+            logger.warning(f"回滚归属记录未生效（已被他人改写或已不存在）: {document_id}")
+    except Exception as exc:  # noqa: BLE001 - 回滚失败不能盖掉原始错误
+        logger.error(f"回滚归属记录失败: {document_id}: {type(exc).__name__}: {exc}")
+
+
+def _seal_uploaded_document(document_id: str, principal: acl.Principal) -> bool:
+    """提交成功后的收尾：把上传者写进文档级 ACL（幂等）；返回是否成功。
+
+    失败不影响已排队的索引（owner 侧表已记录归属，读/写判定靠
+    ``owner OR ACL`` 仍然正常），但**必须让调用方知道**：接口据此在响应里
+    如实标注 ``acl_sealed=false``，而不是把一个"ACL 没写成"的成功包装成完全成功。
     """
     try:
         _store().add_acl_principal(document_id, principal.principal_id)
+        return True
     except Exception as exc:  # noqa: BLE001 - ACL 补充失败不能回滚已排队的索引
         logger.error(
             f"写入文档级 ACL 失败（不影响索引）: {document_id}: {type(exc).__name__}: {exc}"
         )
+        return False
 
 
 def _metadata_from_form(form: dict[str, object]) -> dict[str, object]:
@@ -294,23 +325,37 @@ async def upload_document(
         content = await file_api._read_bounded(file, file_api.MAX_FILE_SIZE)
         file_api._validate_text(content)
         source_uri = f"upload://{safe_filename}"
+        # 顺序很关键：所有**不产生持久化副作用**的校验都必须发生在 claim 之前。
+        # metadata（日期/principal 名单/有效期区间）以前只在 submit_document 内部校验，
+        # 而那时 owner 已经写进侧表；非法输入会 400 却留下一条幽灵 owner，
+        # 让同名上传被永久 409（DELETE 也清不掉：文档根本不存在）。
+        normalized = store_api.normalize_document_metadata(metadata)
         # 同名文档属于别人时先拒绝：否则新 revision 会被索引并激活到别人的
         # 文档上，实质是用一次上传替换他人知识库内容。
         _ensure_no_foreign_document(source_uri, principal)
         document_id = store_api.document_id_for(source_uri)
-        _claim_uploaded_document(document_id, principal)
-        accepted = _store().submit_document(
-            source_uri=source_uri,
-            title=_title_for(safe_filename, content),
-            content=content,
-            source_kind="upload",
-            metadata=metadata,
-        )
+        owner_before = _claim_uploaded_document(document_id, principal)
+        try:
+            accepted = _store().submit_document(
+                source_uri=source_uri,
+                title=_title_for(safe_filename, content),
+                content=content,
+                source_kind="upload",
+                metadata=normalized,
+            )
+        except Exception:
+            # 提交失败：只回滚本次新建的归属记录（原本属于本人时不动）。
+            _release_uncommitted_owner(document_id, principal, owner_before)
+            raise
     except HTTPException:
         raise
     except Exception as exc:  # noqa: BLE001
         raise _map_error(exc) from exc
-    _seal_uploaded_document(str(accepted.get("document_id") or ""), principal)
+    sealed = _seal_uploaded_document(str(accepted.get("document_id") or ""), principal)
+    if not sealed:
+        # 不改变状态码（索引已排队），但要在响应里如实标注：ACL 名单没写成，
+        # 该文档的可见性只依赖 owner 判定。
+        accepted = {**accepted, "acl_sealed": False}
     return JSONResponse(status_code=202, content=accepted)
 
 
@@ -341,22 +386,30 @@ async def import_source(payload: ImportRequest,
         # 复用索引层的“有界读取 + UTF-8 严格解码 + 空内容拒绝”。
         vector_index_service.read_text(path)
         content = path.read_bytes()
-        # 同 upload：同名来源已属于别人时不允许把新 revision 激活上去。
+        # 同 upload：metadata 校验必须在 claim 之前（否则 400 会留下幽灵 owner）。
+        normalized = store_api.normalize_document_metadata(payload.metadata())
+        # 同名来源已属于别人时不允许把新 revision 激活上去。
         _ensure_no_foreign_document(source_uri, principal)
         document_id = store_api.document_id_for(source_uri)
-        _claim_uploaded_document(document_id, principal)
-        accepted = _store().submit_document(
-            source_uri=source_uri,
-            title=_title_for(path.name, content),
-            content=content,
-            source_kind="manual",
-            metadata=payload.metadata(),
-        )
+        owner_before = _claim_uploaded_document(document_id, principal)
+        try:
+            accepted = _store().submit_document(
+                source_uri=source_uri,
+                title=_title_for(path.name, content),
+                content=content,
+                source_kind="manual",
+                metadata=normalized,
+            )
+        except Exception:
+            _release_uncommitted_owner(document_id, principal, owner_before)
+            raise
     except HTTPException:
         raise
     except Exception as exc:  # noqa: BLE001
         raise _map_error(exc) from exc
-    _seal_uploaded_document(str(accepted.get("document_id") or ""), principal)
+    sealed = _seal_uploaded_document(str(accepted.get("document_id") or ""), principal)
+    if not sealed:
+        accepted = {**accepted, "acl_sealed": False}
     return JSONResponse(status_code=202, content=accepted)
 
 

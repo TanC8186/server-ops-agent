@@ -20,7 +20,10 @@ venv/
 .codebuddy/
 
 # Sensitive
-.env
+# `.env` 精确匹配覆盖不到 .env.docker / .env.production 等变体；构建上下文里
+# 出现它们等于把凭据烤进镜像层。只放行模板。
+.env*
+!.env.example
 *.pem
 *.key
 
@@ -59,8 +62,12 @@ eval/results/
 data/
 eval/rag/results/
 
-# 本地排障 scratch 与构建变体：.g6_* 只在本地排障时出现，绝不能因为一次
-# `COPY . .` 被烤进镜像（.g6_apikey 是本机测试用 API_KEY，明文躺在 /app 下最糟）。
-.g6_apikey
+# scratch 与构建变体：.g6* 之外还要覆盖 .g7* / tmp/ / .ui-check.png，
+# 否则一次 `COPY . .` 就会把本机排障产物（含临时 key 文件）带进镜像。
 .g6*
+.g7*
 .g6-local.Dockerfile
+.g7-local.Dockerfile
+tmp/
+.tmp*/
+.ui-check.png
