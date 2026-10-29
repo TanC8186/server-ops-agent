@@ -317,7 +317,10 @@ class RunTools:
         if not sources and name in SSH_TOOLS and status in {"ok", "empty", "partial"}:
             sources = {"ssh"}
         live = bool(result.live) if result is not None else False
-        if not live and "ssh" in sources:
+        # 只有**成功**的 SSH 调用才算实时观测。失败/超时的调用虽然确实连上了
+        # 主机，但它没有产生可用的观测值——把它标成 live 会让"日志文件不存在"
+        # 这类失败证据看起来像一条实时读数（实测踩到过）。
+        if not live and "ssh" in sources and status in {"ok", "empty", "partial"}:
             live = True
         demo = bool(result.demo) if result is not None else False
         evidence = {

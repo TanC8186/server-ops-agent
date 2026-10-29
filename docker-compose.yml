@@ -150,6 +150,10 @@ services:
       # 宿主模型服务使用容器可达地址，例如 http://host.docker.internal:8000/v1
       - LOCAL_LLM_BASE_URL=${LOCAL_LLM_BASE_URL:-}
       - LOCAL_LLM_MODEL=${LOCAL_LLM_MODEL:-qwen-ops}
+      # AutoDL SSH 目标的专用模型名（留空 = 所有目标都用 LOCAL_LLM_MODEL）。
+      # 两个模型共用同一个 LOCAL_LLM_BASE_URL，靠 vLLM 的 served-model-name 区分；
+      # 不在这里写空默认值，未设置时不注入，保持“只有一个端点”的契约。
+      - LOCAL_LLM_MODEL_SSH
       - LOCAL_LLM_WITH_PARAMS=${LOCAL_LLM_WITH_PARAMS:-False}
       - LOCAL_LLM_MAX_TOKENS=${LOCAL_LLM_MAX_TOKENS:-768}
       - DIAGNOSTIC_TIMEOUT_SECONDS=${DIAGNOSTIC_TIMEOUT_SECONDS:-180}

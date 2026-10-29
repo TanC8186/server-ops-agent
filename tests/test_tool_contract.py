@@ -185,3 +185,23 @@ def test_ssh_evidence_counts_as_live_observation():
     # demo / 失败证据不算 live，行为不变。
     assert evidence_is_live({**ssh_live, "demo": True}) is False
     assert evidence_is_live({**ssh_live, "ok": False}) is False
+
+
+def test_failed_ssh_call_is_not_live():
+    """失败的 SSH 调用不算实时观测。
+
+    实测（G8）：search_system_logs 因"日志文件不存在"失败，但它确实连上了主机，
+    早期修复把 ssh 来源无条件设成 live，于是这条失败证据带上 live=true——
+    报告里看起来像一条实时读数。只有 ok/empty/partial 才算实时。
+    """
+    from app.core.claims import evidence_is_live
+
+    for ok in (False,):
+        ev = {"ok": ok, "demo": False, "source": "ssh",
+              "target": "configured_ssh_endpoint", "tool": "search_system_logs"}
+        assert evidence_is_live(ev) is False
+
+    for ok in (True,):
+        ev = {"ok": ok, "demo": False, "source": "ssh",
+              "target": "configured_ssh_endpoint", "tool": "get_system_info"}
+        assert evidence_is_live(ev) is True
