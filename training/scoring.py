@@ -46,15 +46,15 @@ BASELINE_TOOLS = {
 DATA_DIR = Path(__file__).resolve().parent / "data"
 
 
-@lru_cache(maxsize=1)
-def critical_tools() -> dict[str, frozenset[str]]:
+@lru_cache(maxsize=4)
+def critical_tools(data_dir: str = "") -> dict[str, frozenset[str]]:
     """从训练集统计每类故障的关键工具。
 
     用训练集而不是测试集，避免把测试标签"喂"进判分规则。
     """
     counts: dict[str, dict[str, int]] = defaultdict(lambda: defaultdict(int))
     totals: dict[str, int] = defaultdict(int)
-    path = DATA_DIR / "train.jsonl"
+    path = (Path(data_dir) if data_dir else DATA_DIR) / "train.jsonl"
     if not path.exists():
         return {}
     for line in path.read_text(encoding="utf-8").splitlines():
@@ -181,6 +181,7 @@ def score(
     raw: dict | None,
     catalog: dict[str, Any],
     default_service: str = "",
+    critical_data_dir: str | Path | None = None,
 ) -> dict:
     if predicted is None:
         return _empty_result(raw)
@@ -200,7 +201,9 @@ def score(
     essential = gold_tools - BASELINE_TOOLS
     essential_recall = len(essential & pred_tools) / len(essential) if essential else 1.0
 
-    critical = critical_tools().get(gold.category, frozenset()) - BASELINE_TOOLS
+    critical = critical_tools(
+        str(critical_data_dir) if critical_data_dir is not None else ""
+    ).get(gold.category, frozenset()) - BASELINE_TOOLS
     missing_critical = sorted(critical - pred_tools)
     critical_recall = (
         len(critical & pred_tools) / len(critical) if critical else 1.0

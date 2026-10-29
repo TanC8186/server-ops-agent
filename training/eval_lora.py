@@ -65,14 +65,21 @@ def main() -> None:
     parser.add_argument("--model", default="E:/models/Qwen/Qwen2.5-1.5B-Instruct")
     parser.add_argument("--adapter", default=None)
     parser.add_argument("--split", default="test")
+    parser.add_argument(
+        "--data-dir",
+        default=str(DATA_DIR),
+        help="评测数据目录，内含 split.jsonl；默认 training/data",
+    )
     parser.add_argument("--limit", type=int, default=0)
     parser.add_argument("--out", default="training/out/eval.json")
     parser.add_argument("--max-new-tokens", type=int, default=1536)
     args = parser.parse_args()
 
+    data_dir = Path(args.data_dir)
+    catalog = json.loads((data_dir / "tool_catalog.json").read_text(encoding="utf-8"))
     rows = [
         json.loads(line)
-        for line in (DATA_DIR / f"{args.split}.jsonl")
+        for line in (data_dir / f"{args.split}.jsonl")
         .read_text(encoding="utf-8")
         .splitlines()
         if line.strip()
@@ -108,8 +115,9 @@ def main() -> None:
             predicted,
             gold,
             raw,
-            CATALOG,
+            catalog,
             default_service=row.get("metadata", {}).get("service", ""),
+            critical_data_dir=data_dir,
         )
         result["id"] = row.get("metadata", {}).get("template_id", str(index))
         result["predicted_plan"] = (

@@ -14,6 +14,7 @@ from app.services.diagnostic_runtime import target_required_outcome
 from .local_planner import try_local_plan
 from .runtime_tools import (
     TargetRequiredError,
+    _accepts_keyword,
     create_run_tools,
     create_tools_compat,
     discover_service_compat,
@@ -155,8 +156,21 @@ async def run_local(user_input: str, session_id: str, run_id: str, *,
                                   "message": "本地小模型正在制定排查计划"})
                 # 只给目标真正用得上的工具：
                 # SSH 目标不该看到云监控工具，否则它必然会选错。
-                result = await try_local_plan(user_input, target, tools.tools_for_target(), run_id,
-                                              allow_cloud_fallback=False)
+                #
+                # target_kind 按签名裁剪：测试替身/旧版 planner 没有这个形参，
+                # 直接传会因 TypeError 让整次运行变成 error（G8 实测：6 个
+                # 状态隔离用例全部从 complete 掉成 error）。沿用 runtime_tools 里
+                # _accepts_keyword 的既有做法。
+                plan_kwargs: dict[str, Any] = {"allow_cloud_fallback": False}
+                if _accepts_keyword(try_local_plan, "target_kind"):
+                    plan_kwargs["target_kind"] = getattr(tools.target, "kind", "")
+                result = await try_local_plan(
+                    user_input,
+                    target,
+                    tools.tools_for_target(),
+                    run_id,
+                    **plan_kwargs,
+                )
                 if result is None:
                     raise ValueError("本地模型不可用或计划校验失败；本地模式已停止，不会调用在线模型")
                 if result.get("severity") not in {"P1", "P2", "P3", "P4"} or result.get("category") not in {

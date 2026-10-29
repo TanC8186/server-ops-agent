@@ -306,7 +306,19 @@ class RunTools:
             error = str(exc)[:400]
             status = "unsupported" if "白名单" in error else "error"
         sources = payload_sources(data)
+        # SSH 工具成功执行时必须把来源标成 ``ssh``。
+        #
+        # 以前这里一律落到 ``unspecified``：SSH 工具返回的是纯文本/dict、没有
+        # ``source`` 字段，于是 payload_sources 取不到任何来源。后果不是"少个
+        # 标签"，而是 ``claims.evidence_is_live`` 把 ``unspecified`` 当作非实时
+        # 来源、再加一条"target 是 configured_ssh_endpoint 就否决"，真实成功的
+        # SSH 观测因此被判成 live=False、整份报告降级为"证据不足"。
+        # tool_contract 的文档早就把 ssh 列为合法来源，只是一直没人写入。
+        if not sources and name in SSH_TOOLS and status in {"ok", "empty", "partial"}:
+            sources = {"ssh"}
         live = bool(result.live) if result is not None else False
+        if not live and "ssh" in sources:
+            live = True
         demo = bool(result.demo) if result is not None else False
         evidence = {
             "id": f"E{len(self.evidence) + 1}", "tool": name, "args": args,

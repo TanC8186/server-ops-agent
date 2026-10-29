@@ -102,6 +102,17 @@ class Settings(BaseSettings):
     # 本地小模型（vLLM / llama.cpp / Ollama 的 OpenAI 兼容接口）
     local_llm_base_url: str = ""
     local_llm_model: str = "qwen-ops"
+    # AutoDL SSH 目标的专用本地模型（留空 = 所有目标都用 local_llm_model）。
+    #
+    # 为什么需要它：通用 adapter 在 136 条 AutoDL 训练集之外从没学过
+    # "目标没有云监控 API" 这件事，实测会把 CPU 负载高规划成 query_cpu_metrics
+    # 而目标机器根本没有腾讯云监控。AutoDL adapter 专门训练过这个语境
+    # （system prompt 里带"采集方式：SSH 只读 / 不能选择 query_*_metrics"）。
+    #
+    # 只按 target.kind=ssh 路由，绝不把它设为默认模型：那会让所有目标的
+    # 规划都变成 SSH 语境。两个模型必须共用同一个 base_url（vLLM 以
+    # --served-model-name 区分），否则这里就变成了第二个端点配置。
+    local_llm_model_ssh: str = ""
     # 训练时工具目录是否带参数签名；必须与训练数据一致
     local_llm_with_params: bool = False
     local_llm_max_tokens: int = 768

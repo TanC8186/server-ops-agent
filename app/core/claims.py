@@ -581,6 +581,14 @@ def is_causal(text: str) -> bool:
 
 
 def evidence_is_live(evidence: Mapping[str, Any]) -> bool:
+    """这条证据是否代表"此刻对真实目标的实时观测"。
+
+    SSH 观测是实时观测：``ssh`` 工具真的连上了目标主机并执行了只读命令。
+    旧实现把 ``target == "configured_ssh_endpoint"`` 当成同步否决条件，理由是
+    "SSH 主机不一定属于本次目标"——但那个判断该由 ``Target.ssh_in_scope``
+    （目标目录是否显式声明了同一台机器）来做，而不是一律否决。否则真实的
+    AutoDL 观测全部被判成 live=False，报告整体降级为"证据不足"，与实际相反。
+    """
     if evidence.get("ok") is not True:
         return False
     if evidence.get("demo") is True:
@@ -588,6 +596,9 @@ def evidence_is_live(evidence: Mapping[str, Any]) -> bool:
     sources = {part.strip().lower() for part in str(evidence.get("source", "")).split(",")}
     if sources & NON_LIVE_SOURCES:
         return False
+    # SSH 证据：来源已明确标成 ssh（见 runtime_tools 的 SSH_TOOLS 分支）即算实时。
+    if "ssh" in sources:
+        return True
     return evidence.get("target") != "configured_ssh_endpoint"
 
 

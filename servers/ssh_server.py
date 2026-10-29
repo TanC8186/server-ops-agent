@@ -303,8 +303,41 @@ def search_system_logs(
         }
         if log_type not in log_files:
             return {"error": f"非法 log_type，仅允许: {', '.join(sorted(log_files))}"}
-        log_file = shlex.quote(log_files[log_type])
-        cmd = f"tail -n {count} {log_file} 2>/dev/null || echo 'Log file not found'"
+        log_path = log_files[log_type]
+        log_file = shlex.quote(log_path)
+        # 先确认文件存在。
+        #
+        # 旧写法是 `tail ... 2>/dev/null || echo 'Log file not found'`：文件不存在时
+        # 那句话会作为**一条正常日志条目**被返回，status 判成 ok。于是"日志文件
+        # 根本不在"被展示成"查到了 1 条日志"，而 AutoDL 这类容器镜像本来就没有
+        # /var/log/syslog —— 实测每次都返回 count=1 entries=[{"message":"(empty)"}]。
+        # 现在先探测，不存在就明确报 unavailable，而不是伪造一条记录。
+        #
+        # 探测与读取合并成一条命令，避免为每个日志工具多付一次 SSH 往返；
+        # 用哨兵前缀区分"文件不在"与"文件在但为空"。
+        sentinel = "__ONCALL_NOLOGFILE__"
+        read_cmd = f"tail -n {count} {log_file}"
+        if level:
+            level = _safe_token(level, "level")
+            read_cmd = f"grep -i {shlex.quote(level)} {log_file} | tail -n {count}"
+        if keyword:
+            read_cmd = f"grep -i {shlex.quote(keyword)} {log_file} | tail -n {count}"
+        cmd = f"test -f {log_file} && ( {read_cmd} ) || echo {sentinel}"
+        results = _exec_readonly([cmd])
+        raw = results.get(cmd, "")
+        if sentinel in raw:
+            return {
+                "server_type": SERVER_TYPE,
+                "log_type": log_type,
+                "count": 0,
+                "entries": [],
+                "log_path": log_path,
+                "ok": False,
+                "status": "unavailable",
+                "source": "ssh",
+                "error": f"日志文件不存在: {log_path}（该主机未使用传统 syslog）",
+            }
+        entries = [{"message": line} for line in raw.split('\n') if line.strip()]
         if level:
             level = _safe_token(level, "level")
             cmd = f"grep -i {shlex.quote(level)} {log_file} | tail -n {count}"

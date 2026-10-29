@@ -158,3 +158,30 @@ def test_long_text_mentioning_failure_is_not_an_error():
     """长正文里偶尔出现"失败"字样不算失败——判据要求同时简短且带标记。"""
     long_text = "查询完成。" + "本次巡检覆盖全部 12 个检查项。" * 20 + "其中 0 条失败记录。"
     assert classify_payload(long_text).status == "ok"
+
+
+def test_ssh_evidence_counts_as_live_observation():
+    """真实成功的 SSH 观测必须算 live，不能被 SSH 目标标记一律否决。
+
+    实测（G8）：AutoDL 目标下 SSH 工具真的连上主机并执行成功，但
+    - SSH 工具返回纯文本/dict、没有 source 字段 → source=unspecified
+    - unspecified 在 NON_LIVE_SOURCES 里
+    - evidence_is_live 还有一条 `target != "configured_ssh_endpoint"`
+    三重叠加导致真实观测被判 live=False，整份报告降级成"证据不足"。
+    """
+    from app.core.claims import evidence_is_live
+
+    ssh_live = {
+        "ok": True, "demo": False, "source": "ssh",
+        "target": "configured_ssh_endpoint", "tool": "get_system_info",
+        "data": {"uname": "Linux autodl-container"},
+    }
+    assert evidence_is_live(ssh_live) is True, "真实 SSH 观测必须算 live"
+
+    # 没有标明来源的 SSH 证据仍然不算 live：无法区分真实观测与占位。
+    unlabeled = {**ssh_live, "source": "unspecified"}
+    assert evidence_is_live(unlabeled) is False
+
+    # demo / 失败证据不算 live，行为不变。
+    assert evidence_is_live({**ssh_live, "demo": True}) is False
+    assert evidence_is_live({**ssh_live, "ok": False}) is False

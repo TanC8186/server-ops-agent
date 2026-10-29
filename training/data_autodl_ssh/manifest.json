@@ -1,0 +1,26 @@
+{
+  "dataset": "autodl_ssh_v1",
+  "seed": 42,
+  "rows": 168,
+  "splits": {
+    "train": 136,
+    "val": 16,
+    "test": 16
+  },
+  "tool_names": [
+    "list_all_services",
+    "get_current_time",
+    "get_current_timestamp",
+    "retrieve_knowledge",
+    "get_system_info",
+    "get_process_list",
+    "search_system_logs",
+    "check_disk_usage",
+    "read_log_file"
+  ],
+  "sha256": {
+    "train": "c48e101527c76f81fa4a202dc4a3441d6a7da83eb18b976ffd2e4d4970747f8d",
+    "val": "26e1317299af0c70fac484a53156fbac1677eadb48a1d25a6cd54ab8b5e9c2f9",
+    "test": "5f4c0f2d4852ea0a255945caa18fb01574e939e9e365c66e7bed94475c35085b"
+  }
+}

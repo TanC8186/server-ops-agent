@@ -45,8 +45,23 @@ __TOOL_NAMES__
 """
 
 
+def target_context_for(target_kind: str = "") -> str:
+    """返回与训练数据一致的目标能力上下文。"""
+    if target_kind == "ssh":
+        return (
+            "平台：Linux\n"
+            "采集方式：SSH 只读\n"
+            "当前目标没有云监控 API，不能选择 query_cpu_metrics、"
+            "query_memory_metrics、query_disk_metrics、query_network_metrics。\n"
+            "CPU/内存/磁盘/进程/系统日志必须使用当前工具目录中的 SSH 工具；"
+            "retrieve_knowledge 只用于补充处置手册，不替代真实观测。"
+        )
+    return ""
+
+
 def build_system_prompt(
-    catalog_text: str = "", tool_names: list[str] | None = None
+    catalog_text: str = "", tool_names: list[str] | None = None,
+    target_context: str = "",
 ) -> str:
     """渲染 system prompt。
 
@@ -59,6 +74,11 @@ def build_system_prompt(
     else:
         preamble = "工具名（只能从这里选，不要编造）：\n__TOOL_NAMES__\n\n"
         prompt = prompt.replace(preamble, "")
+    if target_context:
+        prompt = prompt.replace(
+            "规则：\n",
+            "目标上下文：\n" + target_context.strip() + "\n\n规则：\n",
+        )
     if catalog_text:
         prompt = prompt.replace("{tool_catalog}", "工具目录：\n" + catalog_text)
     else:

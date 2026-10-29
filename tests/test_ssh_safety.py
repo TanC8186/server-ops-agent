@@ -50,3 +50,46 @@ def test_safe_log_path_accepts_whitelisted_logs():
 def test_safe_count_rejects_invalid_values(value):
     with pytest.raises(ValueError):
         _safe_count(value, "count")
+
+
+def test_missing_log_file_is_unavailable_not_a_fake_entry(monkeypatch):
+    """日志文件不存在时必须报 unavailable，不能伪造成"查到一条日志"。
+
+    实测（G8，AutoDL 容器）：`/var/log/syslog` 不存在。旧实现是
+    `tail ... 2>/dev/null || echo 'Log file not found'`，那句提示被当成
+    正常日志条目返回，status=ok、count=1、entries=[{"message":"(empty)"}]。
+    于是"这台机器没有 syslog"被展示成"查到了日志"。
+    """
+    from servers import ssh_server
+
+    monkeypatch.setattr(ssh_server, "SERVER_TYPE", "linux")
+    sentinel = "__ONCALL_NOLOGFILE__"
+    monkeypatch.setattr(
+        ssh_server, "_exec_readonly",
+        lambda commands: {commands[0]: sentinel},
+    )
+
+    result = ssh_server.search_system_logs(log_type="syslog")
+
+    assert result["ok"] is False
+    assert result["status"] == "unavailable"
+    assert result["count"] == 0
+    assert result["entries"] == []
+    assert "不存在" in result["error"]
+    # 关键：不能再出现那条伪造的 "(empty)" 记录。
+    assert result["entries"] != [{"message": "(empty)"}]
+
+
+def test_existing_log_file_still_returns_entries(monkeypatch):
+    """文件存在时行为不变：正常返回行。"""
+    from servers import ssh_server
+
+    monkeypatch.setattr(ssh_server, "SERVER_TYPE", "linux")
+    monkeypatch.setattr(
+        ssh_server, "_exec_readonly",
+        lambda commands: {commands[0]: "line one\nline two\n"},
+    )
+
+    result = ssh_server.search_system_logs(log_type="syslog")
+    assert result["count"] == 2
+    assert result["entries"][0]["message"] == "line one"

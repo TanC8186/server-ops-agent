@@ -17,7 +17,12 @@ from openai import AsyncOpenAI
 from app.config import config
 from app.observability import trace_event
 
-from .local_prompt import build_system_prompt, catalog_from_tools, compact_catalog
+from .local_prompt import (
+    build_system_prompt,
+    catalog_from_tools,
+    compact_catalog,
+    target_context_for,
+)
 from .plan_schema import normalize_plan
 from .runtime_tools import validate_args
 
@@ -159,12 +164,21 @@ def _plan_is_valid(steps: list[dict], tools: list) -> bool:
 async def try_local_plan(
     symptom: str, service: str, tools: list, run_id: str = "", *,
     allow_cloud_fallback: bool = True,
+    target_kind: str = "",
 ) -> dict[str, Any] | None:
     """尝试用本地模型生成计划；不可用/不合法时返回 None。"""
     if not config.local_llm_base_url:
         return None
 
     catalog = catalog_from_tools(tools)
+    target_context = target_context_for(target_kind)
+    # 按目标类型选模型：只有 ssh 目标且配置了专用模型时才换，其余一律用通用模型。
+    # 这不是"又一个兜底"——两个模型共用同一个 base_url，只是 served-model-name 不同。
+    model_name = config.local_llm_model
+    if target_kind == "ssh" and config.local_llm_model_ssh.strip():
+        model_name = config.local_llm_model_ssh.strip()
+    trace_event(run_id, "local_model_route", target_kind=target_kind or "cloud",
+                model=model_name)
     messages = [
         {
             "role": "system",
@@ -175,6 +189,7 @@ async def try_local_plan(
             "content": build_system_prompt(
                 compact_catalog(catalog, with_params=config.local_llm_with_params),
                 tool_names=None,
+                target_context=target_context,
             ),
         },
         {
@@ -191,7 +206,7 @@ async def try_local_plan(
             max_retries=0,
         ) as client:
             response = await client.chat.completions.create(
-                model=config.local_llm_model,
+                model=model_name,
                 messages=messages,
                 temperature=0.0,
                 max_tokens=config.local_llm_max_tokens,

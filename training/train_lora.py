@@ -68,6 +68,11 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--model", default="E:/models/Qwen/Qwen2.5-1.5B-Instruct")
     parser.add_argument("--output", default="training/out/qwen15-lora")
+    parser.add_argument(
+        "--data-dir",
+        default=str(DATA_DIR),
+        help="训练数据目录，内含 train.jsonl 和 val.jsonl；默认 training/data",
+    )
     parser.add_argument("--epochs", type=float, default=3.0)
     parser.add_argument("--batch-size", type=int, default=2)
     parser.add_argument("--grad-accum", type=int, default=8)
@@ -134,8 +139,9 @@ def main() -> None:
     total = sum(p.numel() for p in model.parameters())
     print(f"trainable params: {trainable:,} / {total:,} ({100 * trainable / total:.2f}%)")
 
-    train_dataset = ChatDataset(DATA_DIR / "train.jsonl", tokenizer, args.max_length)
-    eval_dataset = ChatDataset(DATA_DIR / "val.jsonl", tokenizer, args.max_length)
+    data_dir = Path(args.data_dir)
+    train_dataset = ChatDataset(data_dir / "train.jsonl", tokenizer, args.max_length)
+    eval_dataset = ChatDataset(data_dir / "val.jsonl", tokenizer, args.max_length)
     print(f"train={len(train_dataset)} val={len(eval_dataset)}")
 
     training_args = TrainingArguments(

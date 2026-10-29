@@ -1,0 +1,156 @@
+{
+  "tools": {
+    "list_all_services": {
+      "description": "列出所有已知服务和其实例映射。\n\n返回服务名与 CVM 实例 ID 的对照表，方便后续查询具体指标时使用。",
+      "parameters": {
+        "additionalProperties": false,
+        "properties": {
+          "region_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "地区代码（可选）"
+          }
+        },
+        "type": "object"
+      }
+    },
+    "get_current_time": {
+      "description": "获取当前时间，用于构造日志查询的时间窗。",
+      "parameters": {
+        "type": "object",
+        "properties": {},
+        "required": []
+      }
+    },
+    "get_current_timestamp": {
+      "description": "获取当前时间戳（以毫秒为单位）。\n\n此工具用于获取标准的毫秒时间戳，可用于：\n1. 作为 search_log 的 end_time 参数（查询到现在）\n2. 计算历史时间点作为 start_time 参数\n\nReturns:\n    int: 当前时间戳（毫秒），例如: 1708012345000\n\n使用示例:\n    current = get_current_timestamp()\n    fifteen_min_ago = current - (15 * 60 * 1000)",
+      "parameters": {
+        "additionalProperties": false,
+        "properties": {},
+        "type": "object"
+      }
+    },
+    "retrieve_knowledge": {
+      "description": "从运维知识库检索历史经验与处置手册。",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "string",
+            "description": "检索问题"
+          }
+        },
+        "required": [
+          "query"
+        ]
+      }
+    },
+    "get_system_info": {
+      "description": "获取远程服务器系统基本信息（OS、CPU、内存、磁盘、网络等只读信息）。\n\n无需参数。\n\nReturns:\n    Dict: 系统基本信息",
+      "parameters": {
+        "additionalProperties": false,
+        "properties": {},
+        "type": "object"
+      }
+    },
+    "get_process_list": {
+      "description": "获取远程服务器当前运行的进程列表（只读）。",
+      "parameters": {
+        "additionalProperties": false,
+        "properties": {
+          "sort_by": {
+            "default": "memory",
+            "type": "string",
+            "description": "排序方式，\"cpu\" 或 \"memory\"，默认 \"memory\""
+          }
+        },
+        "type": "object"
+      }
+    },
+    "search_system_logs": {
+      "description": "搜索 Windows 事件日志或 Linux 系统日志（只读）。",
+      "parameters": {
+        "additionalProperties": false,
+        "properties": {
+          "log_type": {
+            "default": "System",
+            "type": "string",
+            "description": "日志类型。Windows: System/Application/Security；Linux: syslog/auth/kern"
+          },
+          "count": {
+            "default": 30,
+            "type": "integer",
+            "description": "返回条数，默认 30"
+          },
+          "level": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "过滤级别。Windows: 1=Critical 2=Error 3=Warning 4=Info；Linux: err/warn/info"
+          },
+          "keyword": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "关键词过滤（可选）"
+          }
+        },
+        "type": "object"
+      }
+    },
+    "check_disk_usage": {
+      "description": "检查远程服务器磁盘使用情况（只读）。",
+      "parameters": {
+        "additionalProperties": false,
+        "properties": {
+          "path": {
+            "default": "C:/",
+            "type": "string",
+            "description": "要检查的路径，默认 C:/"
+          }
+        },
+        "type": "object"
+      }
+    },
+    "read_log_file": {
+      "description": "读取服务器上的指定日志文件（只读，仅限日志目录）。\n\n安全约束：只允许读取以下目录下的文件：\n- C:/logs/, C:/ProgramData/logs/, C:/inetpub/logs/\n- /var/log/, /opt/logs/",
+      "parameters": {
+        "additionalProperties": false,
+        "properties": {
+          "file_path": {
+            "type": "string",
+            "description": "文件完整路径"
+          },
+          "lines": {
+            "default": 50,
+            "type": "integer",
+            "description": "读取行数，默认 50"
+          }
+        },
+        "required": [
+          "file_path"
+        ],
+        "type": "object"
+      }
+    }
+  }
+}
