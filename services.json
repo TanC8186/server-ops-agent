@@ -1,12 +1,13 @@
 {
-  "_comment": "服务清单：新增服务时填写 service_name / instance_id / region / type。instance_id 必须是真实云实例 ID（ins-* 或 lhins-*），不要填写伪造值。",
+  "_comment": "服务清单（G8 本轮实测目标）。当前唯一目标是 AutoDL 上的算力服务器，经 SSH 只读采集的 Linux 容器。instance_id 用主机名而不是云实例 ID —— 这台机器不是腾讯云实例，填一个 ins-* 只会是伪造值；autodl 主机名才是可核验的真实标识。region 记可用区。ssh_host 必须与 SSH_HOST 指向同一台机器：Target.ssh_in_scope 靠它判断“SSH 证据能否支撑本次目标的结论”，留空会让 SSH 证据只算作独立主机。切回腾讯云请恢复 services.json.backup_g8。",
   "services": [
     {
-      "service_name": "agent-test-server",
-      "instance_id": "lhins-nst2h9mv",
-      "region": "ap-guangzhou",
+      "service_name": "autodl-ssh",
+      "instance_id": "autodl-container-73d6479980-a8bf3ae3",
+      "region": "seetacloud-sha1",
       "status": "active",
-      "type": "lighthouse"
+      "type": "ssh",
+      "ssh_host": "connect.sha1.seetacloud.com"
     }
   ]
 }

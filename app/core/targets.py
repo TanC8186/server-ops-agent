@@ -41,6 +41,13 @@ class Target:
     region: str = ""
     topics: tuple[str, ...] = ()
     ssh_host: str = ""
+    #: 采集方式：``ssh`` 表示只经由 SSH 端点读，``cloud``（默认）表示云监控 API。
+    #:
+    #: 这个字段以前只存在于 services.json 里、没有任何代码消费，于是"目标是 SSH
+    #: 主机"这个事实在运行时根本不存在：planner 拿到的是全部 22 个工具，看到
+    #: ``query_cpu_metrics`` 这种名字就把"CPU 慢"判给腾讯云监控 API，而目标机器
+    #: 根本没有腾讯云监控。运行时必须知道采集方式才能给出正确的工具目录。
+    kind: str = "cloud"
 
     @property
     def ssh_in_scope(self) -> bool:
@@ -50,6 +57,11 @@ class Target:
         """
         return bool(self.ssh_host)
 
+    @property
+    def ssh_only(self) -> bool:
+        """该目标只能通过 SSH 采集（不是云监控 API 实例）。"""
+        return self.kind == "ssh"
+
     def to_dict(self) -> dict[str, Any]:
         return {
             "service": self.service,
@@ -58,6 +70,7 @@ class Target:
             "topics": list(self.topics),
             "ssh_host": self.ssh_host,
             "ssh_in_scope": self.ssh_in_scope,
+            "kind": self.kind,
         }
 
 
@@ -116,16 +129,24 @@ def _coerce_entry(row: Any) -> Target | None:
     topics: Iterable[Any] = row.get("topics") or ()
     if isinstance(topics, str):
         topics = (topics,)
+    # type=ssh 的条目只能经 SSH 采集；其他值（含缺省）按云监控处理，保持历史行为。
+    kind = "ssh" if str(row.get("type") or "").strip().lower() == "ssh" else "cloud"
+    ssh_host = str(row.get("ssh_host") or "").strip()
     return Target(
         service=service,
         instance_id=str(row.get("instance_id") or "").strip(),
         region=str(row.get("region") or row.get("region_code") or "").strip(),
         topics=tuple(str(topic) for topic in topics if str(topic).strip()),
-        ssh_host=str(row.get("ssh_host") or "").strip(),
+        ssh_host=ssh_host,
+        # ssh 条目必须有 ssh_host，否则"只读 SSH"无从落地；缺了就当云目标，
+        # 让它在工具目录里拿不到 SSH 专属工具，而不是静默返回空证据。
+        kind="ssh" if (kind == "ssh" and ssh_host) else "cloud",
     )
 
 
 def _target_key(target: Target) -> tuple[str, str, str, tuple[str, ...], str]:
+    # kind 不进去重键：同一台机器不会既是 ssh 又是 cloud，把它算进去只会让
+    # 目录里的一次 typo（少写 type）变成"多一个实例"，进而误触发 target_required。
     return (target.service, target.instance_id, target.region, target.topics,
             target.ssh_host)
 

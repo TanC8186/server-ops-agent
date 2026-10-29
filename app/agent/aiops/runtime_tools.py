@@ -47,6 +47,11 @@ SSH_TOOLS = frozenset({
     "get_system_info", "get_process_list", "search_system_logs",
     "check_disk_usage", "read_log_file",
 })
+#: 与采集方式无关的工具：目标发现（必做第一步）、当前时间、知识检索。
+#: 这三类对云目标和 SSH 目标都成立，所以 kind 收窄时要保留。
+TARGET_AGNOSTIC_TOOLS = frozenset({
+    "list_all_services", "get_current_time", "get_current_timestamp", KNOWLEDGE_TOOL,
+})
 #: 走子进程/MCP 通道的工具（与 in-process 工具共享同一并发预算）。
 SUBPROCESS_TOOLS = READ_ONLY_TOOLS - {"get_current_time"}
 
@@ -237,6 +242,23 @@ class RunTools:
         self.target = target
         self.target_service = target.service
         self.target_instance = target.instance_id
+
+    def tools_for_target(self) -> list:
+        """按目标的采集方式返回可规划的工具。
+
+        ``kind=ssh`` 的目标只能经 SSH 读，云监控/日志 API 工具对它必然失败
+        （实测：会返回 `X-TC-Region 取值错误`、`Monitor API 不直接提供进程列表`
+        这类与目标无关的错误，而报告仍把它们当"证据缺口"列出来）。所以这里把
+        目录收敛到 SSH 工具 + 与采集方式无关的工具（发现、时间、知识检索），
+        不再把用不上的云工具塞给 planner——模型只能从目录里选，目录里有什么
+        它就会选什么。
+
+        云目标保持历史行为（全量目录），不因为这次修复改变已有语义。
+        """
+        if self.target is None or not self.target.ssh_only:
+            return list(self.by_name.values())
+        keep = SSH_TOOLS | TARGET_AGNOSTIC_TOOLS
+        return [tool for name, tool in self.by_name.items() if name in keep]
 
     # ── 执行 ────────────────────────────────────────────────
 

@@ -161,7 +161,13 @@ services:
       - SSH_HOST=${SSH_HOST:-}
       - SSH_PORT=${SSH_PORT:-22}
       - SSH_USER=${SSH_USER:-Administrator}
-      - SSH_KEY_FILE=${SSH_KEY_FILE:-/app/ssh_key.pem}
+      # SSH_KEY_FILE 有两种语义，必须分开：
+      #   宿主侧：作为 volumes 的源路径（compose 执行于宿主）
+      #   容器内：服务进程读的路径，固定是挂载目标
+      # 旧写法 `SSH_KEY_FILE=${SSH_KEY_FILE:-...}` 会把宿主路径原样
+      # 传进容器：宿主写 `E:/...` 时容器内找不到该文件，
+      # SSH 工具直接报 ENOENT。挂载目标不变，所以容器内固定为 /app/ssh_key.pem。
+      - SSH_KEY_FILE=/app/ssh_key.pem
       - SSH_SERVER_TYPE=${SSH_SERVER_TYPE:-windows}
       # 无云凭证时的合成数据开关；0 = 直接报 unavailable
       - DEMO_MODE=${DEMO_MODE:-0}
@@ -192,6 +198,9 @@ services:
       - ${HF_CACHE_DIR:-~/.cache/huggingface}:/root/.cache/huggingface:rw
       # 挂载 SSH 私钥（如不需要 SSH 功能可删除此行）
       - ${SSH_KEY_FILE:-/dev/null}:/app/ssh_key.pem:ro
+      # 服务清单：以前只有构建时 COPY，换诊断目标就得重建 10.7GB 镜像。
+      # 挂载进去之后，换目标只需改宿主文件 + 重启容器。必须 :ro。
+      - ${AIOPS_SERVICES_HOST_FILE:-./services.json}:/app/services.json:ro
       # ── 命名卷：容器重建后数据仍在 ──
       # uploads/：上传的原始文档（app/api/file.py 的 ./uploads）
       - oncall-uploads:/app/uploads

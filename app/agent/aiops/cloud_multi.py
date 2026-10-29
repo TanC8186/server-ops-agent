@@ -122,6 +122,24 @@ def _json(value: Any) -> str:
     return json.dumps(value, ensure_ascii=False, default=str)
 
 
+def _allowed_tool_names(runtime: Any) -> set[str]:
+    """本次运行允许规划的工具有哪些。
+
+    优先问运行器 ``tools_for_target()``——它会按目标采集方式收窄（SSH 目标不
+    给云监控工具）。运行器可能是测试替身或旧版本，没有这个方法时退回
+    ``by_name`` 全量，保持历史行为不变。
+    """
+    resolver = getattr(runtime, "tools_for_target", None)
+    if callable(resolver):
+        try:
+            return {tool.name for tool in resolver()}
+        except Exception:  # noqa: BLE001 - 收窄失败不能拖垮整次运行
+            from loguru import logger
+
+            logger.warning("tools_for_target 调用失败，退回全量工具目录", exc_info=True)
+    return set(getattr(runtime, "by_name", {}) or {})
+
+
 def _response_text(response: Any) -> str:
     content = getattr(response, "content", response)
     if isinstance(content, str):
@@ -500,7 +518,25 @@ async def _supervisor_node(state: CloudMultiState) -> dict:
               "message": "目标不唯一，等待用户选择诊断目标"})
         return {"target_required_resolution": exc.resolution, "runtime": runtime,
                 "status": "target_required"}
-    available = {role: sorted(names & set(runtime.by_name)) for role, names in SPECIALIST_TOOLS.items()}
+    # 按目标的采集方式收窄专科目录：SSH 目标把云监控/日志 API 工具剔掉，
+    # 否则 Supervisor 会把 metrics 派给 query_cpu_metrics，而目标机器根本没有
+    # 腾讯云监控——实测会返回 "X-TC-Region 取值错误" / "Monitor API 不直接提供
+    # 进程列表" 这类与目标无关的错误，却仍被当成证据缺口写进报告。
+    allowed = _allowed_tool_names(runtime)
+    available = {
+        role: sorted((names & set(runtime.by_name)) & allowed)
+        for role, names in SPECIALIST_TOOLS.items()
+    }
+    target = getattr(runtime, "target", None)
+    if getattr(target, "ssh_only", False):
+        # 收窄后某个专科可能一个工具都不剩：这时不能派空任务，否则专科拿到空
+        # 目录、必然产出无证据结论。两者都空说明目录配置有问题，明确失败。
+        empty = [role for role, names in available.items() if not names]
+        if empty:
+            raise ValueError(
+                f"目标是 SSH 主机（{target.service}），但这些专科收窄后没有可用工具："
+                f"{', '.join(sorted(empty))}；请检查 SSH 工具目录配置"
+            )
     supervisor = create_chat_model(temperature=0, streaming=False, max_tokens=1400)
     # 预算在 supervisor 建 runtime 之后立刻建，全 run 共享同一个实例。
     # 预算与 deadline 由运行器传入（整次 run 一份）；测试直接调用时兜底新建。

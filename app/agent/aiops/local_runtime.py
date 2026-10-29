@@ -153,7 +153,9 @@ async def run_local(user_input: str, session_id: str, run_id: str, *,
                     return
                 queue.put_nowait({"type": "agent_status", "agent": "local_planner", "status": "running",
                                   "message": "本地小模型正在制定排查计划"})
-                result = await try_local_plan(user_input, target, list(tools.by_name.values()), run_id,
+                # 只给目标真正用得上的工具：
+                # SSH 目标不该看到云监控工具，否则它必然会选错。
+                result = await try_local_plan(user_input, target, tools.tools_for_target(), run_id,
                                               allow_cloud_fallback=False)
                 if result is None:
                     raise ValueError("本地模型不可用或计划校验失败；本地模式已停止，不会调用在线模型")
