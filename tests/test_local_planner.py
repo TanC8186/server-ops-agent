@@ -118,3 +118,37 @@ def test_repair_args_marks_unrepairable_step():
     steps[1]["description"] = "query logs"
     fixed = repair_args(steps, [list_all_services, search_service_logs])
     assert fixed[1].get("_invalid") is True
+
+
+def test_autodl_prompt_skew_is_closed(monkeypatch):
+    """AutoDL adapter 的 train/serve prompt 必须逐字一致。
+
+    实测（G8）：数据集用 `compact_catalog(catalog, with_params=True)` 生成，
+    运行时却按 `LOCAL_LLM_WITH_PARAMS=False` 渲染——模型看到的目录少了一整段
+    参数签名。user turn 同样不一致：训练是六行（平台/采集方式/目标/目标角色/
+    告警文本/请只输出 JSON），运行时是两行 `服务: x`。两处 skew 叠加会凭空
+    低估模型表现（实测磁盘场景直接输出截断）。
+    """
+    from app.config import config
+    from app.agent.aiops import local_planner as lp
+
+    monkeypatch.setattr(config, "local_llm_model_ssh", "qwen-autodl")
+    monkeypatch.setattr(config, "local_llm_with_params", False)
+
+    # AutoDL 模型：训练用什么就渲染什么
+    assert lp._with_params_for("qwen-autodl") is True
+    # 通用模型：沿用配置项，行为不变
+    assert lp._with_params_for("qwen-ops") is False
+
+    ssh_turn = lp._user_turn("qwen-autodl", "autodl-ssh", "磁盘满了", "ssh")
+    assert ssh_turn.startswith("平台：Linux\n采集方式：SSH 只读\n")
+    assert "目标：autodl-ssh" in ssh_turn
+    assert "目标角色：远程 Linux 算力节点" in ssh_turn
+    assert "告警文本：磁盘满了" in ssh_turn
+    assert ssh_turn.endswith("请只输出 JSON。")
+
+    # 通用模型保持历史两行格式
+    generic = lp._user_turn("qwen-ops", "svc-a", "CPU 高", "cloud")
+    assert generic == "服务: svc-a\n告警文本: CPU 高\n请输出 JSON。"
+    # AutoDL 模型但目标不是 ssh 时，不该套用 SSH 语境
+    assert lp._user_turn("qwen-autodl", "svc-a", "CPU 高", "cloud") == generic

@@ -236,6 +236,10 @@ def test_acl_seal_failure_keeps_uploader_visibility(env):
     assert payload.get("acl_sealed") is False, "ACL 没写成必须在响应里如实标注"
 
     document_id = payload["document_id"]
+    # 上传是异步的：submit 返回 202 后由后台 job 写入。不等待就断言可见性，
+    # 在机器负载高时（全量并行跑）会偶发失败——后台索引还没落盘。
+    # 本文件其它用例（如第 146 行）已经这么等，这里之前漏了。
+    store_api.wait_for_job(payload["job_id"], timeout=10.0)
     snapshot = store.snapshot()["documents"][document_id]
     assert snapshot["acl_principals"] == [STRANGER], "ACL 里不含 uploader（这正是缺陷前提）"
 

@@ -161,6 +161,45 @@ def _plan_is_valid(steps: list[dict], tools: list) -> bool:
     return True
 
 
+def _with_params_for(model_name: str) -> bool:
+    """该模型在训练时是否用了带参数签名的工具目录。
+
+    AutoDL 专用 adapter 的训练数据固定用 ``with_params=True``；通用模型沿用
+    配置项 ``LOCAL_LLM_WITH_PARAMS``（历史默认 False）。两者不能混：目录少一段
+    参数签名就是 train/serve skew。
+    """
+    ssh_model = config.local_llm_model_ssh.strip()
+    if ssh_model and model_name == ssh_model:
+        return True
+    return config.local_llm_with_params
+
+
+def _user_turn(model_name: str, service: str, symptom: str, target_kind: str) -> str:
+    """构造 user turn。
+
+    AutoDL adapter 的训练数据用固定六行格式（平台/采集方式/目标/目标角色/
+    告警文本/请只输出 JSON）。运行时如果还用旧的 ``服务: x
+告警文本: y``，
+    模型看到的就是训练时没见过的输入形状——与工具目录少参数签名一样是 skew。
+    通用模型保持历史两行格式，不改变它的行为。
+    """
+    ssh_model = config.local_llm_model_ssh.strip()
+    if ssh_model and model_name == ssh_model and target_kind == "ssh":
+        return "\n".join([
+            "平台：Linux",
+            "采集方式：SSH 只读",
+            f"目标：{service}",
+            "目标角色：远程 Linux 算力节点",
+            f"告警文本：{symptom}",
+            "请只输出 JSON。",
+        ])
+    return "\n".join([
+        f"服务: {service}",
+        f"告警文本: {symptom}",
+        "请输出 JSON。",
+    ])
+
+
 async def try_local_plan(
     symptom: str, service: str, tools: list, run_id: str = "", *,
     allow_cloud_fallback: bool = True,
@@ -187,14 +226,20 @@ async def try_local_plan(
             # 再追加一遍列表会让 prompt 从 984 变成 1091 tokens —— 训练时模型从没见过
             # 那 107 个 token，属于典型的 train/serve skew。
             "content": build_system_prompt(
-                compact_catalog(catalog, with_params=config.local_llm_with_params),
+                # 参数签名必须与训练数据一致：AutoDL 数据集是用
+                # compact_catalog(catalog, with_params=True) 生成的
+                # （training/build_autodl_dataset.py:199），而 .env 里
+                # LOCAL_LLM_WITH_PARAMS=False 是给旧通用模型用的。
+                # 两者不一致时模型看到的目录少了一整段参数信息，属于典型的
+                # train/serve skew —— 会凭空低估模型表现。
+                compact_catalog(catalog, with_params=_with_params_for(model_name)),
                 tool_names=None,
                 target_context=target_context,
             ),
         },
         {
             "role": "user",
-            "content": f"服务: {service}\n告警文本: {symptom}\n请输出 JSON。",
+            "content": _user_turn(model_name, service, symptom, target_kind),
         },
     ]
 
