@@ -194,6 +194,16 @@ def _tools_called(events: list[dict]) -> list[dict]:
     return rows
 
 
+#: 在**规划之前**就执行的发现工具。
+#:
+#: 两条链路都会先调用 ``list_all_services`` 绑定目标，之后模型才开始规划——所以
+#: 它永远不出现在 plan 事件里（本地是在绑定阶段跑掉，云端是在 supervisor 之前
+#: 跑掉）。如果把它算进计划的 F1，云端会因为"计划里没有它"被系统性扣分，
+#: 而实际上它确实被调用了、也成功了。这里的处理是：计划类指标只比**计划里能
+#: 出现的工具**，发现工具单独看"是否真的调用了"。
+DISCOVERY_TOOLS = frozenset({"list_all_services"})
+
+
 def _plan_tools(events: list[dict]) -> list[str]:
     """取计划的工具名。
 
@@ -242,13 +252,23 @@ def _score(task: dict, events: list[dict], elapsed: float, error: str | None) ->
 
     hit = len(set(expected) & called_ok)
     recall = hit / len(expected) if expected else None
-    planned_hit = len(set(expected) & set(planned))
-    plan_recall = planned_hit / len(expected) if expected else None
-    precision_denom = len(set(planned))
+
+    # 计划类指标只在"计划里能出现"的工具上算：发现工具（list_all_services）
+    # 在绑定目标阶段就跑了，永远不会出现在 plan 事件里。把它留在分母会让每一种
+    # 模式都被恒定扣掉一分，而且两边扣得不一样多（见 DISCOVERY_TOOLS 注释）。
+    plan_expected = set(expected) - DISCOVERY_TOOLS
+    planned_set = set(planned) - DISCOVERY_TOOLS
+    planned_hit = len(plan_expected & planned_set)
+    plan_recall = (planned_hit / len(plan_expected)) if plan_expected else None
+    precision_denom = len(planned_set)
     plan_precision = (planned_hit / precision_denom) if precision_denom else None
     plan_f1 = None
     if plan_recall is not None and plan_precision:
         plan_f1 = 2 * plan_recall * plan_precision / (plan_recall + plan_precision)
+
+    # 发现工具单独记：它有没有真的被调用（而不是有没有被规划）。
+    discovery_required = DISCOVERY_TOOLS & set(expected)
+    discovery_called = discovery_required & called_ok
 
     return {
         "id": task["id"],
@@ -265,6 +285,13 @@ def _score(task: dict, events: list[dict], elapsed: float, error: str | None) ->
             round(sum(1 for row in called if row["ok"]) / len(called), 3) if called else None
         ),
         "expected_tools": expected,
+        "plan_expected_tools": sorted(plan_expected),
+        "discovery_required": sorted(discovery_required),
+        "discovery_called_ok": sorted(discovery_called),
+        "discovery_ok": (
+            None if not discovery_required
+            else len(discovery_called) == len(discovery_required)
+        ),
         "plan_tool_recall": None if plan_recall is None else round(plan_recall, 3),
         "plan_tool_precision": None if plan_precision is None else round(plan_precision, 3),
         "plan_tool_f1": None if plan_f1 is None else round(plan_f1, 3),
@@ -365,6 +392,9 @@ def summarize(rows: list[dict], mode: str) -> dict:
         # 本地的 agent_status 只报 local_planner，云端的才有多角色；
         # 用不同的键名，避免把本地也算成"有多智能体阶段"。
         "rows_with_agent_stages": sum(1 for r in rows if r["agent_stages"]),
+        # 目标绑定阶段的发现调用：分母是"要求发现的那些任务"。
+        "discovery_tasks": sum(1 for r in rows if r["discovery_required"]),
+        "discovery_ok_tasks": sum(1 for r in rows if r["discovery_ok"]),
         # 明细全部保留：汇总数字脱离明细就无法复核。
         "rows": rows,
     }
@@ -383,7 +413,8 @@ def _compare(paths: list[str]) -> int:
     keys = ["tasks", "latency_p50_s", "latency_p95_s", "latency_mean_s",
             "tool_call_success_rate", "plan_tool_f1_mean", "plan_tool_recall_mean",
             "tokens_input_mean", "tokens_output_mean", "cite_tasks_with_evidence",
-            "refusal_tasks_completed_without_error", "rows_with_agent_stages"]
+            "refusal_tasks_completed_without_error", "rows_with_agent_stages",
+            "discovery_ok_tasks"]
     for key in keys:
         cells = []
         for report in reports:

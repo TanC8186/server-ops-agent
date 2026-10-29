@@ -316,3 +316,36 @@
 - **双模式对比（P2）未执行**：需要一次真实的本地 QLoRA + cloud_multi 同批任务运行。
 - 单 API Key：多租户验证均以测试内不同 `principal_id` 构造。
 - 聊天事件跨进程追加仍只适合单 app 进程。
+
+---
+
+# G8 增量状态（2026-10-29）
+
+## G8.1 本轮改动与验证手段
+
+| 项 | 改动文件 | 验证手段 | 结果 |
+|---|---|---|---|
+| 构建上下文凭据排除 | `.dockerignore`（敏感模式全部 `**/` 前缀 + 补 ppk/id_rsa/p12/pfx） | `tests/test_docker_context_hygiene.py`（24 条）+ 探针镜像内 `ls -R` | 修复前该测试失败 6 条，修复后全过；新镜像内已无私钥、无项目 `.pyc` |
+| 云端 schema 回显 | `app/agent/aiops/cloud_multi.py`（`_looks_like_schema_echo` + 专门重试指令） | `tests/test_json_extraction.py` 新增 3 条 + 真实模型连跑 8 次 | 5/8 → **8/8** |
+| compose 采用新镜像 | `docker-compose.yml`（`image: ${APP_IMAGE:-...}`） | `docker compose config --images` + 容器 `.Image` 内省 | 容器实际运行 `sha256:4791e2f4…` |
+| 评测 gold 可执行性 | `eval/scenarios/*.yaml`（4 个）、`eval/README.md` | `scripts/validate_eval.py` + `bind_tool_args` 实测 | 原 gold 会在唯一目标上被拒绝，已改为 `search_service_logs` |
+| 双模式基准 | `scripts/mode_benchmark.py`（新）、`eval/mode_benchmark/tasks.jsonl`（新） | 两种模式各跑 18 条 | 各 18/18 complete |
+| 模式取舍可见 | `app/api/aiops.py`、`web/src/api.ts`、`App.tsx`、`styles.css` | `tests/test_execution_modes_api.py`（形状锁定）+ 前端 75 passed | 401/401/200 且新字段生效 |
+| 本地失败文案 | `app/agent/aiops/local_runtime.py`、`web/src/view.ts` | `web/src/view.test.ts` 新增 1 条 | 只对 local 模式显示"已停止" |
+
+## G8.2 本轮修掉的 P0
+
+1. `.dockerignore` 裸 glob 不跨目录 → 未加密 RSA 私钥真实存在于镜像层
+   `servers/AgentTest.pem`（755 / 1674 B，sha256 与宿主一致）。
+2. cloud_multi Supervisor 把 JSON Schema 文档当答案抄回，约 1/3 运行直接失败。
+3. `app:` 无 `image:` → `up --force-recreate` 复用旧镜像，验收跑的不是新构建。
+4. 4/5 评测场景把 `search_log` 当 gold，而唯一目标的 topic 为空会被正确拒绝。
+
+## G8.3 仍未做
+
+与 `G8_RESULTS_2026-10-29.md` §8 一致（13 项）。要点：SSH staging、真实 TCP 断线、
+CUDA torch 替换、PyMilvus ORM、CI docker job 实跑、Linux flock、IME/读屏器、
+`--pull`、attu 启动、多副本、真实多用户、fp16 vs 4-bit 同题对照、
+`search_log` 对真实 topic 的成功路径。
+
+**P2 双模式对比本轮已完成**（G7 遗留项）：18 条固定任务、两条链路各 18/18 完成。

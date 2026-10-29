@@ -1060,3 +1060,57 @@ PyMilvus ORM 迁移未做；生成式评测只 12/80 条。
 - G6 报告的身份表述（"未提交"/"dirty"）已统一为 base/code/HEAD 三字段。
 - 本轮**未执行 `--pull`**：`registry-1.docker.io` 直连超时，基础镜像用本机已有副本。不得写成 `--pull --no-cache` 构建通过。
 - 本轮未执行双模式对比（P2），也未改动任何生成层数字。
+
+---
+
+# V15. 第八轮（G8，2026-10-29）
+
+## V15.1 实测数字
+
+| 项 | 结果 |
+|---|---|
+| 后端测试 | 900 passed, 1 skipped（94.26 s） |
+| 前端测试 | 75 passed（chat 18 / sse 15 / state 21 / view 21） |
+| tsc / oxlint / build | 全过 |
+| 镜像 | `oncall-agent:g8-final` = `sha256:4791e2f4…`，10 671 649 860 B |
+| revision 标签 | `35c7bfa2f99b71733d1466b30728c7842d811bc6` = HEAD |
+| Compose | 四个核心服务 healthy；attu 未启动（端口被无关进程占用） |
+| 鉴权 | 无 key 401 / 错 key 401 / 对 key 200 |
+
+双模式同题对比（固定 18 条，sha256 `89b54d10…`）：
+
+| 指标 | local | cloud_multi |
+|---|---:|---:|
+| complete | 18/18 | 18/18 |
+| 延迟 p50 / p95 | 3.768 s / 6.189 s | 17.889 s / 39.008 s |
+| 输入 / 输出 token 均值 | 1047.8 / 231.3 | 5964.1 / 1338.9 |
+| 工具调用成功率 | 0.355 | 0.279 |
+| 计划工具召回 / F1 | 0.875 / 0.533 | 1.000 / 0.160 |
+
+工具调用成功率两边都低，原因是真实云账户侧错误
+（CLS 未开通、指标命名空间无效、实例不可用），不是模型或代码问题。
+
+## V15.2 本轮修掉的真实缺陷
+
+| 缺陷 | 危害 | 修法 |
+|---|---|---|
+| `.dockerignore` 裸 glob 不跨目录 | **未加密 RSA 私钥真实存在于镜像层**（`/app/servers/AgentTest.pem`），293 个 `.pyc` 一并入镜像 | 敏感模式全部 `**/` 前缀 + 补 ppk/id_rsa/p12/pfx；新增 24 条测试（在旧文件上失败 6 条） |
+| Supervisor JSON Schema 回显 | 约 1/3 云端运行直接失败；通用重试指令只是让模型再抄一次 schema | `_looks_like_schema_echo` 识别 + 专门纠正指令；实测 5/8 → 8/8 |
+| compose `app:` 无 `image:` | `up --force-recreate` 复用 `on_call_agent-app:latest`，验收跑的是旧代码 | `image: ${APP_IMAGE:-on_call_agent-app:latest}`，验收用 `APP_IMAGE` 钉 digest |
+| 评测 gold 用不可执行工具 | 4/5 场景 gold `search_log` 在唯一目标上必被拒绝（无 topic） | 改用 `search_service_logs`；`validate_eval.py` 抓不到这类问题 |
+| 本地 severity 越界分支缺文案 | 用户看不出是否偷偷切云端 | 统一为"本地模式已停止，不会调用在线模型"，前端 `localFailureNote` 只对 local 生效 |
+| README 写"失败时自动回退云端" | 与 `allow_cloud_fallback=False` 直接冲突 | 删除该表述并补"为什么同时支持本地与云端" |
+
+## V15.3 与历史记录的差异
+
+- G7 文档里"`servers/AgentTest.pem` 已被 `.dockerignore` 排除"的结论**是错的**：
+  本轮用探针镜像实测确认它在构建上下文里，且镜像层里真实存在该文件。已在
+  `G8_RESULTS` §2.1 更正。
+- 双模式对比的口径修过一次：初版把发现工具 `list_all_services` 算进计划 F1 的
+  分母，而它在两条链路里都是**规划之前**就执行的绑定步骤、永远不会出现在 plan
+  事件里，导致云端被系统性扣分。改为计划指标只比"计划里能出现的工具"、发现调用
+  单独统计后，云端计划召回从 0.50 变为 1.000、F1 从 0.152 变为 0.160（本地
+  相应从 0.889/0.665 变为 0.875/0.533）。这一修正对结论方向有实质影响，故保留说明。
+- 本轮**未执行 `--pull`**（registry 直连超时），构建走构建期代理参数，
+  不写成可复现 CI 证据。
+- `training/RESULTS.md` 的 v9/v11 数字本轮未重跑，未采用任何新的"模型能力"结论。

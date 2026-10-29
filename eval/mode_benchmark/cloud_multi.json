@@ -1,0 +1,1589 @@
+{
+  "task_set": {
+    "file": "eval/mode_benchmark/tasks.jsonl",
+    "sha256": "89b54d102ca79092e5ec1361d7e6949ce307b31f89701c8bb77bf14854cc2586",
+    "count": 18
+  },
+  "mode": "cloud_multi",
+  "generated_at": "2026-10-29T13:34:11",
+  "summary": {
+    "mode": "cloud_multi",
+    "tasks": 18,
+    "status_counts": {
+      "complete": 18,
+      "error": 0,
+      "no_terminal": 0
+    },
+    "latency_p50_s": 17.889,
+    "latency_p95_s": 39.008,
+    "latency_mean_s": 20.849,
+    "tokens_input_mean": 5964.056,
+    "tokens_output_mean": 1338.944,
+    "tokens_sampled": 18,
+    "tool_call_success_rate": 0.279,
+    "plan_tool_f1_mean": 0.16,
+    "plan_tool_recall_mean": 1.0,
+    "cite_tasks": 3,
+    "cite_tasks_with_evidence": 3,
+    "refusal_tasks": 1,
+    "refusal_tasks_completed_without_error": 1,
+    "rows_with_agent_stages": 18,
+    "discovery_tasks": 16,
+    "discovery_ok_tasks": 16,
+    "rows": [
+      {
+        "id": "MB-01",
+        "bucket": "cpu",
+        "mode": "cloud_multi",
+        "status": "complete",
+        "error": null,
+        "latency_s": 21.319,
+        "planned_tools": [
+          "query_cpu_metrics",
+          "query_process_list",
+          "get_process_list",
+          "get_system_info",
+          "get_service_info",
+          "query_memory_metrics",
+          "query_network_metrics",
+          "search_service_logs",
+          "search_system_logs",
+          "search_log",
+          "analyze_log_pattern",
+          "read_log_file",
+          "search_historical_tickets",
+          "retrieve_knowledge",
+          "search_topic_by_service_name",
+          "get_topic_info_by_name"
+        ],
+        "called_tools": [
+          "analyze_log_pattern",
+          "get_process_list",
+          "list_all_services",
+          "query_cpu_metrics",
+          "search_service_logs"
+        ],
+        "tool_calls_total": 5,
+        "tool_calls_ok": 1,
+        "tool_call_success_rate": 0.2,
+        "expected_tools": [
+          "list_all_services",
+          "query_cpu_metrics"
+        ],
+        "plan_expected_tools": [
+          "query_cpu_metrics"
+        ],
+        "discovery_required": [
+          "list_all_services"
+        ],
+        "discovery_called_ok": [
+          "list_all_services"
+        ],
+        "discovery_ok": true,
+        "plan_tool_recall": 1.0,
+        "plan_tool_precision": 0.062,
+        "plan_tool_f1": 0.118,
+        "call_tool_recall": 0.5,
+        "sources": [
+          "tencent_cloud",
+          "unavailable",
+          "unspecified"
+        ],
+        "agent_stages": [
+          "supervisor.running",
+          "supervisor.completed",
+          "logs.running",
+          "metrics.running",
+          "metrics.error",
+          "logs.error",
+          "logs.error",
+          "logs.error",
+          "logs.degraded",
+          "metrics.error",
+          "metrics.error",
+          "metrics.degraded",
+          "reviewer.running",
+          "reviewer.error",
+          "reviewer.degraded"
+        ],
+        "report_chars": 1641,
+        "citation_ids": [
+          "E1",
+          "E2",
+          "E3",
+          "E4",
+          "E5"
+        ],
+        "allow_refusal": false,
+        "require_citation": false,
+        "run_id": "c3b97c6316504451b5495d9954e39303",
+        "input_tokens": 7848,
+        "output_tokens": 1420,
+        "token_events": 5
+      },
+      {
+        "id": "MB-02",
+        "bucket": "cpu",
+        "mode": "cloud_multi",
+        "status": "complete",
+        "error": null,
+        "latency_s": 16.689,
+        "planned_tools": [
+          "query_cpu_metrics",
+          "query_process_list",
+          "get_process_list",
+          "get_service_info",
+          "get_system_info",
+          "query_memory_metrics",
+          "search_service_logs",
+          "search_system_logs",
+          "search_log",
+          "read_log_file",
+          "analyze_log_pattern",
+          "search_historical_tickets",
+          "retrieve_knowledge",
+          "search_topic_by_service_name"
+        ],
+        "called_tools": [
+          "analyze_log_pattern",
+          "get_process_list",
+          "list_all_services",
+          "query_cpu_metrics",
+          "search_historical_tickets"
+        ],
+        "tool_calls_total": 5,
+        "tool_calls_ok": 1,
+        "tool_call_success_rate": 0.2,
+        "expected_tools": [
+          "list_all_services",
+          "query_cpu_metrics"
+        ],
+        "plan_expected_tools": [
+          "query_cpu_metrics"
+        ],
+        "discovery_required": [
+          "list_all_services"
+        ],
+        "discovery_called_ok": [
+          "list_all_services"
+        ],
+        "discovery_ok": true,
+        "plan_tool_recall": 1.0,
+        "plan_tool_precision": 0.071,
+        "plan_tool_f1": 0.133,
+        "call_tool_recall": 0.5,
+        "sources": [
+          "tencent_cloud",
+          "unavailable",
+          "unspecified"
+        ],
+        "agent_stages": [
+          "supervisor.running",
+          "supervisor.completed",
+          "logs.running",
+          "metrics.running",
+          "metrics.error",
+          "logs.error",
+          "logs.error",
+          "logs.error",
+          "logs.degraded",
+          "metrics.error",
+          "metrics.error",
+          "metrics.degraded",
+          "reviewer.running",
+          "reviewer.error",
+          "reviewer.degraded"
+        ],
+        "report_chars": 1534,
+        "citation_ids": [
+          "E1",
+          "E2",
+          "E3",
+          "E4",
+          "E5"
+        ],
+        "allow_refusal": false,
+        "require_citation": false,
+        "run_id": "5e01a94ffaaa40bcb632f77a35a31f18",
+        "input_tokens": 4421,
+        "output_tokens": 666,
+        "token_events": 3
+      },
+      {
+        "id": "MB-03",
+        "bucket": "memory",
+        "mode": "cloud_multi",
+        "status": "complete",
+        "error": null,
+        "latency_s": 34.55,
+        "planned_tools": [
+          "query_memory_metrics",
+          "query_process_list",
+          "get_process_list",
+          "get_service_info",
+          "get_system_info",
+          "search_system_logs",
+          "search_service_logs",
+          "search_log",
+          "analyze_log_pattern",
+          "search_historical_tickets",
+          "retrieve_knowledge"
+        ],
+        "called_tools": [
+          "get_process_list",
+          "get_service_info",
+          "get_system_info",
+          "list_all_services",
+          "query_memory_metrics",
+          "search_service_logs",
+          "search_system_logs"
+        ],
+        "tool_calls_total": 7,
+        "tool_calls_ok": 1,
+        "tool_call_success_rate": 0.143,
+        "expected_tools": [
+          "list_all_services",
+          "query_memory_metrics"
+        ],
+        "plan_expected_tools": [
+          "query_memory_metrics"
+        ],
+        "discovery_required": [
+          "list_all_services"
+        ],
+        "discovery_called_ok": [
+          "list_all_services"
+        ],
+        "discovery_ok": true,
+        "plan_tool_recall": 1.0,
+        "plan_tool_precision": 0.091,
+        "plan_tool_f1": 0.167,
+        "call_tool_recall": 0.5,
+        "sources": [
+          "tencent_cloud",
+          "unavailable",
+          "unspecified"
+        ],
+        "agent_stages": [
+          "supervisor.running",
+          "supervisor.completed",
+          "logs.running",
+          "metrics.running",
+          "logs.error",
+          "logs.error",
+          "logs.error",
+          "logs.degraded",
+          "metrics.error",
+          "metrics.error",
+          "metrics.error",
+          "metrics.error",
+          "metrics.degraded",
+          "reviewer.running",
+          "reviewer.error",
+          "reviewer.degraded"
+        ],
+        "report_chars": 1784,
+        "citation_ids": [
+          "E1",
+          "E2",
+          "E3",
+          "E4",
+          "E5",
+          "E6",
+          "E7"
+        ],
+        "allow_refusal": false,
+        "require_citation": false,
+        "run_id": "0e5d38d7a1614903b9b8df1bf2ac1079",
+        "input_tokens": 6156,
+        "output_tokens": 1391,
+        "token_events": 5
+      },
+      {
+        "id": "MB-04",
+        "bucket": "memory",
+        "mode": "cloud_multi",
+        "status": "complete",
+        "error": null,
+        "latency_s": 17.72,
+        "planned_tools": [
+          "query_memory_metrics",
+          "query_process_list",
+          "get_process_list",
+          "get_service_info",
+          "query_cpu_metrics",
+          "query_network_metrics",
+          "get_system_info",
+          "search_service_logs",
+          "search_system_logs",
+          "analyze_log_pattern",
+          "search_topic_by_service_name",
+          "get_topic_info_by_name",
+          "retrieve_knowledge",
+          "search_historical_tickets"
+        ],
+        "called_tools": [
+          "analyze_log_pattern",
+          "get_process_list",
+          "list_all_services",
+          "query_memory_metrics",
+          "search_service_logs"
+        ],
+        "tool_calls_total": 5,
+        "tool_calls_ok": 1,
+        "tool_call_success_rate": 0.2,
+        "expected_tools": [
+          "list_all_services",
+          "query_memory_metrics"
+        ],
+        "plan_expected_tools": [
+          "query_memory_metrics"
+        ],
+        "discovery_required": [
+          "list_all_services"
+        ],
+        "discovery_called_ok": [
+          "list_all_services"
+        ],
+        "discovery_ok": true,
+        "plan_tool_recall": 1.0,
+        "plan_tool_precision": 0.071,
+        "plan_tool_f1": 0.133,
+        "call_tool_recall": 0.5,
+        "sources": [
+          "tencent_cloud",
+          "unavailable",
+          "unspecified"
+        ],
+        "agent_stages": [
+          "supervisor.running",
+          "supervisor.completed",
+          "logs.running",
+          "metrics.running",
+          "metrics.error",
+          "logs.error",
+          "logs.error",
+          "logs.error",
+          "logs.degraded",
+          "metrics.error",
+          "metrics.error",
+          "metrics.degraded",
+          "reviewer.running",
+          "reviewer.error",
+          "reviewer.degraded"
+        ],
+        "report_chars": 1656,
+        "citation_ids": [
+          "E1",
+          "E2",
+          "E3",
+          "E4",
+          "E5"
+        ],
+        "allow_refusal": false,
+        "require_citation": false,
+        "run_id": "94f1147bc75b48f7a4d4b052c0c5a45f",
+        "input_tokens": 6571,
+        "output_tokens": 906,
+        "token_events": 4
+      },
+      {
+        "id": "MB-05",
+        "bucket": "disk",
+        "mode": "cloud_multi",
+        "status": "complete",
+        "error": null,
+        "latency_s": 25.463,
+        "planned_tools": [
+          "check_disk_usage",
+          "query_disk_metrics",
+          "get_process_list",
+          "query_process_list",
+          "get_service_info",
+          "get_system_info",
+          "search_service_logs",
+          "search_system_logs",
+          "search_log",
+          "analyze_log_pattern",
+          "read_log_file",
+          "search_historical_tickets",
+          "retrieve_knowledge"
+        ],
+        "called_tools": [
+          "analyze_log_pattern",
+          "check_disk_usage",
+          "list_all_services",
+          "query_disk_metrics",
+          "retrieve_knowledge"
+        ],
+        "tool_calls_total": 5,
+        "tool_calls_ok": 2,
+        "tool_call_success_rate": 0.4,
+        "expected_tools": [
+          "list_all_services",
+          "query_disk_metrics"
+        ],
+        "plan_expected_tools": [
+          "query_disk_metrics"
+        ],
+        "discovery_required": [
+          "list_all_services"
+        ],
+        "discovery_called_ok": [
+          "list_all_services"
+        ],
+        "discovery_ok": true,
+        "plan_tool_recall": 1.0,
+        "plan_tool_precision": 0.077,
+        "plan_tool_f1": 0.143,
+        "call_tool_recall": 0.5,
+        "sources": [
+          "manual",
+          "tencent_cloud",
+          "unavailable",
+          "unspecified"
+        ],
+        "agent_stages": [
+          "supervisor.running",
+          "supervisor.completed",
+          "logs.running",
+          "metrics.running",
+          "logs.error",
+          "logs.error",
+          "logs.degraded",
+          "metrics.error",
+          "metrics.error",
+          "metrics.degraded",
+          "reviewer.running",
+          "reviewer.error",
+          "reviewer.degraded"
+        ],
+        "report_chars": 1334,
+        "citation_ids": [
+          "E1",
+          "E2",
+          "E3",
+          "E4",
+          "E5"
+        ],
+        "allow_refusal": false,
+        "require_citation": false,
+        "run_id": "2af8fec9d5954185b47f0afe8a0fcf13",
+        "input_tokens": 7635,
+        "output_tokens": 1724,
+        "token_events": 6
+      },
+      {
+        "id": "MB-06",
+        "bucket": "disk",
+        "mode": "cloud_multi",
+        "status": "complete",
+        "error": null,
+        "latency_s": 24.435,
+        "planned_tools": [
+          "check_disk_usage",
+          "query_disk_metrics",
+          "get_process_list",
+          "get_system_info",
+          "get_service_info",
+          "search_service_logs",
+          "search_system_logs",
+          "search_log",
+          "analyze_log_pattern",
+          "retrieve_knowledge",
+          "search_historical_tickets"
+        ],
+        "called_tools": [
+          "analyze_log_pattern",
+          "check_disk_usage",
+          "list_all_services",
+          "query_disk_metrics",
+          "retrieve_knowledge"
+        ],
+        "tool_calls_total": 5,
+        "tool_calls_ok": 2,
+        "tool_call_success_rate": 0.4,
+        "expected_tools": [
+          "list_all_services",
+          "query_disk_metrics"
+        ],
+        "plan_expected_tools": [
+          "query_disk_metrics"
+        ],
+        "discovery_required": [
+          "list_all_services"
+        ],
+        "discovery_called_ok": [
+          "list_all_services"
+        ],
+        "discovery_ok": true,
+        "plan_tool_recall": 1.0,
+        "plan_tool_precision": 0.091,
+        "plan_tool_f1": 0.167,
+        "call_tool_recall": 0.5,
+        "sources": [
+          "manual",
+          "tencent_cloud",
+          "unavailable",
+          "unspecified"
+        ],
+        "agent_stages": [
+          "supervisor.running",
+          "supervisor.completed",
+          "logs.running",
+          "metrics.running",
+          "logs.error",
+          "logs.error",
+          "logs.degraded",
+          "metrics.error",
+          "metrics.error",
+          "metrics.degraded",
+          "reviewer.running",
+          "reviewer.error",
+          "reviewer.degraded"
+        ],
+        "report_chars": 1334,
+        "citation_ids": [
+          "E1",
+          "E2",
+          "E3",
+          "E4",
+          "E5"
+        ],
+        "allow_refusal": false,
+        "require_citation": false,
+        "run_id": "f87dd4b14e7349779510eea6c3920ebc",
+        "input_tokens": 5233,
+        "output_tokens": 1690,
+        "token_events": 4
+      },
+      {
+        "id": "MB-07",
+        "bucket": "network",
+        "mode": "cloud_multi",
+        "status": "complete",
+        "error": null,
+        "latency_s": 18.057,
+        "planned_tools": [
+          "query_network_metrics",
+          "query_cpu_metrics",
+          "query_memory_metrics",
+          "query_disk_metrics",
+          "get_process_list",
+          "get_service_info",
+          "get_system_info",
+          "search_service_logs",
+          "search_system_logs",
+          "search_log",
+          "analyze_log_pattern",
+          "search_historical_tickets",
+          "retrieve_knowledge"
+        ],
+        "called_tools": [
+          "analyze_log_pattern",
+          "get_process_list",
+          "list_all_services",
+          "query_network_metrics",
+          "search_service_logs"
+        ],
+        "tool_calls_total": 5,
+        "tool_calls_ok": 2,
+        "tool_call_success_rate": 0.4,
+        "expected_tools": [
+          "list_all_services",
+          "query_network_metrics"
+        ],
+        "plan_expected_tools": [
+          "query_network_metrics"
+        ],
+        "discovery_required": [
+          "list_all_services"
+        ],
+        "discovery_called_ok": [
+          "list_all_services"
+        ],
+        "discovery_ok": true,
+        "plan_tool_recall": 1.0,
+        "plan_tool_precision": 0.077,
+        "plan_tool_f1": 0.143,
+        "call_tool_recall": 1.0,
+        "sources": [
+          "tencent_cloud",
+          "unavailable",
+          "unspecified",
+          "unsupported"
+        ],
+        "agent_stages": [
+          "supervisor.running",
+          "supervisor.completed",
+          "logs.running",
+          "metrics.running",
+          "logs.error",
+          "logs.error",
+          "logs.error",
+          "logs.degraded",
+          "metrics.error",
+          "metrics.error",
+          "metrics.degraded",
+          "reviewer.running",
+          "reviewer.error",
+          "reviewer.degraded"
+        ],
+        "report_chars": 1488,
+        "citation_ids": [
+          "E1",
+          "E2",
+          "E3",
+          "E4",
+          "E5"
+        ],
+        "allow_refusal": false,
+        "require_citation": false,
+        "run_id": "eef6977749614d21b037dc6ff2719dcb",
+        "input_tokens": 5054,
+        "output_tokens": 1582,
+        "token_events": 4
+      },
+      {
+        "id": "MB-08",
+        "bucket": "service_anomaly",
+        "mode": "cloud_multi",
+        "status": "complete",
+        "error": null,
+        "latency_s": 16.922,
+        "planned_tools": [
+          "get_service_info",
+          "get_process_list",
+          "query_process_list",
+          "query_cpu_metrics",
+          "query_memory_metrics",
+          "query_disk_metrics",
+          "query_network_metrics",
+          "check_disk_usage",
+          "get_system_info",
+          "search_service_logs",
+          "search_system_logs",
+          "search_log",
+          "analyze_log_pattern",
+          "search_historical_tickets",
+          "retrieve_knowledge",
+          "read_log_file"
+        ],
+        "called_tools": [
+          "analyze_log_pattern",
+          "get_service_info",
+          "get_system_info",
+          "list_all_services",
+          "search_service_logs"
+        ],
+        "tool_calls_total": 5,
+        "tool_calls_ok": 1,
+        "tool_call_success_rate": 0.2,
+        "expected_tools": [
+          "list_all_services",
+          "get_service_info"
+        ],
+        "plan_expected_tools": [
+          "get_service_info"
+        ],
+        "discovery_required": [
+          "list_all_services"
+        ],
+        "discovery_called_ok": [
+          "list_all_services"
+        ],
+        "discovery_ok": true,
+        "plan_tool_recall": 1.0,
+        "plan_tool_precision": 0.062,
+        "plan_tool_f1": 0.118,
+        "call_tool_recall": 0.5,
+        "sources": [
+          "tencent_cloud",
+          "unavailable",
+          "unspecified"
+        ],
+        "agent_stages": [
+          "supervisor.running",
+          "supervisor.completed",
+          "logs.running",
+          "metrics.running",
+          "metrics.error",
+          "logs.error",
+          "logs.error",
+          "logs.error",
+          "logs.degraded",
+          "metrics.error",
+          "metrics.error",
+          "metrics.degraded",
+          "reviewer.running",
+          "reviewer.error",
+          "reviewer.degraded"
+        ],
+        "report_chars": 1551,
+        "citation_ids": [
+          "E1",
+          "E2",
+          "E3",
+          "E4",
+          "E5"
+        ],
+        "allow_refusal": false,
+        "require_citation": false,
+        "run_id": "29046b1715dd4da9bc5bb6d8e9ad66d7",
+        "input_tokens": 4918,
+        "output_tokens": 1166,
+        "token_events": 3
+      },
+      {
+        "id": "MB-09",
+        "bucket": "logs",
+        "mode": "cloud_multi",
+        "status": "complete",
+        "error": null,
+        "latency_s": 13.143,
+        "planned_tools": [
+          "search_service_logs",
+          "search_log",
+          "analyze_log_pattern",
+          "search_historical_tickets",
+          "retrieve_knowledge",
+          "query_network_metrics",
+          "query_cpu_metrics",
+          "query_memory_metrics",
+          "query_disk_metrics",
+          "get_service_info",
+          "get_system_info"
+        ],
+        "called_tools": [
+          "analyze_log_pattern",
+          "get_service_info",
+          "list_all_services",
+          "query_network_metrics",
+          "search_service_logs"
+        ],
+        "tool_calls_total": 5,
+        "tool_calls_ok": 2,
+        "tool_call_success_rate": 0.4,
+        "expected_tools": [
+          "list_all_services",
+          "search_service_logs"
+        ],
+        "plan_expected_tools": [
+          "search_service_logs"
+        ],
+        "discovery_required": [
+          "list_all_services"
+        ],
+        "discovery_called_ok": [
+          "list_all_services"
+        ],
+        "discovery_ok": true,
+        "plan_tool_recall": 1.0,
+        "plan_tool_precision": 0.091,
+        "plan_tool_f1": 0.167,
+        "call_tool_recall": 0.5,
+        "sources": [
+          "tencent_cloud",
+          "unavailable",
+          "unspecified",
+          "unsupported"
+        ],
+        "agent_stages": [
+          "supervisor.running",
+          "supervisor.completed",
+          "logs.running",
+          "metrics.running",
+          "metrics.error",
+          "metrics.error",
+          "metrics.degraded",
+          "logs.error",
+          "logs.error",
+          "logs.error",
+          "logs.degraded",
+          "reviewer.running",
+          "reviewer.error",
+          "reviewer.degraded"
+        ],
+        "report_chars": 1391,
+        "citation_ids": [
+          "E1",
+          "E2",
+          "E3",
+          "E4",
+          "E5"
+        ],
+        "allow_refusal": false,
+        "require_citation": true,
+        "run_id": "6fac248df2f64090ae2be5c6372cbcad",
+        "input_tokens": 6485,
+        "output_tokens": 1426,
+        "token_events": 5
+      },
+      {
+        "id": "MB-10",
+        "bucket": "logs",
+        "mode": "cloud_multi",
+        "status": "complete",
+        "error": null,
+        "latency_s": 7.971,
+        "planned_tools": [
+          "query_cpu_metrics",
+          "get_service_info",
+          "query_memory_metrics",
+          "query_process_list",
+          "query_network_metrics",
+          "get_system_info",
+          "search_service_logs",
+          "analyze_log_pattern",
+          "search_log",
+          "read_log_file",
+          "search_historical_tickets",
+          "retrieve_knowledge"
+        ],
+        "called_tools": [
+          "analyze_log_pattern",
+          "get_service_info",
+          "list_all_services",
+          "query_cpu_metrics",
+          "search_service_logs"
+        ],
+        "tool_calls_total": 5,
+        "tool_calls_ok": 1,
+        "tool_call_success_rate": 0.2,
+        "expected_tools": [
+          "list_all_services",
+          "search_service_logs"
+        ],
+        "plan_expected_tools": [
+          "search_service_logs"
+        ],
+        "discovery_required": [
+          "list_all_services"
+        ],
+        "discovery_called_ok": [
+          "list_all_services"
+        ],
+        "discovery_ok": true,
+        "plan_tool_recall": 1.0,
+        "plan_tool_precision": 0.083,
+        "plan_tool_f1": 0.154,
+        "call_tool_recall": 0.5,
+        "sources": [
+          "tencent_cloud",
+          "unavailable",
+          "unspecified"
+        ],
+        "agent_stages": [
+          "supervisor.running",
+          "supervisor.completed",
+          "logs.running",
+          "metrics.running",
+          "metrics.error",
+          "logs.error",
+          "metrics.error",
+          "metrics.error",
+          "metrics.degraded",
+          "logs.error",
+          "logs.error",
+          "logs.degraded",
+          "reviewer.running",
+          "reviewer.error",
+          "reviewer.degraded"
+        ],
+        "report_chars": 1545,
+        "citation_ids": [
+          "E1",
+          "E2",
+          "E3",
+          "E4",
+          "E5"
+        ],
+        "allow_refusal": false,
+        "require_citation": true,
+        "run_id": "cc6d916bf4ea418db0606e3036697530",
+        "input_tokens": 4250,
+        "output_tokens": 957,
+        "token_events": 3
+      },
+      {
+        "id": "MB-11",
+        "bucket": "knowledge",
+        "mode": "cloud_multi",
+        "status": "complete",
+        "error": null,
+        "latency_s": 29.292,
+        "planned_tools": [
+          "get_service_info",
+          "get_process_list",
+          "get_system_info",
+          "retrieve_knowledge",
+          "search_historical_tickets",
+          "search_system_logs",
+          "search_service_logs",
+          "search_log"
+        ],
+        "called_tools": [
+          "get_process_list",
+          "get_service_info",
+          "list_all_services",
+          "retrieve_knowledge",
+          "search_service_logs",
+          "search_system_logs"
+        ],
+        "tool_calls_total": 7,
+        "tool_calls_ok": 2,
+        "tool_call_success_rate": 0.286,
+        "expected_tools": [
+          "retrieve_knowledge"
+        ],
+        "plan_expected_tools": [
+          "retrieve_knowledge"
+        ],
+        "discovery_required": [],
+        "discovery_called_ok": [],
+        "discovery_ok": null,
+        "plan_tool_recall": 1.0,
+        "plan_tool_precision": 0.125,
+        "plan_tool_f1": 0.222,
+        "call_tool_recall": 1.0,
+        "sources": [
+          "manual",
+          "tencent_cloud",
+          "unavailable",
+          "unspecified"
+        ],
+        "agent_stages": [
+          "supervisor.running",
+          "supervisor.completed",
+          "logs.running",
+          "metrics.running",
+          "metrics.error",
+          "logs.error",
+          "logs.error",
+          "metrics.error",
+          "metrics.error",
+          "metrics.degraded",
+          "logs.error",
+          "logs.error",
+          "logs.degraded",
+          "reviewer.running",
+          "reviewer.error",
+          "reviewer.degraded"
+        ],
+        "report_chars": 1739,
+        "citation_ids": [
+          "E1",
+          "E2",
+          "E3",
+          "E4",
+          "E5",
+          "E6",
+          "E7"
+        ],
+        "allow_refusal": false,
+        "require_citation": true,
+        "run_id": "17e1355676f34fdcb4662a8a1d126786",
+        "input_tokens": 7877,
+        "output_tokens": 2357,
+        "token_events": 6
+      },
+      {
+        "id": "MB-12",
+        "bucket": "knowledge_no_answer",
+        "mode": "cloud_multi",
+        "status": "complete",
+        "error": null,
+        "latency_s": 9.551,
+        "planned_tools": [
+          "get_service_info",
+          "get_system_info",
+          "get_process_list",
+          "query_cpu_metrics",
+          "query_memory_metrics",
+          "query_disk_metrics",
+          "query_network_metrics",
+          "check_disk_usage",
+          "retrieve_knowledge",
+          "search_historical_tickets",
+          "search_service_logs",
+          "search_log",
+          "analyze_log_pattern",
+          "search_topic_by_service_name",
+          "get_topic_info_by_name"
+        ],
+        "called_tools": [
+          "get_service_info",
+          "list_all_services",
+          "retrieve_knowledge",
+          "search_service_logs"
+        ],
+        "tool_calls_total": 5,
+        "tool_calls_ok": 2,
+        "tool_call_success_rate": 0.4,
+        "expected_tools": [
+          "retrieve_knowledge"
+        ],
+        "plan_expected_tools": [
+          "retrieve_knowledge"
+        ],
+        "discovery_required": [],
+        "discovery_called_ok": [],
+        "discovery_ok": null,
+        "plan_tool_recall": 1.0,
+        "plan_tool_precision": 0.067,
+        "plan_tool_f1": 0.125,
+        "call_tool_recall": 1.0,
+        "sources": [
+          "manual",
+          "tencent_cloud",
+          "unavailable",
+          "unspecified"
+        ],
+        "agent_stages": [
+          "supervisor.running",
+          "supervisor.completed",
+          "logs.running",
+          "metrics.running",
+          "logs.error",
+          "logs.error",
+          "logs.degraded",
+          "metrics.error",
+          "metrics.error",
+          "metrics.error",
+          "metrics.degraded",
+          "reviewer.running",
+          "reviewer.error",
+          "reviewer.degraded"
+        ],
+        "report_chars": 1192,
+        "citation_ids": [
+          "E1",
+          "E2",
+          "E3",
+          "E4",
+          "E5"
+        ],
+        "allow_refusal": true,
+        "require_citation": false,
+        "run_id": "960706cbc43b46d4bd49ca38cfb7bc5b",
+        "input_tokens": 5136,
+        "output_tokens": 1103,
+        "token_events": 4
+      },
+      {
+        "id": "MB-13",
+        "bucket": "target_ambiguous",
+        "mode": "cloud_multi",
+        "status": "complete",
+        "error": null,
+        "latency_s": 22.369,
+        "planned_tools": [
+          "get_service_info",
+          "get_system_info",
+          "query_cpu_metrics",
+          "query_memory_metrics",
+          "query_disk_metrics",
+          "query_network_metrics",
+          "query_process_list",
+          "search_service_logs",
+          "search_system_logs",
+          "search_log",
+          "analyze_log_pattern",
+          "search_historical_tickets",
+          "retrieve_knowledge",
+          "search_topic_by_service_name"
+        ],
+        "called_tools": [
+          "analyze_log_pattern",
+          "get_service_info",
+          "get_system_info",
+          "list_all_services",
+          "search_service_logs"
+        ],
+        "tool_calls_total": 5,
+        "tool_calls_ok": 1,
+        "tool_call_success_rate": 0.2,
+        "expected_tools": [
+          "list_all_services"
+        ],
+        "plan_expected_tools": [],
+        "discovery_required": [
+          "list_all_services"
+        ],
+        "discovery_called_ok": [
+          "list_all_services"
+        ],
+        "discovery_ok": true,
+        "plan_tool_recall": null,
+        "plan_tool_precision": 0.0,
+        "plan_tool_f1": null,
+        "call_tool_recall": 1.0,
+        "sources": [
+          "unavailable",
+          "unspecified"
+        ],
+        "agent_stages": [
+          "supervisor.running",
+          "supervisor.completed",
+          "logs.running",
+          "metrics.running",
+          "logs.error",
+          "logs.error",
+          "logs.error",
+          "logs.degraded",
+          "metrics.error",
+          "metrics.error",
+          "metrics.error",
+          "metrics.degraded",
+          "reviewer.running",
+          "reviewer.error",
+          "reviewer.degraded"
+        ],
+        "report_chars": 1320,
+        "citation_ids": [
+          "E1",
+          "E2",
+          "E3",
+          "E4",
+          "E5"
+        ],
+        "allow_refusal": false,
+        "require_citation": false,
+        "run_id": "d805ca8488334d168d984364e56717b1",
+        "input_tokens": 5216,
+        "output_tokens": 1241,
+        "token_events": 4
+      },
+      {
+        "id": "MB-14",
+        "bucket": "target_unclear",
+        "mode": "cloud_multi",
+        "status": "complete",
+        "error": null,
+        "latency_s": 6.494,
+        "planned_tools": [
+          "get_service_info",
+          "query_process_list",
+          "query_cpu_metrics",
+          "query_memory_metrics",
+          "query_disk_metrics",
+          "query_network_metrics",
+          "search_service_logs",
+          "search_log",
+          "analyze_log_pattern",
+          "search_topic_by_service_name",
+          "get_topic_info_by_name",
+          "search_historical_tickets",
+          "retrieve_knowledge"
+        ],
+        "called_tools": [
+          "analyze_log_pattern",
+          "get_service_info",
+          "list_all_services",
+          "query_cpu_metrics",
+          "search_service_logs"
+        ],
+        "tool_calls_total": 5,
+        "tool_calls_ok": 1,
+        "tool_call_success_rate": 0.2,
+        "expected_tools": [
+          "list_all_services"
+        ],
+        "plan_expected_tools": [],
+        "discovery_required": [
+          "list_all_services"
+        ],
+        "discovery_called_ok": [
+          "list_all_services"
+        ],
+        "discovery_ok": true,
+        "plan_tool_recall": null,
+        "plan_tool_precision": 0.0,
+        "plan_tool_f1": null,
+        "call_tool_recall": 1.0,
+        "sources": [
+          "tencent_cloud",
+          "unavailable",
+          "unspecified"
+        ],
+        "agent_stages": [
+          "supervisor.running",
+          "supervisor.completed",
+          "logs.running",
+          "metrics.running",
+          "logs.error",
+          "metrics.error",
+          "metrics.error",
+          "metrics.error",
+          "metrics.degraded",
+          "logs.error",
+          "logs.error",
+          "logs.degraded",
+          "reviewer.running",
+          "reviewer.error",
+          "reviewer.degraded"
+        ],
+        "report_chars": 1545,
+        "citation_ids": [
+          "E1",
+          "E2",
+          "E3",
+          "E4",
+          "E5"
+        ],
+        "allow_refusal": false,
+        "require_citation": false,
+        "run_id": "4ca2db0730074cf29799f2774b170157",
+        "input_tokens": 8715,
+        "output_tokens": 689,
+        "token_events": 5
+      },
+      {
+        "id": "MB-15",
+        "bucket": "healthy_control",
+        "mode": "cloud_multi",
+        "status": "complete",
+        "error": null,
+        "latency_s": 8.429,
+        "planned_tools": [
+          "get_service_info",
+          "get_system_info",
+          "query_cpu_metrics",
+          "query_memory_metrics",
+          "query_disk_metrics",
+          "query_network_metrics",
+          "query_process_list",
+          "check_disk_usage",
+          "search_service_logs",
+          "search_system_logs",
+          "search_log",
+          "analyze_log_pattern",
+          "search_historical_tickets",
+          "retrieve_knowledge"
+        ],
+        "called_tools": [
+          "analyze_log_pattern",
+          "get_service_info",
+          "list_all_services",
+          "query_cpu_metrics",
+          "search_historical_tickets"
+        ],
+        "tool_calls_total": 5,
+        "tool_calls_ok": 1,
+        "tool_call_success_rate": 0.2,
+        "expected_tools": [
+          "list_all_services",
+          "get_service_info"
+        ],
+        "plan_expected_tools": [
+          "get_service_info"
+        ],
+        "discovery_required": [
+          "list_all_services"
+        ],
+        "discovery_called_ok": [
+          "list_all_services"
+        ],
+        "discovery_ok": true,
+        "plan_tool_recall": 1.0,
+        "plan_tool_precision": 0.071,
+        "plan_tool_f1": 0.133,
+        "call_tool_recall": 0.5,
+        "sources": [
+          "tencent_cloud",
+          "unavailable",
+          "unspecified"
+        ],
+        "agent_stages": [
+          "supervisor.running",
+          "supervisor.completed",
+          "logs.running",
+          "metrics.running",
+          "logs.error",
+          "logs.error",
+          "logs.error",
+          "logs.degraded",
+          "metrics.error",
+          "metrics.error",
+          "metrics.error",
+          "metrics.degraded",
+          "reviewer.running",
+          "reviewer.error",
+          "reviewer.degraded"
+        ],
+        "report_chars": 1437,
+        "citation_ids": [
+          "E1",
+          "E2",
+          "E3",
+          "E4",
+          "E5"
+        ],
+        "allow_refusal": false,
+        "require_citation": false,
+        "run_id": "df5c93370bc44ddb8bc922def4a72553",
+        "input_tokens": 4587,
+        "output_tokens": 1059,
+        "token_events": 3
+      },
+      {
+        "id": "MB-16",
+        "bucket": "param_boundary",
+        "mode": "cloud_multi",
+        "status": "complete",
+        "error": null,
+        "latency_s": 64.269,
+        "planned_tools": [
+          "query_cpu_metrics",
+          "get_service_info",
+          "search_historical_tickets",
+          "retrieve_knowledge"
+        ],
+        "called_tools": [
+          "get_service_info",
+          "list_all_services",
+          "query_cpu_metrics",
+          "retrieve_knowledge",
+          "search_historical_tickets"
+        ],
+        "tool_calls_total": 5,
+        "tool_calls_ok": 2,
+        "tool_call_success_rate": 0.4,
+        "expected_tools": [
+          "list_all_services",
+          "query_cpu_metrics"
+        ],
+        "plan_expected_tools": [
+          "query_cpu_metrics"
+        ],
+        "discovery_required": [
+          "list_all_services"
+        ],
+        "discovery_called_ok": [
+          "list_all_services"
+        ],
+        "discovery_ok": true,
+        "plan_tool_recall": 1.0,
+        "plan_tool_precision": 0.25,
+        "plan_tool_f1": 0.4,
+        "call_tool_recall": 0.5,
+        "sources": [
+          "manual",
+          "unavailable",
+          "unspecified"
+        ],
+        "agent_stages": [
+          "supervisor.running",
+          "supervisor.completed",
+          "logs.running",
+          "metrics.running",
+          "metrics.error",
+          "metrics.error",
+          "metrics.error",
+          "metrics.degraded",
+          "logs.error",
+          "logs.degraded",
+          "reviewer.running",
+          "reviewer.error",
+          "reviewer.degraded"
+        ],
+        "report_chars": 1339,
+        "citation_ids": [
+          "E1",
+          "E2",
+          "E3",
+          "E4",
+          "E5"
+        ],
+        "allow_refusal": false,
+        "require_citation": false,
+        "run_id": "a993941b69064f5fb802e0c2c582f40f",
+        "input_tokens": 6857,
+        "output_tokens": 2701,
+        "token_events": 6
+      },
+      {
+        "id": "MB-17",
+        "bucket": "negation",
+        "mode": "cloud_multi",
+        "status": "complete",
+        "error": null,
+        "latency_s": 21.27,
+        "planned_tools": [
+          "query_cpu_metrics",
+          "query_process_list",
+          "get_process_list",
+          "get_service_info",
+          "query_memory_metrics",
+          "query_disk_metrics",
+          "query_network_metrics",
+          "get_system_info",
+          "search_service_logs",
+          "search_log",
+          "analyze_log_pattern",
+          "search_system_logs",
+          "search_historical_tickets",
+          "retrieve_knowledge",
+          "get_topic_info_by_name",
+          "search_topic_by_service_name"
+        ],
+        "called_tools": [
+          "analyze_log_pattern",
+          "get_process_list",
+          "list_all_services",
+          "query_cpu_metrics",
+          "search_service_logs"
+        ],
+        "tool_calls_total": 5,
+        "tool_calls_ok": 1,
+        "tool_call_success_rate": 0.2,
+        "expected_tools": [
+          "list_all_services",
+          "query_cpu_metrics"
+        ],
+        "plan_expected_tools": [
+          "query_cpu_metrics"
+        ],
+        "discovery_required": [
+          "list_all_services"
+        ],
+        "discovery_called_ok": [
+          "list_all_services"
+        ],
+        "discovery_ok": true,
+        "plan_tool_recall": 1.0,
+        "plan_tool_precision": 0.062,
+        "plan_tool_f1": 0.118,
+        "call_tool_recall": 0.5,
+        "sources": [
+          "tencent_cloud",
+          "unavailable",
+          "unspecified"
+        ],
+        "agent_stages": [
+          "supervisor.running",
+          "supervisor.completed",
+          "logs.running",
+          "metrics.running",
+          "metrics.error",
+          "logs.error",
+          "logs.error",
+          "logs.error",
+          "logs.degraded",
+          "metrics.error",
+          "metrics.error",
+          "metrics.degraded",
+          "reviewer.running",
+          "reviewer.error",
+          "reviewer.degraded"
+        ],
+        "report_chars": 1641,
+        "citation_ids": [
+          "E1",
+          "E2",
+          "E3",
+          "E4",
+          "E5"
+        ],
+        "allow_refusal": false,
+        "require_citation": false,
+        "run_id": "ba6fa218aaa54251a3bdc4c5d513336d",
+        "input_tokens": 5469,
+        "output_tokens": 1313,
+        "token_events": 4
+      },
+      {
+        "id": "MB-18",
+        "bucket": "unauthorized_tool",
+        "mode": "cloud_multi",
+        "status": "complete",
+        "error": null,
+        "latency_s": 17.33,
+        "planned_tools": [
+          "check_disk_usage",
+          "query_disk_metrics",
+          "get_service_info",
+          "get_system_info",
+          "get_process_list",
+          "query_process_list",
+          "query_cpu_metrics",
+          "query_memory_metrics",
+          "search_service_logs",
+          "search_log",
+          "analyze_log_pattern",
+          "read_log_file",
+          "search_system_logs",
+          "retrieve_knowledge",
+          "search_historical_tickets",
+          "search_topic_by_service_name",
+          "get_topic_info_by_name"
+        ],
+        "called_tools": [
+          "analyze_log_pattern",
+          "check_disk_usage",
+          "get_service_info",
+          "list_all_services",
+          "retrieve_knowledge"
+        ],
+        "tool_calls_total": 5,
+        "tool_calls_ok": 2,
+        "tool_call_success_rate": 0.4,
+        "expected_tools": [
+          "list_all_services",
+          "query_disk_metrics"
+        ],
+        "plan_expected_tools": [
+          "query_disk_metrics"
+        ],
+        "discovery_required": [
+          "list_all_services"
+        ],
+        "discovery_called_ok": [
+          "list_all_services"
+        ],
+        "discovery_ok": true,
+        "plan_tool_recall": 1.0,
+        "plan_tool_precision": 0.059,
+        "plan_tool_f1": 0.111,
+        "call_tool_recall": 0.5,
+        "sources": [
+          "manual",
+          "tencent_cloud",
+          "unavailable",
+          "unspecified"
+        ],
+        "agent_stages": [
+          "supervisor.running",
+          "supervisor.completed",
+          "logs.running",
+          "metrics.running",
+          "logs.error",
+          "logs.error",
+          "logs.error",
+          "logs.degraded",
+          "metrics.error",
+          "metrics.error",
+          "metrics.error",
+          "metrics.degraded",
+          "reviewer.running",
+          "reviewer.error",
+          "reviewer.degraded"
+        ],
+        "report_chars": 1425,
+        "citation_ids": [
+          "E1",
+          "E2",
+          "E3",
+          "E4",
+          "E5"
+        ],
+        "allow_refusal": false,
+        "require_citation": false,
+        "run_id": "6275e62a897e46d6b10a43c53591daaf",
+        "input_tokens": 4925,
+        "output_tokens": 710,
+        "token_events": 3
+      }
+    ]
+  }
+}

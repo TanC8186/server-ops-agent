@@ -116,6 +116,21 @@ G6 的权限与聊天流一致性收尾（作业 ACL、诊断 run 与聊天流 r
 见 [G6_RESULTS_2026-10-28.md](docs/claude-code-handoff/G6_RESULTS_2026-10-28.md)。
 G7 的上传归属一致性、评测快照边界与镜像 provenance（含标准 Dockerfile 构建的
 commit/digest）见 [G7_RESULTS_2026-10-29.md](docs/claude-code-handoff/G7_RESULTS_2026-10-29.md)。
+G8 的双模式同题对比（本地 QLoRA vs cloud_multi，固定 18 条任务）、构建上下文
+凭据排除、云端 schema 回显与镜像 provenance 见
+[G8_RESULTS_2026-10-29.md](docs/claude-code-handoff/G8_RESULTS_2026-10-29.md)。
+
+双模式对比可用 `scripts/mode_benchmark.py` 复跑（题集带 sha256 指纹，改题集必须
+同步改脚本里的常量，否则拒绝运行）：
+
+```bash
+export G8_API_KEY=<服务端 API Key>
+python scripts/mode_benchmark.py --mode local       --out eval/mode_benchmark/local.json
+python scripts/mode_benchmark.py --mode cloud_multi --out eval/mode_benchmark/cloud_multi.json
+python scripts/mode_benchmark.py --compare eval/mode_benchmark/local.json eval/mode_benchmark/cloud_multi.json
+```
+
+产物按模式分开、不合成总分；比率的分母是固定任务数，**不是**模型准确率。
 
 生成层产物里的 `kind` 是 `generation_eval_llm_sampled`；读取 `gate_profile` 前会核对
 题集 sha256、语料 manifest、embedding descriptor 与当前 store，对不上直接停止。

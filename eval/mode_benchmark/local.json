@@ -1,0 +1,1138 @@
+{
+  "task_set": {
+    "file": "eval/mode_benchmark/tasks.jsonl",
+    "sha256": "89b54d102ca79092e5ec1361d7e6949ce307b31f89701c8bb77bf14854cc2586",
+    "count": 18
+  },
+  "mode": "local",
+  "generated_at": "2026-10-29T13:25:41",
+  "summary": {
+    "mode": "local",
+    "tasks": 18,
+    "status_counts": {
+      "complete": 18,
+      "error": 0,
+      "no_terminal": 0
+    },
+    "latency_p50_s": 3.768,
+    "latency_p95_s": 6.189,
+    "latency_mean_s": 4.071,
+    "tokens_input_mean": 1047.778,
+    "tokens_output_mean": 231.333,
+    "tokens_sampled": 18,
+    "tool_call_success_rate": 0.355,
+    "plan_tool_f1_mean": 0.533,
+    "plan_tool_recall_mean": 0.875,
+    "cite_tasks": 3,
+    "cite_tasks_with_evidence": 3,
+    "refusal_tasks": 1,
+    "refusal_tasks_completed_without_error": 1,
+    "rows_with_agent_stages": 18,
+    "discovery_tasks": 16,
+    "discovery_ok_tasks": 16,
+    "rows": [
+      {
+        "id": "MB-01",
+        "bucket": "cpu",
+        "mode": "local",
+        "status": "complete",
+        "error": null,
+        "latency_s": 7.769,
+        "planned_tools": [
+          "list_all_services",
+          "get_service_info",
+          "query_cpu_metrics",
+          "query_memory_metrics",
+          "search_service_logs"
+        ],
+        "called_tools": [
+          "get_service_info",
+          "list_all_services",
+          "query_cpu_metrics",
+          "query_memory_metrics",
+          "search_service_logs"
+        ],
+        "tool_calls_total": 5,
+        "tool_calls_ok": 1,
+        "tool_call_success_rate": 0.2,
+        "expected_tools": [
+          "list_all_services",
+          "query_cpu_metrics"
+        ],
+        "plan_expected_tools": [
+          "query_cpu_metrics"
+        ],
+        "discovery_required": [
+          "list_all_services"
+        ],
+        "discovery_called_ok": [
+          "list_all_services"
+        ],
+        "discovery_ok": true,
+        "plan_tool_recall": 1.0,
+        "plan_tool_precision": 0.25,
+        "plan_tool_f1": 0.4,
+        "call_tool_recall": 0.5,
+        "sources": [
+          "tencent_cloud",
+          "unavailable",
+          "unspecified"
+        ],
+        "agent_stages": [
+          "local_planner.running",
+          "local_planner.complete"
+        ],
+        "report_chars": 1324,
+        "citation_ids": [
+          "E1",
+          "E2",
+          "E3",
+          "E4",
+          "E5"
+        ],
+        "allow_refusal": false,
+        "require_citation": false,
+        "run_id": "fe4c9818cdb349949876112a0d47d1da",
+        "input_tokens": 1050,
+        "output_tokens": 312,
+        "token_events": 1
+      },
+      {
+        "id": "MB-02",
+        "bucket": "cpu",
+        "mode": "local",
+        "status": "complete",
+        "error": null,
+        "latency_s": 3.989,
+        "planned_tools": [
+          "list_all_services",
+          "get_current_time",
+          "query_cpu_metrics",
+          "search_service_logs"
+        ],
+        "called_tools": [
+          "get_current_time",
+          "list_all_services",
+          "query_cpu_metrics",
+          "search_service_logs"
+        ],
+        "tool_calls_total": 4,
+        "tool_calls_ok": 1,
+        "tool_call_success_rate": 0.25,
+        "expected_tools": [
+          "list_all_services",
+          "query_cpu_metrics"
+        ],
+        "plan_expected_tools": [
+          "query_cpu_metrics"
+        ],
+        "discovery_required": [
+          "list_all_services"
+        ],
+        "discovery_called_ok": [
+          "list_all_services"
+        ],
+        "discovery_ok": true,
+        "plan_tool_recall": 1.0,
+        "plan_tool_precision": 0.333,
+        "plan_tool_f1": 0.5,
+        "call_tool_recall": 0.5,
+        "sources": [
+          "tencent_cloud",
+          "unavailable",
+          "unspecified"
+        ],
+        "agent_stages": [
+          "local_planner.running",
+          "local_planner.complete"
+        ],
+        "report_chars": 1131,
+        "citation_ids": [
+          "E1",
+          "E2",
+          "E3",
+          "E4"
+        ],
+        "allow_refusal": false,
+        "require_citation": false,
+        "run_id": "8b0190d85a3b4956bb5f466c3d295c19",
+        "input_tokens": 1045,
+        "output_tokens": 239,
+        "token_events": 1
+      },
+      {
+        "id": "MB-03",
+        "bucket": "memory",
+        "mode": "local",
+        "status": "complete",
+        "error": null,
+        "latency_s": 5.709,
+        "planned_tools": [
+          "list_all_services",
+          "get_service_info",
+          "query_memory_metrics",
+          "query_process_list",
+          "retrieve_knowledge"
+        ],
+        "called_tools": [
+          "get_service_info",
+          "list_all_services",
+          "query_memory_metrics",
+          "query_process_list",
+          "retrieve_knowledge"
+        ],
+        "tool_calls_total": 5,
+        "tool_calls_ok": 3,
+        "tool_call_success_rate": 0.6,
+        "expected_tools": [
+          "list_all_services",
+          "query_memory_metrics"
+        ],
+        "plan_expected_tools": [
+          "query_memory_metrics"
+        ],
+        "discovery_required": [
+          "list_all_services"
+        ],
+        "discovery_called_ok": [
+          "list_all_services"
+        ],
+        "discovery_ok": true,
+        "plan_tool_recall": 1.0,
+        "plan_tool_precision": 0.25,
+        "plan_tool_f1": 0.4,
+        "call_tool_recall": 0.5,
+        "sources": [
+          "manual",
+          "unavailable",
+          "unspecified"
+        ],
+        "agent_stages": [
+          "local_planner.running",
+          "local_planner.complete"
+        ],
+        "report_chars": 1602,
+        "citation_ids": [
+          "E1",
+          "E2",
+          "E3",
+          "E4",
+          "E5"
+        ],
+        "allow_refusal": false,
+        "require_citation": false,
+        "run_id": "349e2e7360b540debff7109ba9eae2d2",
+        "input_tokens": 1052,
+        "output_tokens": 321,
+        "token_events": 1
+      },
+      {
+        "id": "MB-04",
+        "bucket": "memory",
+        "mode": "local",
+        "status": "complete",
+        "error": null,
+        "latency_s": 4.17,
+        "planned_tools": [
+          "list_all_services",
+          "get_service_info",
+          "query_memory_metrics",
+          "search_service_logs"
+        ],
+        "called_tools": [
+          "get_service_info",
+          "list_all_services",
+          "query_memory_metrics",
+          "search_service_logs"
+        ],
+        "tool_calls_total": 4,
+        "tool_calls_ok": 1,
+        "tool_call_success_rate": 0.25,
+        "expected_tools": [
+          "list_all_services",
+          "query_memory_metrics"
+        ],
+        "plan_expected_tools": [
+          "query_memory_metrics"
+        ],
+        "discovery_required": [
+          "list_all_services"
+        ],
+        "discovery_called_ok": [
+          "list_all_services"
+        ],
+        "discovery_ok": true,
+        "plan_tool_recall": 1.0,
+        "plan_tool_precision": 0.333,
+        "plan_tool_f1": 0.5,
+        "call_tool_recall": 0.5,
+        "sources": [
+          "tencent_cloud",
+          "unavailable",
+          "unspecified"
+        ],
+        "agent_stages": [
+          "local_planner.running",
+          "local_planner.complete"
+        ],
+        "report_chars": 1132,
+        "citation_ids": [
+          "E1",
+          "E2",
+          "E3",
+          "E4"
+        ],
+        "allow_refusal": false,
+        "require_citation": false,
+        "run_id": "64b35344e8744333a4c23d1e3215b78f",
+        "input_tokens": 1052,
+        "output_tokens": 256,
+        "token_events": 1
+      },
+      {
+        "id": "MB-05",
+        "bucket": "disk",
+        "mode": "local",
+        "status": "complete",
+        "error": null,
+        "latency_s": 4.368,
+        "planned_tools": [
+          "list_all_services",
+          "get_service_info",
+          "query_disk_metrics",
+          "search_service_logs"
+        ],
+        "called_tools": [
+          "get_service_info",
+          "list_all_services",
+          "query_disk_metrics",
+          "search_service_logs"
+        ],
+        "tool_calls_total": 4,
+        "tool_calls_ok": 1,
+        "tool_call_success_rate": 0.25,
+        "expected_tools": [
+          "list_all_services",
+          "query_disk_metrics"
+        ],
+        "plan_expected_tools": [
+          "query_disk_metrics"
+        ],
+        "discovery_required": [
+          "list_all_services"
+        ],
+        "discovery_called_ok": [
+          "list_all_services"
+        ],
+        "discovery_ok": true,
+        "plan_tool_recall": 1.0,
+        "plan_tool_precision": 0.333,
+        "plan_tool_f1": 0.5,
+        "call_tool_recall": 0.5,
+        "sources": [
+          "tencent_cloud",
+          "unavailable",
+          "unspecified"
+        ],
+        "agent_stages": [
+          "local_planner.running",
+          "local_planner.complete"
+        ],
+        "report_chars": 1120,
+        "citation_ids": [
+          "E1",
+          "E2",
+          "E3",
+          "E4"
+        ],
+        "allow_refusal": false,
+        "require_citation": false,
+        "run_id": "8aad86ff7e7748fcb84be8d40a1e72b7",
+        "input_tokens": 1045,
+        "output_tokens": 249,
+        "token_events": 1
+      },
+      {
+        "id": "MB-06",
+        "bucket": "disk",
+        "mode": "local",
+        "status": "complete",
+        "error": null,
+        "latency_s": 4.22,
+        "planned_tools": [
+          "list_all_services",
+          "get_service_info",
+          "query_disk_metrics",
+          "search_service_logs"
+        ],
+        "called_tools": [
+          "get_service_info",
+          "list_all_services",
+          "query_disk_metrics",
+          "search_service_logs"
+        ],
+        "tool_calls_total": 4,
+        "tool_calls_ok": 1,
+        "tool_call_success_rate": 0.25,
+        "expected_tools": [
+          "list_all_services",
+          "query_disk_metrics"
+        ],
+        "plan_expected_tools": [
+          "query_disk_metrics"
+        ],
+        "discovery_required": [
+          "list_all_services"
+        ],
+        "discovery_called_ok": [
+          "list_all_services"
+        ],
+        "discovery_ok": true,
+        "plan_tool_recall": 1.0,
+        "plan_tool_precision": 0.333,
+        "plan_tool_f1": 0.5,
+        "call_tool_recall": 0.5,
+        "sources": [
+          "tencent_cloud",
+          "unavailable",
+          "unspecified"
+        ],
+        "agent_stages": [
+          "local_planner.running",
+          "local_planner.complete"
+        ],
+        "report_chars": 1120,
+        "citation_ids": [
+          "E1",
+          "E2",
+          "E3",
+          "E4"
+        ],
+        "allow_refusal": false,
+        "require_citation": false,
+        "run_id": "5a7f17546b5a4f5881b6ac99df459c8a",
+        "input_tokens": 1053,
+        "output_tokens": 250,
+        "token_events": 1
+      },
+      {
+        "id": "MB-07",
+        "bucket": "network",
+        "mode": "local",
+        "status": "complete",
+        "error": null,
+        "latency_s": 4.133,
+        "planned_tools": [
+          "list_all_services",
+          "get_service_info",
+          "query_network_metrics",
+          "search_service_logs"
+        ],
+        "called_tools": [
+          "get_service_info",
+          "list_all_services",
+          "query_network_metrics",
+          "search_service_logs"
+        ],
+        "tool_calls_total": 4,
+        "tool_calls_ok": 2,
+        "tool_call_success_rate": 0.5,
+        "expected_tools": [
+          "list_all_services",
+          "query_network_metrics"
+        ],
+        "plan_expected_tools": [
+          "query_network_metrics"
+        ],
+        "discovery_required": [
+          "list_all_services"
+        ],
+        "discovery_called_ok": [
+          "list_all_services"
+        ],
+        "discovery_ok": true,
+        "plan_tool_recall": 1.0,
+        "plan_tool_precision": 0.333,
+        "plan_tool_f1": 0.5,
+        "call_tool_recall": 1.0,
+        "sources": [
+          "tencent_cloud",
+          "unavailable",
+          "unspecified",
+          "unsupported"
+        ],
+        "agent_stages": [
+          "local_planner.running",
+          "local_planner.complete"
+        ],
+        "report_chars": 1351,
+        "citation_ids": [
+          "E1",
+          "E2",
+          "E3",
+          "E4"
+        ],
+        "allow_refusal": false,
+        "require_citation": false,
+        "run_id": "eea3f69b086d408db147e74e312e5fc5",
+        "input_tokens": 1061,
+        "output_tokens": 251,
+        "token_events": 1
+      },
+      {
+        "id": "MB-08",
+        "bucket": "service_anomaly",
+        "mode": "local",
+        "status": "complete",
+        "error": null,
+        "latency_s": 3.547,
+        "planned_tools": [
+          "list_all_services",
+          "get_service_info",
+          "search_service_logs"
+        ],
+        "called_tools": [
+          "get_service_info",
+          "list_all_services",
+          "search_service_logs"
+        ],
+        "tool_calls_total": 3,
+        "tool_calls_ok": 1,
+        "tool_call_success_rate": 0.333,
+        "expected_tools": [
+          "list_all_services",
+          "get_service_info"
+        ],
+        "plan_expected_tools": [
+          "get_service_info"
+        ],
+        "discovery_required": [
+          "list_all_services"
+        ],
+        "discovery_called_ok": [
+          "list_all_services"
+        ],
+        "discovery_ok": true,
+        "plan_tool_recall": 1.0,
+        "plan_tool_precision": 0.5,
+        "plan_tool_f1": 0.667,
+        "call_tool_recall": 0.5,
+        "sources": [
+          "tencent_cloud",
+          "unavailable",
+          "unspecified"
+        ],
+        "agent_stages": [
+          "local_planner.running",
+          "local_planner.complete"
+        ],
+        "report_chars": 926,
+        "citation_ids": [
+          "E1",
+          "E2",
+          "E3"
+        ],
+        "allow_refusal": false,
+        "require_citation": false,
+        "run_id": "545f156e0c9a40ac984ad86d5b5bcd0e",
+        "input_tokens": 1050,
+        "output_tokens": 191,
+        "token_events": 1
+      },
+      {
+        "id": "MB-09",
+        "bucket": "logs",
+        "mode": "local",
+        "status": "complete",
+        "error": null,
+        "latency_s": 3.132,
+        "planned_tools": [
+          "list_all_services",
+          "get_service_info",
+          "search_service_logs"
+        ],
+        "called_tools": [
+          "get_service_info",
+          "list_all_services",
+          "search_service_logs"
+        ],
+        "tool_calls_total": 3,
+        "tool_calls_ok": 1,
+        "tool_call_success_rate": 0.333,
+        "expected_tools": [
+          "list_all_services",
+          "search_service_logs"
+        ],
+        "plan_expected_tools": [
+          "search_service_logs"
+        ],
+        "discovery_required": [
+          "list_all_services"
+        ],
+        "discovery_called_ok": [
+          "list_all_services"
+        ],
+        "discovery_ok": true,
+        "plan_tool_recall": 1.0,
+        "plan_tool_precision": 0.5,
+        "plan_tool_f1": 0.667,
+        "call_tool_recall": 0.5,
+        "sources": [
+          "tencent_cloud",
+          "unavailable",
+          "unspecified"
+        ],
+        "agent_stages": [
+          "local_planner.running",
+          "local_planner.complete"
+        ],
+        "report_chars": 926,
+        "citation_ids": [
+          "E1",
+          "E2",
+          "E3"
+        ],
+        "allow_refusal": false,
+        "require_citation": true,
+        "run_id": "98f59eacbef34b0da6a36319f894b517",
+        "input_tokens": 1049,
+        "output_tokens": 189,
+        "token_events": 1
+      },
+      {
+        "id": "MB-10",
+        "bucket": "logs",
+        "mode": "local",
+        "status": "complete",
+        "error": null,
+        "latency_s": 4.199,
+        "planned_tools": [
+          "list_all_services",
+          "get_service_info",
+          "query_cpu_metrics",
+          "search_service_logs"
+        ],
+        "called_tools": [
+          "get_service_info",
+          "list_all_services",
+          "query_cpu_metrics",
+          "search_service_logs"
+        ],
+        "tool_calls_total": 4,
+        "tool_calls_ok": 1,
+        "tool_call_success_rate": 0.25,
+        "expected_tools": [
+          "list_all_services",
+          "search_service_logs"
+        ],
+        "plan_expected_tools": [
+          "search_service_logs"
+        ],
+        "discovery_required": [
+          "list_all_services"
+        ],
+        "discovery_called_ok": [
+          "list_all_services"
+        ],
+        "discovery_ok": true,
+        "plan_tool_recall": 1.0,
+        "plan_tool_precision": 0.333,
+        "plan_tool_f1": 0.5,
+        "call_tool_recall": 0.5,
+        "sources": [
+          "tencent_cloud",
+          "unavailable",
+          "unspecified"
+        ],
+        "agent_stages": [
+          "local_planner.running",
+          "local_planner.complete"
+        ],
+        "report_chars": 1117,
+        "citation_ids": [
+          "E1",
+          "E2",
+          "E3",
+          "E4"
+        ],
+        "allow_refusal": false,
+        "require_citation": true,
+        "run_id": "91daef0f4f1041a3bab15917805df35e",
+        "input_tokens": 1049,
+        "output_tokens": 248,
+        "token_events": 1
+      },
+      {
+        "id": "MB-11",
+        "bucket": "knowledge",
+        "mode": "local",
+        "status": "complete",
+        "error": null,
+        "latency_s": 2.989,
+        "planned_tools": [
+          "list_all_services",
+          "get_service_info",
+          "search_service_logs"
+        ],
+        "called_tools": [
+          "get_service_info",
+          "list_all_services",
+          "search_service_logs"
+        ],
+        "tool_calls_total": 3,
+        "tool_calls_ok": 1,
+        "tool_call_success_rate": 0.333,
+        "expected_tools": [
+          "retrieve_knowledge"
+        ],
+        "plan_expected_tools": [
+          "retrieve_knowledge"
+        ],
+        "discovery_required": [],
+        "discovery_called_ok": [],
+        "discovery_ok": null,
+        "plan_tool_recall": 0.0,
+        "plan_tool_precision": 0.0,
+        "plan_tool_f1": null,
+        "call_tool_recall": 0.0,
+        "sources": [
+          "tencent_cloud",
+          "unavailable",
+          "unspecified"
+        ],
+        "agent_stages": [
+          "local_planner.running",
+          "local_planner.complete"
+        ],
+        "report_chars": 926,
+        "citation_ids": [
+          "E1",
+          "E2",
+          "E3"
+        ],
+        "allow_refusal": false,
+        "require_citation": true,
+        "run_id": "c2839ec29259407bb67f8809022b3548",
+        "input_tokens": 1042,
+        "output_tokens": 179,
+        "token_events": 1
+      },
+      {
+        "id": "MB-12",
+        "bucket": "knowledge_no_answer",
+        "mode": "local",
+        "status": "complete",
+        "error": null,
+        "latency_s": 3.087,
+        "planned_tools": [
+          "list_all_services",
+          "get_service_info",
+          "search_service_logs"
+        ],
+        "called_tools": [
+          "get_service_info",
+          "list_all_services",
+          "search_service_logs"
+        ],
+        "tool_calls_total": 3,
+        "tool_calls_ok": 1,
+        "tool_call_success_rate": 0.333,
+        "expected_tools": [
+          "retrieve_knowledge"
+        ],
+        "plan_expected_tools": [
+          "retrieve_knowledge"
+        ],
+        "discovery_required": [],
+        "discovery_called_ok": [],
+        "discovery_ok": null,
+        "plan_tool_recall": 0.0,
+        "plan_tool_precision": 0.0,
+        "plan_tool_f1": null,
+        "call_tool_recall": 0.0,
+        "sources": [
+          "tencent_cloud",
+          "unavailable",
+          "unspecified"
+        ],
+        "agent_stages": [
+          "local_planner.running",
+          "local_planner.complete"
+        ],
+        "report_chars": 926,
+        "citation_ids": [
+          "E1",
+          "E2",
+          "E3"
+        ],
+        "allow_refusal": true,
+        "require_citation": false,
+        "run_id": "05ec40d949fd4995b669c42011898078",
+        "input_tokens": 1047,
+        "output_tokens": 185,
+        "token_events": 1
+      },
+      {
+        "id": "MB-13",
+        "bucket": "target_ambiguous",
+        "mode": "local",
+        "status": "complete",
+        "error": null,
+        "latency_s": 2.994,
+        "planned_tools": [
+          "list_all_services",
+          "get_service_info",
+          "query_network_metrics"
+        ],
+        "called_tools": [
+          "get_service_info",
+          "list_all_services",
+          "query_network_metrics"
+        ],
+        "tool_calls_total": 3,
+        "tool_calls_ok": 2,
+        "tool_call_success_rate": 0.667,
+        "expected_tools": [
+          "list_all_services"
+        ],
+        "plan_expected_tools": [],
+        "discovery_required": [
+          "list_all_services"
+        ],
+        "discovery_called_ok": [
+          "list_all_services"
+        ],
+        "discovery_ok": true,
+        "plan_tool_recall": null,
+        "plan_tool_precision": 0.0,
+        "plan_tool_f1": null,
+        "call_tool_recall": 1.0,
+        "sources": [
+          "unavailable",
+          "unspecified",
+          "unsupported"
+        ],
+        "agent_stages": [
+          "local_planner.running",
+          "local_planner.complete"
+        ],
+        "report_chars": 1111,
+        "citation_ids": [
+          "E1",
+          "E2",
+          "E3"
+        ],
+        "allow_refusal": false,
+        "require_citation": false,
+        "run_id": "ca2e33b579d94192bed905af53fd9ed7",
+        "input_tokens": 1040,
+        "output_tokens": 180,
+        "token_events": 1
+      },
+      {
+        "id": "MB-14",
+        "bucket": "target_unclear",
+        "mode": "local",
+        "status": "complete",
+        "error": null,
+        "latency_s": 3.224,
+        "planned_tools": [
+          "list_all_services",
+          "get_service_info",
+          "search_service_logs"
+        ],
+        "called_tools": [
+          "get_service_info",
+          "list_all_services",
+          "search_service_logs"
+        ],
+        "tool_calls_total": 3,
+        "tool_calls_ok": 1,
+        "tool_call_success_rate": 0.333,
+        "expected_tools": [
+          "list_all_services"
+        ],
+        "plan_expected_tools": [],
+        "discovery_required": [
+          "list_all_services"
+        ],
+        "discovery_called_ok": [
+          "list_all_services"
+        ],
+        "discovery_ok": true,
+        "plan_tool_recall": null,
+        "plan_tool_precision": 0.0,
+        "plan_tool_f1": null,
+        "call_tool_recall": 1.0,
+        "sources": [
+          "tencent_cloud",
+          "unavailable",
+          "unspecified"
+        ],
+        "agent_stages": [
+          "local_planner.running",
+          "local_planner.complete"
+        ],
+        "report_chars": 926,
+        "citation_ids": [
+          "E1",
+          "E2",
+          "E3"
+        ],
+        "allow_refusal": false,
+        "require_citation": false,
+        "run_id": "f35790e5bd264a0b972034e55e3cd92d",
+        "input_tokens": 1041,
+        "output_tokens": 183,
+        "token_events": 1
+      },
+      {
+        "id": "MB-15",
+        "bucket": "healthy_control",
+        "mode": "local",
+        "status": "complete",
+        "error": null,
+        "latency_s": 3.282,
+        "planned_tools": [
+          "list_all_services",
+          "get_service_info",
+          "query_cpu_metrics"
+        ],
+        "called_tools": [
+          "get_service_info",
+          "list_all_services",
+          "query_cpu_metrics"
+        ],
+        "tool_calls_total": 3,
+        "tool_calls_ok": 1,
+        "tool_call_success_rate": 0.333,
+        "expected_tools": [
+          "list_all_services",
+          "get_service_info"
+        ],
+        "plan_expected_tools": [
+          "get_service_info"
+        ],
+        "discovery_required": [
+          "list_all_services"
+        ],
+        "discovery_called_ok": [
+          "list_all_services"
+        ],
+        "discovery_ok": true,
+        "plan_tool_recall": 1.0,
+        "plan_tool_precision": 0.5,
+        "plan_tool_f1": 0.667,
+        "call_tool_recall": 0.5,
+        "sources": [
+          "unavailable",
+          "unspecified"
+        ],
+        "agent_stages": [
+          "local_planner.running",
+          "local_planner.complete"
+        ],
+        "report_chars": 881,
+        "citation_ids": [
+          "E1",
+          "E2",
+          "E3"
+        ],
+        "allow_refusal": false,
+        "require_citation": false,
+        "run_id": "844a421cd5254fd7951e0ceb3e311ef3",
+        "input_tokens": 1041,
+        "output_tokens": 185,
+        "token_events": 1
+      },
+      {
+        "id": "MB-16",
+        "bucket": "param_boundary",
+        "mode": "local",
+        "status": "complete",
+        "error": null,
+        "latency_s": 3.169,
+        "planned_tools": [
+          "list_all_services",
+          "get_service_info",
+          "query_cpu_metrics"
+        ],
+        "called_tools": [
+          "get_service_info",
+          "list_all_services",
+          "query_cpu_metrics"
+        ],
+        "tool_calls_total": 3,
+        "tool_calls_ok": 1,
+        "tool_call_success_rate": 0.333,
+        "expected_tools": [
+          "list_all_services",
+          "query_cpu_metrics"
+        ],
+        "plan_expected_tools": [
+          "query_cpu_metrics"
+        ],
+        "discovery_required": [
+          "list_all_services"
+        ],
+        "discovery_called_ok": [
+          "list_all_services"
+        ],
+        "discovery_ok": true,
+        "plan_tool_recall": 1.0,
+        "plan_tool_precision": 0.5,
+        "plan_tool_f1": 0.667,
+        "call_tool_recall": 0.5,
+        "sources": [
+          "unavailable",
+          "unspecified"
+        ],
+        "agent_stages": [
+          "local_planner.running",
+          "local_planner.complete"
+        ],
+        "report_chars": 881,
+        "citation_ids": [
+          "E1",
+          "E2",
+          "E3"
+        ],
+        "allow_refusal": false,
+        "require_citation": false,
+        "run_id": "5c0c8ba9e09b4f2882fe9bb67ac0c873",
+        "input_tokens": 1045,
+        "output_tokens": 180,
+        "token_events": 1
+      },
+      {
+        "id": "MB-17",
+        "bucket": "negation",
+        "mode": "local",
+        "status": "complete",
+        "error": null,
+        "latency_s": 3.378,
+        "planned_tools": [
+          "list_all_services",
+          "query_cpu_metrics",
+          "get_service_info"
+        ],
+        "called_tools": [
+          "get_service_info",
+          "list_all_services",
+          "query_cpu_metrics"
+        ],
+        "tool_calls_total": 3,
+        "tool_calls_ok": 1,
+        "tool_call_success_rate": 0.333,
+        "expected_tools": [
+          "list_all_services",
+          "query_cpu_metrics"
+        ],
+        "plan_expected_tools": [
+          "query_cpu_metrics"
+        ],
+        "discovery_required": [
+          "list_all_services"
+        ],
+        "discovery_called_ok": [
+          "list_all_services"
+        ],
+        "discovery_ok": true,
+        "plan_tool_recall": 1.0,
+        "plan_tool_precision": 0.5,
+        "plan_tool_f1": 0.667,
+        "call_tool_recall": 0.5,
+        "sources": [
+          "unavailable",
+          "unspecified"
+        ],
+        "agent_stages": [
+          "local_planner.running",
+          "local_planner.complete"
+        ],
+        "report_chars": 877,
+        "citation_ids": [
+          "E1",
+          "E2",
+          "E3"
+        ],
+        "allow_refusal": false,
+        "require_citation": false,
+        "run_id": "8b8aef098f8f436b97881ad48776d331",
+        "input_tokens": 1049,
+        "output_tokens": 195,
+        "token_events": 1
+      },
+      {
+        "id": "MB-18",
+        "bucket": "unauthorized_tool",
+        "mode": "local",
+        "status": "complete",
+        "error": null,
+        "latency_s": 5.91,
+        "planned_tools": [
+          "list_all_services",
+          "get_service_info",
+          "query_disk_metrics",
+          "retrieve_knowledge",
+          "search_service_logs",
+          "query_process_list"
+        ],
+        "called_tools": [
+          "get_service_info",
+          "list_all_services",
+          "query_disk_metrics",
+          "query_process_list",
+          "retrieve_knowledge",
+          "search_service_logs"
+        ],
+        "tool_calls_total": 6,
+        "tool_calls_ok": 3,
+        "tool_call_success_rate": 0.5,
+        "expected_tools": [
+          "list_all_services",
+          "query_disk_metrics"
+        ],
+        "plan_expected_tools": [
+          "query_disk_metrics"
+        ],
+        "discovery_required": [
+          "list_all_services"
+        ],
+        "discovery_called_ok": [
+          "list_all_services"
+        ],
+        "discovery_ok": true,
+        "plan_tool_recall": 1.0,
+        "plan_tool_precision": 0.2,
+        "plan_tool_f1": 0.333,
+        "call_tool_recall": 0.5,
+        "sources": [
+          "manual",
+          "tencent_cloud",
+          "unavailable",
+          "unspecified"
+        ],
+        "agent_stages": [
+          "local_planner.running",
+          "local_planner.complete"
+        ],
+        "report_chars": 1823,
+        "citation_ids": [
+          "E1",
+          "E2",
+          "E3",
+          "E4",
+          "E5",
+          "E6"
+        ],
+        "allow_refusal": false,
+        "require_citation": false,
+        "run_id": "e62b3094bad940b3af8ed167194b9b93",
+        "input_tokens": 1049,
+        "output_tokens": 371,
+        "token_events": 1
+      }
+    ]
+  }
+}
