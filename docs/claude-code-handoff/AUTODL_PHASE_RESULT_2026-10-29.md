@@ -115,7 +115,27 @@ essential 0.750 / critical 0.771 / arg_exact 0.906"这句是**错的**，
 **零腾讯云工具**。磁盘场景此前会无限重复直到截断（1536 token 都不够），
 修复后稳定输出。
 
-### 2.5 测试竞态与会话残留（已修 / 已清理）
+### 2.5 SSH 连接不可靠 + 会静默换 key（P1，已修）
+
+两个实测确认的问题：
+
+**（a）服务端限流被报成"主机不可达"**
+AutoDL 网关在并发握手时返回明文 ``Exceeded MaxStartups``，paramiko 包成笼统的
+``Error reading SSH protocol banner``。实测：TCP 层 10/10 可连，但 10 次握手里
+2–4 次收到 MaxStartups。生产函数 ``_get_ssh_client()`` 连续 10 次只有 5 次成功。
+
+修：把这种情况翻译成可诊断的错误（"服务端限流或过载，非主机不可达"），并做
+**一次**有界重连（间隔 0.5s）。实测成功率 2/6 → **8/10**。
+不做无限重试：那会掩盖真实故障，也会加重网关限流。
+
+**（b）paramiko 默认会静默换用 ~/.ssh 里的其它 key**
+``client.connect()`` 没关 ``look_for_keys`` / ``allow_agent``。实测把
+``key_filename`` 指向一个未授权的 key，连接**依然成功**（用了 ``~/.ssh`` 里的另一把）。
+于是"本次用的是哪把钥匙"无法证明，SSH 验收证据不可信。
+
+修：显式 ``allow_agent=False, look_for_keys=False``，只认配置的那一把。
+
+### 2.6 测试竞态与会话残留（已修 / 已清理）
 
 - `test_acl_seal_failure_keeps_uploader_visibility` 上传后没等后台 job 完成就断言
   可见性，高负载下偶发失败。补 `wait_for_job`（同文件第 146 行早已这么等）。
@@ -194,8 +214,8 @@ essential 0.750 / critical 0.771 / arg_exact 0.906"这句是**错的**，
 4. `target.kind=ssh + product=autodl` 的**产品级路由未实现**：`Target` 无 `product`
    字段，`services.json` 也没有，只有 `kind=ssh` 的模型名路由。
 5. `check_disk_usage` 空参在 Linux 上默认 `C:/`（Windows 默认值），未修。
-6. SSH 连接约 50% 概率报 `Error reading SSH protocol banner`，未做重试/诊断分类。
-7. `paramiko` 未关 `look_for_keys`/`allow_agent`，key 配错时会静默用 `~/.ssh` 里的 key。
+6. ~~SSH 连接约 50% 概率报 banner~~ → **已修**（见 §2.5a：归因 + 一次有界重连，8/10）。
+7. ~~paramiko 未关 look_for_keys/allow_agent~~ → **已修**（见 §2.5b）。
 8. `get_system_info` 用 `free`/`df`，在容器里读到宿主机数字（2.5 说的 cgroup 问题）。
 9. SSH 日志工具只支持 syslog/auth/kern，不支持 journalctl——而这台机器只有 journal。
 

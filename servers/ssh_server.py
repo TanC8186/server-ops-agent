@@ -10,6 +10,7 @@
 
 import os
 import re
+import time
 import sys
 import shlex
 import logging
@@ -56,18 +57,59 @@ mcp = FastMCP("SSH")
 # ── SSH 连接管理 ──────────────────────────────────────────────
 
 def _get_ssh_client() -> paramiko.SSHClient:
-    """获取 SSH 客户端连接；缺少 SSH_HOST 时明确报错而不是连到默认主机。"""
+    """获取 SSH 客户端连接；缺少 SSH_HOST 时明确报错而不是连到默认主机。
+
+    两个必须显式关闭的 paramiko 默认行为（实测确认）：
+
+    - ``look_for_keys`` / ``allow_agent``：开着时，如果配置的 key 被服务端拒绝，
+      paramiko 会**静默换用 ~/.ssh 里的其它 key** 连上。实测把 key_filename 指向
+      一个未授权的 key，连接依然成功——于是"用的是哪把钥匙"无法证明，验收证据
+      也就不可信。这里只认配置的那一把。
+    - 失败归因：AutoDL 的 SSH 网关在并发握手时会返回明文 ``Exceeded MaxStartups``，
+      paramiko 把它包成笼统的 ``Error reading SSH protocol banner``。实测 10 次里
+      2 次收到 MaxStartups（TCP 层 10/10 可连），所以这不是"连不上"，是服务端
+      限流。把这种情况翻译成可诊断的错误，而不是让调用方以为主机挂了。
+    """
     if not SSH_HOST:
         raise RuntimeError("SSH_HOST 未配置：请在 .env 中设置远程服务器地址")
     client = paramiko.SSHClient()
     client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-    client.connect(
-        hostname=SSH_HOST,
-        port=SSH_PORT,
-        username=SSH_USER,
-        key_filename=SSH_KEY_FILE,
-        timeout=10,
-    )
+    try:
+        client.connect(
+            hostname=SSH_HOST,
+            port=SSH_PORT,
+            username=SSH_USER,
+            key_filename=SSH_KEY_FILE,
+            timeout=10,
+            allow_agent=False,
+            look_for_keys=False,
+        )
+    except paramiko.SSHException as exc:
+        text = str(exc)
+        if "banner" not in text.lower():
+            raise
+        # TCP 通了但没拿到 SSH banner：服务端限流（AutoDL 网关返回 Exceeded
+        # MaxStartups）或瞬时过载，不是"主机不可达"。
+        #
+        # 这里做**一次**有界重连，不是无限重试：实测 10 次里 2–4 次会被限流，
+        # 不重试的话生产链路成功率只有 50% 上下；而无限重试会掩盖真实故障、
+        # 也会加重网关限流。间隔取 0.5s 让网关的并发窗口滑过去。
+        time.sleep(0.5)
+        try:
+            client.connect(
+                hostname=SSH_HOST,
+                port=SSH_PORT,
+                username=SSH_USER,
+                key_filename=SSH_KEY_FILE,
+                timeout=10,
+                allow_agent=False,
+                look_for_keys=False,
+            )
+        except paramiko.SSHException as retry_exc:
+            raise RuntimeError(
+                f"SSH 握手未拿到 banner（服务端限流或过载，非主机不可达）: "
+                f"{SSH_HOST}:{SSH_PORT}；重连一次仍失败；原始错误: {str(retry_exc)[:120]}"
+            ) from retry_exc
     return client
 
 

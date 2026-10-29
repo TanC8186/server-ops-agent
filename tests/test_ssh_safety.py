@@ -93,3 +93,66 @@ def test_existing_log_file_still_returns_entries(monkeypatch):
     result = ssh_server.search_system_logs(log_type="syslog")
     assert result["count"] == 2
     assert result["entries"][0]["message"] == "line one"
+
+
+def test_connect_disables_key_fallback(monkeypatch):
+    """连接时必须关掉 look_for_keys / allow_agent。
+
+    实测（G8）：paramiko 默认会在配置的 key 被拒时**静默换用 ~/.ssh 里的其它
+    key** 连上——把 key_filename 指向一个未授权的 key，连接依然成功。于是
+    "本次用的是哪把钥匙"无法证明，SSH 验收证据不可信。
+    """
+    from servers import ssh_server
+
+    captured = {}
+
+    class _Client:
+        def set_missing_host_key_policy(self, *_a):
+            pass
+
+        def connect(self, **kwargs):
+            captured.update(kwargs)
+
+    monkeypatch.setattr(ssh_server, "SSH_HOST", "example.invalid")
+    monkeypatch.setattr(ssh_server.paramiko, "SSHClient", _Client)
+
+    ssh_server._get_ssh_client()
+
+    assert captured["allow_agent"] is False
+    assert captured["look_for_keys"] is False
+    assert captured["key_filename"] == ssh_server.SSH_KEY_FILE
+
+
+def test_banner_failure_is_attributed_to_throttling(monkeypatch):
+    """拿不到 banner 时不能报成"主机不可达"，要说清是限流/过载。
+
+    实测：AutoDL 网关在并发握手时返回明文 Exceeded MaxStartups，paramiko 包成
+    Error reading SSH protocol banner。TCP 层 10/10 可连，所以这不是连不上。
+    """
+    from servers import ssh_server
+
+    class _Client:
+        def __init__(self):
+            self.calls = 0
+
+        def set_missing_host_key_policy(self, *_a):
+            pass
+
+        def connect(self, **_kwargs):
+            self.calls += 1
+            raise ssh_server.paramiko.SSHException("Error reading SSH protocol banner")
+
+    client = _Client()
+    monkeypatch.setattr(ssh_server, "SSH_HOST", "example.invalid")
+    monkeypatch.setattr(ssh_server.paramiko, "SSHClient", lambda: client)
+    monkeypatch.setattr(ssh_server.time, "sleep", lambda _s: None)
+
+    import pytest as _pytest
+    with _pytest.raises(RuntimeError) as excinfo:
+        ssh_server._get_ssh_client()
+
+    message = str(excinfo.value)
+    assert "限流" in message or "banner" in message
+    assert "非主机不可达" in message
+    # 恰好重连一次，不是无限重试
+    assert client.calls == 2
