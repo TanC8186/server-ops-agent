@@ -128,3 +128,33 @@ def test_result_is_serializable_and_keeps_time_range():
     data = result.to_dict()
     assert data["status"] == "ok"
     assert data["live"] is True
+
+
+def test_plain_text_success_is_not_an_error():
+    """纯文本成功返回不得被判成 error。
+
+    实测（G8，目标切到 SSH 主机后）：本地计划里的 `get_current_time` 成功返回
+    "2026-10-29 18:56:59"，旧实现把所有非空字符串都判成 error，于是证据表里
+    出现一条 `get_current_time · 不可用 · unavailable`——时间戳被当成工具故障。
+    """
+    result = classify_payload("2026-10-29 18:56:59")
+    assert result.status == "ok", "时间戳是正常返回，不能记成工具失败"
+    assert result.data == "2026-10-29 18:56:59"
+
+
+def test_text_error_shapes_are_still_errors():
+    """文本型的真失败必须仍然判成 error（不能为了修上面那条把失败也放过去）。"""
+    for text in (
+        "获取时间失败: 时区不合法",
+        "工具执行失败: connection refused",
+        "Error: upstream 502",
+    ):
+        result = classify_payload(text)
+        assert result.status == "error", f"{text!r} 应判为 error"
+        assert result.error["code"] == "text_error"
+
+
+def test_long_text_mentioning_failure_is_not_an_error():
+    """长正文里偶尔出现"失败"字样不算失败——判据要求同时简短且带标记。"""
+    long_text = "查询完成。" + "本次巡检覆盖全部 12 个检查项。" * 20 + "其中 0 条失败记录。"
+    assert classify_payload(long_text).status == "ok"

@@ -27,6 +27,36 @@ NON_LIVE_SOURCES = frozenset({
     "", "unknown", "unspecified", "demo", "unavailable", "unsupported", "manual",
 })
 
+#: 文本型工具返回里表示"这次调用失败"的前缀。
+#:
+#: 进程内工具（`get_current_time` 等）返回字符串；仓库内所有文本型失败返回都
+#: 以这些词开头（见 app/tools/*.py 的 `return f"获取xxx失败: ..."`）。用前缀
+#: 而不是"包含关键词"，避免把正文里恰好提到"失败"的正常结果判成错误。
+_TEXT_ERROR_PREFIXES = (
+    "获取时间失败",
+    "获取当前时间失败",
+    "error",
+    "Error",
+    "ERROR",
+)
+
+#: 文本型失败的其他常见形态：``<动作>失败: <原因>``（冒号分隔）。
+_TEXT_ERROR_MARKERS = ("失败:", "错误:", "异常:", "refused", "timed out", "timeout")
+
+
+def _looks_like_text_error(text: str) -> bool:
+    """文本是否像一次失败返回。
+
+    判据是"简短 + 带失败标记"，两条同时满足才算：正常结果（时间戳、一段说明）
+    通常不带这些标记，而 ``工具执行失败: connection refused`` 这类失败返回既短
+    又带标记。宁可漏判成正常（下游还能看到原文），也不要误判成功为失败——
+    误判会让证据表出现无理由的"不可用"，正是这次要修的问题。
+    """
+    if len(text) > 200:
+        return False
+    lowered = text.lower()
+    return any(marker in lowered for marker in _TEXT_ERROR_MARKERS)
+
 
 @dataclass
 class ToolResult:
@@ -84,8 +114,19 @@ def classify_payload(value: Any) -> ToolResult:
         text = value.strip()
         if not text:
             return ToolResult(status="empty", source_kind="unspecified", data=value)
-        return ToolResult(status="error", source_kind="unavailable",
-                          data=value, error={"code": "text_error", "message": text[:300]})
+        # 纯文本返回不一定是错误。进程内工具里有返回文本的正常工具
+        # （`get_current_time` 返回 "2026-10-29 18:56:59"），旧实现把所有
+        # 非空字符串都判成 error，于是时间戳被记成"工具不可用"、来源
+        # unavailable，用户看到的证据表里就出现一条无理由的失败。
+        #
+        # 这里不靠猜语义，靠调用方已有的约定：MCP 工具一律返回 dict（ok/status/
+        # source），纯文本只可能来自进程内工具，而它们的约定是"失败时返回带
+        # 失败字样的文本"。因此只把明确像错误的文本判成 error——前缀匹配，
+        # 覆盖本仓库所有文本型失败返回，不认识的一律当正常文本。
+        if text.startswith(_TEXT_ERROR_PREFIXES) or _looks_like_text_error(text):
+            return ToolResult(status="error", source_kind="unavailable",
+                              data=value, error={"code": "text_error", "message": text[:300]})
+        return ToolResult(status="ok", source_kind="unspecified", data=value)
     if not isinstance(value, dict):
         return ToolResult(status="ok" if value else "empty", data=value)
 
