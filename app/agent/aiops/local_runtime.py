@@ -160,7 +160,13 @@ async def run_local(user_input: str, session_id: str, run_id: str, *,
                 if result.get("severity") not in {"P1", "P2", "P3", "P4"} or result.get("category") not in {
                     "cpu", "memory", "disk", "network", "service", "healthy", "unknown",
                 }:
-                    raise ValueError("本地模型分诊字段不合法，已停止诊断")
+                    # 这条分支和其它失败一样必须带上"本地模式已停止"：前端是按这句
+                    # 判断要不要显示"没有自动切云端"的说明，缺了它就只剩一句
+                    # 通用错误，用户会怀疑是不是偷偷走了云端（G8 复查 FE-G8-02）。
+                    raise ValueError(
+                        "本地模型分诊字段不合法（severity/category 越界）；"
+                        "本地模式已停止，不会调用在线模型"
+                    )
                 steps = result["plan"]
                 trace_event(run_id, "plan", steps=steps, execution_mode="local")
                 queue.put_nowait({"type": "plan", "plan_steps": steps, "backend": "local"})

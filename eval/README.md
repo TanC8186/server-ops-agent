@@ -33,7 +33,7 @@ service: agent-test-server
 expect_no_incident: false     # true = 阴性对照
 gold_tools:                   # 期望至少被调用一次的工具
   - query_cpu_metrics
-  - search_log
+  - search_service_logs
 gold_facts:                   # 报告中应出现的事实
   - metric: cpu_usage_percent
     op: ">"

@@ -7,7 +7,7 @@ gold_tools:
   - list_all_services
   - query_cpu_metrics
   - query_process_list
-  - search_log
+  - search_service_logs
 gold_facts:
   - metric: cpu_usage_percent
     op: ">"

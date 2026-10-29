@@ -619,6 +619,10 @@ a { color: var(--agent); }
 .execution-mode-card strong { font-size: 17px; line-height: 1.4; font-weight: 500; }
 .mode-description { color: var(--ink-soft); font-size: 12.5px; line-height: 1.65; }
 .model-name { font-family: var(--mono); font-size: 10.5px; color: var(--muted); overflow-wrap: anywhere; }
+/* 选模式时必须看到的取舍：需要的配置项、失败时停还是切、资源代价。
+   用左侧细线而不是新卡片，避免把模式卡做成第二套面板。 */
+.mode-tradeoff { font-size: 11.5px; line-height: 1.6; color: var(--ink-soft); border-left: 2px solid var(--rule); padding-left: 8px; overflow-wrap: anywhere; }
+.mode-tradeoff code { font-family: var(--mono); font-size: 10.5px; color: var(--muted); }
 .mode-selection { border-top: 1px solid var(--rule); padding-top: 9px; margin-top: auto; font-size: 11.5px; color: var(--agent); }
 .configuration-note { font-size: 11.5px; max-width: none; margin-top: 10px; }
 .mode-load-error { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 12px; }

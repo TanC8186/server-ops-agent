@@ -1,6 +1,7 @@
 """双模式 HTTP 契约；使用假服务，不连接 MCP、模型或向量库。"""
 
 import json
+import re
 
 import pytest
 from fastapi import FastAPI
@@ -148,10 +149,36 @@ def test_mode_configuration_status_does_not_expose_credentials(
     assert modes["cloud_multi"]["configured"] is cloud_ready
     assert modes["local"]["model"] == "qwen-ops-test"
     assert modes["cloud_multi"]["model"] == "cloud-model-test"
+    # 响应形状整体锁定：新增字段必须显式改这个断言，不能悄悄多吐东西。
+    # G8 加了 requires_credentials / failure_behavior / failure_text / resource_cost
+    # 四项"选模式时必须知道"的取舍；它们只含**变量名**与固定文案，不含任何值。
     for item in modes.values():
-        assert set(item) == {"id", "label", "description", "configured", "model"}
+        assert set(item) == {
+            "id", "label", "description", "configured", "model",
+            "requires_credentials", "failure_behavior", "failure_text",
+            "resource_cost",
+        }
         assert item["label"]
         assert item["description"]
+        # 只允许出现配置项**变量名**，不能带出任何凭据值。
+        assert item["requires_credentials"], "必须说明该模式依赖哪个配置项"
+        assert all(name.isupper() for name in item["requires_credentials"])
+        assert item["failure_behavior"] in {"stop", "report_error"}
+        assert item["failure_text"]
+        assert item["resource_cost"]
+
+    # 模式语义必须与运行器一致：本地明确停止，不静默切云端。
+    assert modes["local"]["failure_behavior"] == "stop"
+    assert "不会自动切换" in modes["local"]["failure_text"]
+    assert "LOCAL_LLM_BASE_URL" in modes["local"]["requires_credentials"]
+    assert "LLM_API_KEY" in modes["cloud_multi"]["requires_credentials"]
     assert secret not in response.text
-    assert "api_key" not in response.text.lower()
+    # 不能断言"响应里没有 api_key 字样"了：G8 会回传**配置项变量名**
+    # LLM_API_KEY（这是让用户知道该配什么所必需的，且 .env.example 里本来就公开）。
+    # 要守的是"不能带出值"：任何像密钥的长串都不许出现。
+    lowered = response.text.lower()
+    assert "api_key=" not in lowered
+    assert "bearer " not in lowered
+    # 变量名之外不许出现任何 >20 字符的疑似密钥串（测试密钥本身已单独断言）。
+    assert not re.search(r"[A-Za-z0-9_\-]{24,}", response.text.replace(secret, ""))
     assert service.calls == []

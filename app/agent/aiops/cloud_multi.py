@@ -149,6 +149,48 @@ JSON_TRUNCATED_INSTRUCTION = (
     "每条 claim 不超过 60 个汉字，只保留必要字段，不要展开解释；"
     "宁可少写几条，也必须输出**完整闭合**的 JSON。"
 )
+#: schema 回显时的重试指令。
+#:
+#: Supervisor / Specialist / Reviewer 的 system prompt 里直接嵌了
+#: ``Model.model_json_schema()``。实测（2026-10-29，DeepSeek-V4.1-Flash，
+#: 同一 prompt 连跑 8 次）有 3 次模型把**这份 schema 文档本身**当成答案抄回来：
+#: 顶层键是 ``$defs`` / ``properties`` / ``required`` / ``type`` /
+#: ``additionalProperties``，而真正的 ``assignments`` 字段一个字没有。
+#: 官方文档把它叫 "schema echo"，与"输出被截断"和"前后加了说明"是三种不同
+#: 的失败，用同一句重试指令无效——必须明确说"不要输出 schema 本身"。
+JSON_SCHEMA_ECHO_INSTRUCTION = (
+    "上一次输出是 JSON Schema **文档**本身（含 $defs / properties / required / "
+    "type 等定义关键字），不是符合它的**数据实例**。"
+    "请严格按照该 schema 的字段填一份真实数据：顶层直接给出 "
+    "assignments（或该 schema 声明的业务字段），"
+    "绝对不要输出 $defs、properties、required、additionalProperties、title、type。"
+)
+
+#: JSON Schema 定义关键字：出现这些说明模型抄的是 schema，不是实例。
+_SCHEMA_ECHO_KEYS = frozenset({
+    "$defs", "$schema", "definitions", "properties", "required",
+    "additionalProperties", "allOf", "anyOf", "oneOf", "$ref",
+})
+
+
+class _SchemaEchoError(ValueError):
+    """模型把 prompt 里的 JSON Schema 文档当成答案抄了回来。"""
+
+
+def _looks_like_schema_echo(payload: Any) -> bool:
+    """判断模型是不是把 prompt 里的 JSON Schema 原样抄了回来。
+
+    只在**副本缺字段**时才有意义：合法实例里偶尔也可能带一个叫 ``title`` 的
+    业务字段，所以这里要求同时满足"含 ≥2 个 schema 关键字"且"不含 schema
+    要求的顶层业务字段"。两个条件都不满足时一律返回 False，交给正常校验报错。
+    """
+    if not isinstance(payload, dict):
+        return False
+    hits = _SCHEMA_ECHO_KEYS & set(payload)
+    if len(hits) < 2:
+        return False
+    # ``assignments`` 是 SupervisorPlan 的业务字段；带它就按正常校验走。
+    return "assignments" not in payload
 
 #: 模型输出里常见的 JSON 包装：三反引号围栏（可带语言标记）。
 _FENCE_RE = re.compile(r"```(?:json|JSON)?\s*(.+?)```", re.DOTALL)
@@ -227,11 +269,16 @@ async def _ask(model, messages: list, schema: type[_StrictModel], *, agent: str,
                 output_tokens=usage.get("output_tokens"),
             )
             text = _response_text(response)
+            finish = _finish_reason(response)
             try:
-                return schema.model_validate(json.loads(_extract_json(text)))
+                payload = json.loads(_extract_json(text))
+                # schema 回显要在 model_validate 之前判：ValidationError 只会说
+                # "assignments 缺失 / $defs 不允许"，看不出是模型抄了 schema。
+                if _looks_like_schema_echo(payload):
+                    raise _SchemaEchoError("模型返回了 JSON Schema 文档而非数据实例")
+                return schema.model_validate(payload)
             except Exception as exc:  # noqa: BLE001 - JSON 不完整时重试一次
                 last_error = exc
-                finish = _finish_reason(response)
                 trace_event(
                     run_id, "agent_llm_bad_json", agent=agent, attempt=attempt,
                     finish_reason=finish, output_chars=len(text),
@@ -239,14 +286,16 @@ async def _ask(model, messages: list, schema: type[_StrictModel], *, agent: str,
                 )
                 if attempt >= JSON_ATTEMPTS:
                     break
-                # 一次重试，按失败原因给不同指令：
+                # 一次重试，按失败原因给不同指令。三种失败要分开说：
+                # - 抄了 schema 文档 → 明确要求输出数据实例（见 G8 实测）；
                 # - 被 max_tokens 截断 → 要求精简且必须闭合；
                 # - 其他（前置说明/围栏/胡写）→ 要求只输出 JSON。
-                instruction = (
-                    JSON_TRUNCATED_INSTRUCTION
-                    if finish in {"max_tokens", "length", "MAX_TOKENS"}
-                    else JSON_RETRY_INSTRUCTION
-                )
+                if isinstance(exc, _SchemaEchoError):
+                    instruction = JSON_SCHEMA_ECHO_INSTRUCTION
+                elif finish in {"max_tokens", "length", "MAX_TOKENS"}:
+                    instruction = JSON_TRUNCATED_INSTRUCTION
+                else:
+                    instruction = JSON_RETRY_INSTRUCTION
                 messages = [*messages, ("user", instruction)]
                 continue
         except asyncio.CancelledError:

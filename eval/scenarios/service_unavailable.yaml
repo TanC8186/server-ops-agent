@@ -6,7 +6,7 @@ expect_no_incident: false
 gold_tools:
   - list_all_services
   - get_service_info
-  - search_log
+  - search_service_logs
   - get_process_list
 gold_facts:
   - metric: http_5xx_rate

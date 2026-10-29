@@ -141,3 +141,78 @@ def test_ask_does_not_retry_network_errors():
             ))
 
     assert model.calls == 1
+
+
+def test_ask_retries_schema_echo_with_a_targeted_instruction():
+    """模型把 prompt 里的 JSON Schema 文档抄回来时，重试指令必须点名这件事。
+
+    G8 实测（2026-10-29，DeepSeek-V4.1-Flash 同一 prompt 连跑 8 次）：3 次输出的
+    顶层键是 ``$defs`` / ``properties`` / ``required`` / ``type``，真正的
+    ``assignments`` 一个字没有。旧实现把它当普通 ValidationError，重试指令只会
+    说"上一次输出不是完整合法的 JSON"——模型于是继续抄同一份 schema，
+    两次尝试全军覆没（实测 5/8 成功，修复后 8/8）。
+    """
+    import asyncio
+    from types import SimpleNamespace
+
+    from app.agent.aiops import cloud_multi
+
+    echoed = json.dumps({
+        "$defs": {"Assignment": {"properties": {"agent": {"type": "string"}}}},
+        "properties": {"assignments": {"type": "array"}},
+        "required": ["assignments"],
+        "type": "object",
+        "title": "SupervisorPlan",
+        "additionalProperties": False,
+    })
+
+    class Model:
+        def __init__(self) -> None:
+            self.calls = 0
+            self.messages: list = []
+
+        async def ainvoke(self, messages):
+            self.calls += 1
+            self.messages.append(list(messages))
+            if self.calls == 1:
+                # finish_reason 是正常的 stop —— 这里不是截断，是"抄错了东西"。
+                return SimpleNamespace(content=echoed, usage_metadata={},
+                                       response_metadata={"finish_reason": "stop"})
+            return SimpleNamespace(
+                content=json.dumps({"assignments": [
+                    {"agent": "metrics", "focus": "查指标", "tools": ["query_cpu_metrics"]},
+                    {"agent": "logs", "focus": "查日志", "tools": ["search_service_logs"]},
+                ]}),
+                usage_metadata={}, response_metadata={"finish_reason": "stop"},
+            )
+
+    model = Model()
+    with __import__("unittest.mock", fromlist=["patch"]).patch.object(
+        cloud_multi, "trace_event", lambda *a, **k: None
+    ):
+        plan = asyncio.run(cloud_multi._ask(
+            model, [("system", "x"), ("user", "y")],
+            cloud_multi.SupervisorPlan, agent="supervisor", run_id="r",
+        ))
+
+    assert model.calls == 2
+    assert {item.agent for item in plan.assignments} == {"metrics", "logs"}
+    retry_text = str(model.messages[1])
+    # 必须明确指向 "$defs / properties / required" 与"要数据实例"，而不是泛泛要求 JSON。
+    assert "$defs" in retry_text
+    assert "数据实例" in retry_text
+    assert "不要三反引号" not in retry_text, "这不是格式问题，给的指令不该是通用那条"
+
+
+def test_schema_echo_detector_does_not_misfire_on_real_plans():
+    """合法实例即使带 title 之类同名字段，也不能被误判成 schema 回显。"""
+    from app.agent.aiops.cloud_multi import _looks_like_schema_echo
+
+    assert _looks_like_schema_echo({"assignments": []}) is False
+    assert _looks_like_schema_echo({"assignments": [], "title": "x"}) is False
+    assert _looks_like_schema_echo({"properties": {}}) is False, "只命中 1 个关键字不算"
+    assert _looks_like_schema_echo("not a dict") is False
+    # 真正的回显形态
+    assert _looks_like_schema_echo(
+        {"$defs": {}, "properties": {}, "required": [], "type": "object"}
+    ) is True

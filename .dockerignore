@@ -1,9 +1,22 @@
+# ⚠️ 这里的模式**必须带 `**/` 前缀**。
+#
+# Docker 的 .dockerignore 用 `filepath.Match` 规则，`*` **不跨 `/`**：裸写
+# `*.pem` 只排除构建上下文根目录下的 .pem，`servers/AgentTest.pem` 会照样进
+# 上下文并被 `COPY . .` 拷进镜像。实测（DOCKER_BUILDKIT=0，probe 镜像内
+# `ls -R`）确认：`*.pem` / `*.key` / `.env*` / `__pycache__/` 四个裸模式全部
+# 只匹配根层，`a/nested.pem`、`a/b/deep.key`、`a/.env.local`、
+# `a/b/__pycache__/` 都漏进了镜像。
+#
+# 后果不只是"多几个文件"：`servers/AgentTest.pem` 是一份**未加密的真实 RSA
+# 私钥**，历史上确实被烤进了 `on_call_agent-app:latest`（/app/servers/ 下
+# 755/1674B）。所以下面一律用 `**/` 形式。
+
 # Python
-__pycache__/
-*.py[cod]
+**/__pycache__/
+**/*.py[cod]
 .venv/
 venv/
-*.egg-info/
+**/*.egg-info/
 
 # 训练虚拟环境是 Windows 版 venv（pyvenv.cfg 里 home 指向宿主 Anaconda，只有
 # Lib/Scripts、没有 bin/），在 Linux 容器里既跑不起来也用不上，但 `COPY . .`
@@ -21,11 +34,16 @@ venv/
 
 # Sensitive
 # `.env` 精确匹配覆盖不到 .env.docker / .env.production 等变体；构建上下文里
-# 出现它们等于把凭据烤进镜像层。只放行模板。
-.env*
-!.env.example
-*.pem
-*.key
+# 出现它们等于把凭据烤进镜像层。只放行模板。`**/` 前缀不可省略，原因见文件头。
+**/.env*
+!**/.env.example
+**/*.pem
+**/*.key
+**/*.ppk
+**/id_rsa*
+**/id_ed25519*
+**/*.p12
+**/*.pfx
 
 # Docker
 Dockerfile
@@ -36,17 +54,17 @@ volumes/
 # Logs & temp
 logs/
 uploads/
-*.log
-*.pid
+**/*.log
+**/*.pid
 
 # OS
-.DS_Store
-Thumbs.db
+**/.DS_Store
+**/Thumbs.db
 
 # Test
-.pytest_cache/
+**/.pytest_cache/
 .coverage
-htmlcov/
+**/htmlcov/
 
 # Frontend (built in the web stage)
 web/node_modules/
@@ -66,8 +84,10 @@ eval/rag/results/
 # 否则一次 `COPY . .` 就会把本机排障产物（含临时 key 文件）带进镜像。
 .g6*
 .g7*
+.g8*
 .g6-local.Dockerfile
 .g7-local.Dockerfile
+.g8-local.Dockerfile
 tmp/
 .tmp*/
 .ui-check.png

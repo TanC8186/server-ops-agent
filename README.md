@@ -150,8 +150,29 @@ LLM_MODEL=DeepSeek-V4.1-Flash-1017
 ## 本地小模型（可选）
 
 `training/` 是一个独立的子项目：Qwen2.5-1.5B-Instruct 做 LoRA SFT，输出
-`{severity, category, plan[]}`，通过 vLLM 提供 OpenAI 兼容接口，作为 Planner 的本地快路径；
-工具/参数校验失败时自动回退云端。
+`{severity, category, plan[]}`，通过 vLLM 提供 OpenAI 兼容接口，作为 Planner 的本地快路径。
+
+**本地模式不会自动回退云端。** `execution_mode=local` 时运行器以
+`allow_cloud_fallback=False` 调用本地 planner（`app/agent/aiops/local_runtime.py`），
+计划不合法或模型不可用就直接以 `error` 结束，用户会看到"本地模式已停止"；不会在你
+不知情的情况下花云端的钱、也不会把本地失败悄悄算成云端结果。`planner.py` 里那条
+`allow_cloud_fallback=True` 的历史链路只属于已不再被 `/api/aiops` 使用的
+Plan-Execute-Replan 图，不是线上行为（见 `docs/DUAL_MODE.md`）。
+
+#### 为什么同时支持本地与云端
+
+两条链路不是"同一个东西的两种跑法"，它们各自解决的约束不同：
+
+| | 本地端侧（QLoRA + vLLM） | 在线多智能体（cloud_multi） |
+|---|---|---|
+| 算力 | 本机 GPU/CPU；1.5B 4-bit 约 1.1 GB 权重 | 无本机算力要求，按 token 计费 |
+| 隐私 | 告警文本与工具结果不出本机 | 文本会发往模型服务商 |
+| 延迟 | 无网络往返，单次规划通常 1–3 s | 多角色多轮，单次 8–30 s |
+| 能力 | 单次结构化规划，工具集固定 | Supervisor 分派 + 专科并行 + Reviewer 复核 |
+| 失败时 | 明确停止，不静默改用云端 | 依赖上游可用性与账户状态 |
+
+选择依据是"这次诊断的数据能不能出机器"和"要不要多角色复核"，不是"哪个更准"。
+上面那张 v9 表格是**离线 held-out 分诊指标**，不是端到端诊断成功率，两者不能互相替代。
 
 | 指标（v9，held-out 178 条） | fp16 (HF) | Q4_K_M (AutoRound→GGUF, CPU) | AWQ/SignRound (vLLM) | 说明 |
 |---|---:|---:|---:|---|

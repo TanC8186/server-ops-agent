@@ -7,7 +7,7 @@ gold_tools:
   - list_all_services
   - query_memory_metrics
   - get_process_list
-  - search_log
+  - search_service_logs
 gold_facts:
   - metric: memory_usage_percent
     op: ">"

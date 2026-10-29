@@ -14,6 +14,13 @@ export interface ExecutionModeInfo {
   description: string;
   configured: boolean;
   model: string;
+  /** 跑起来需要哪个服务端配置项（只是变量名，服务端不会下发值）。 */
+  requires_credentials?: string[];
+  /** 失败语义：stop = 明确停止；report_error = 本次报错结束。两者都不自动换模式。 */
+  failure_behavior?: "stop" | "report_error";
+  failure_text?: string;
+  /** 资源代价：本机算力 vs 按 token 计费。 */
+  resource_cost?: string;
 }
 
 export interface RunSummary {

@@ -87,6 +87,18 @@ services:
   # 只把约束写清楚；改默认行为会让所有现存启动脚本同时改变语义。
   app:
     container_name: oncall-agent
+    # 显式 image + build：这是 G8 P0 的修复。
+    #
+    # 原来只有 build:、没有 image:，compose 会把镜像名推导成
+    # `on_call_agent-app:latest`；于是 `docker compose up -d --force-recreate`
+    # 会直接复用本地同名镜像，新构建的 `oncall-agent:g8-final` 根本不会被采用，
+    # 容器里跑的还是旧代码——这就是上面警告的"陈旧镜像陷阱"在 compose 层的形态。
+    #
+    # 默认值仍是原来的 `on_call_agent-app:latest`（不改变本地开发习惯），但验收时
+    # 可以用环境变量钉到具体 tag 或 digest：
+    #   APP_IMAGE=oncall-agent@sha256:<digest> docker compose up -d --force-recreate app
+    # 这样"本次验收跑的到底是哪个镜像"不再取决于本地 latest 指向谁。
+    image: ${APP_IMAGE:-on_call_agent-app:latest}
     build:
       context: .
       dockerfile: Dockerfile

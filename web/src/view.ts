@@ -296,6 +296,26 @@ export function chatOutcomeLabel(outcome: unknown): string {
   }
 }
 
+/**
+ * 本地模式失败时的说明。
+ *
+ * 运行器在本地失败时**不会**自动切云端（``allow_cloud_fallback=False``），
+ * 但后端只把原因当错误文案抛出来，用户看到一句"xxx 失败"很容易以为是自动
+ * 降级了。这里把"已停止 / 没切云端"显式补上，并且只对 local 模式生效——
+ * 云端失败不该说"本地模式已停止"。
+ *
+ * ``message`` 为空时仍然给出说明：有错误状态就一定有失败，只是后端没给细节。
+ */
+export function localFailureNote(
+  executionMode: unknown,
+  message: unknown,
+): string {
+  if (text(executionMode) !== "local") return "";
+  const detail = text(message);
+  const head = "本地模式已停止：本次没有调用在线模型";
+  return detail ? `${head}。原因：${detail}` : head;
+}
+
 /** 知识库 collection 状态；invalid_index 必须与 unavailable 分开。 */
 export function knowledgeStatusLabel(status: unknown): StatusLabel {
   switch (text(status)) {

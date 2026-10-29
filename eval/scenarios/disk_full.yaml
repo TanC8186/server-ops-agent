@@ -7,7 +7,7 @@ gold_tools:
   - list_all_services
   - query_disk_metrics
   - check_disk_usage
-  - search_log
+  - search_service_logs
 gold_facts:
   - metric: disk_usage_percent
     op: ">"

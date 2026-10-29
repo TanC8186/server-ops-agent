@@ -111,7 +111,20 @@ def _service_kwargs(request: AIOpsRequest, owner: str | None = None) -> dict[str
 
 @router.get("/execution-modes")
 async def execution_modes():
-    """配置状态，不探测模型服务，也不返回凭证。"""
+    """配置状态，不探测模型服务，也不返回凭证。
+
+    除了 ``configured``，这里还返回三件"选模式时必须知道、但前端不该自己编"
+    的事实（G8 P1 前端复查 FE-G8-01）：
+
+    - ``requires_credentials``：跑起来需要哪个服务端配置项（只给**变量名**，
+      不会是值）；
+    - ``failure_behavior``：失败时到底停还是切，直接对应运行器的
+      ``allow_cloud_fallback=False`` 行为；
+    - ``resource_cost``：本机算力占用 vs 按 token 计费。
+
+    这些是**配置形态**，不是探测结果：``configured=true`` 只表示"填了"，不表示
+    "连得上"。真正 readiness 以 ``/health`` 的 ``capabilities`` 为准。
+    """
     return {
         "modes": [
             {
@@ -120,6 +133,10 @@ async def execution_modes():
                 "model": config.local_llm_model,
                 "configured": bool(config.local_llm_base_url.strip()),
                 "description": "本地小模型规划、只读工具执行与证据报告；不回退在线模型。",
+                "requires_credentials": ["LOCAL_LLM_BASE_URL"],
+                "failure_behavior": "stop",
+                "failure_text": "本地模式已停止：不会自动切换到在线模型",
+                "resource_cost": "占用本机 GPU/CPU；告警文本与工具结果不出本机",
             },
             {
                 "id": "cloud_multi",
@@ -128,6 +145,10 @@ async def execution_modes():
                 "configured": bool(config.llm_api_key.strip())
                 and not config.llm_api_key.startswith("your-"),
                 "description": "主管调度指标与日志专科并行分析，由审查角色汇总证据；使用在线 API。",
+                "requires_credentials": ["LLM_API_KEY"],
+                "failure_behavior": "report_error",
+                "failure_text": "在线模式调用失败：本次运行报错结束，不会改用本地模型",
+                "resource_cost": "不占本机算力；文本会发往模型服务商并按 token 计费",
             },
         ]
     }

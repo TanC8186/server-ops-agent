@@ -21,6 +21,7 @@ import {
   jobStatusLabel,
   knowledgeStatusLabel,
   linkCitationMarks,
+  localFailureNote,
   removedCitationsText,
   retrievalLabel,
   safeSourceUri,
@@ -380,4 +381,23 @@ test("G5 RunInspector 的已绑定目标：有服务名才算绑定，实例/地
   assert.equal(boundTarget(null), null);
   assert.equal(boundTarget({ instance_id: "i-a" }), null);
   assert.equal(boundTarget({ service: "  " }), null);
+});
+
+test("G8 本地失败说明：只有 local 模式才说“已停止、没切云端”", () => {
+  // local：必须同时给出“已停止”和“没调用在线模型”两个事实。
+  const local = localFailureNote("local", "本地模型不可用或计划校验失败");
+  assert.match(local, /本地模式已停止/);
+  assert.match(local, /没有调用在线模型/);
+  assert.match(local, /原因：本地模型不可用或计划校验失败/);
+
+  // 后端没给细节时，仍然要给出“已停止”这句，不能因为 message 空就什么都不显示。
+  assert.match(localFailureNote("local", ""), /本地模式已停止/);
+  assert.doesNotMatch(localFailureNote("local", ""), /原因/);
+
+  // cloud_multi 失败不能说“本地模式已停止”——那是另一条链路。
+  assert.equal(localFailureNote("cloud_multi", "上游 502"), "");
+
+  // 历史运行没有模式记录时同样不猜。
+  assert.equal(localFailureNote(null, "boom"), "");
+  assert.equal(localFailureNote(undefined, "boom"), "");
 });

@@ -27,6 +27,7 @@ import {
   candidateKey,
   evalManifestSummary,
   isStuckPage,
+  localFailureNote,
   nextRunCursor,
   shouldOfferModeReload,
   targetCandidates,
@@ -46,8 +47,28 @@ import KnowledgePanel from "./KnowledgePanel";
 import "./styles.css";
 
 const modeChoices: ExecutionModeInfo[] = [
-  { id: "local", label: "本地端侧小模型", description: "使用本地模型执行诊断，模型不可用时直接提示，不会自动切换至在线 API。", configured: false, model: "" },
-  { id: "cloud_multi", label: "在线 API 多智能体", description: "由在线模型协作分析症状、收集证据并审查结论，需要连接配置的在线 API。", configured: false, model: "" },
+  {
+    id: "local",
+    label: "本地端侧小模型",
+    description: "使用本地模型执行诊断，模型不可用时直接提示，不会自动切换至在线 API。",
+    configured: false,
+    model: "",
+    requires_credentials: ["LOCAL_LLM_BASE_URL"],
+    failure_behavior: "stop",
+    failure_text: "本地模式已停止：不会自动切换到在线模型",
+    resource_cost: "占用本机 GPU/CPU；告警文本与工具结果不出本机",
+  },
+  {
+    id: "cloud_multi",
+    label: "在线 API 多智能体",
+    description: "由在线模型协作分析症状、收集证据并审查结论，需要连接配置的在线 API。",
+    configured: false,
+    model: "",
+    requires_credentials: ["LLM_API_KEY"],
+    failure_behavior: "report_error",
+    failure_text: "在线模式调用失败：本次运行报错结束，不会改用本地模型",
+    resource_cost: "不占本机算力；文本会发往模型服务商并按 token 计费",
+  },
 ];
 
 /** 用户点选的诊断目标：服务名用于展示/回退，服务端候选 ID 用于精确绑定。 */
@@ -629,6 +650,10 @@ export default function App() {
             <div className="stream">
               {notice && <p className="note">{notice}</p>}
               {current.error && <p className="note error">{current.error}</p>}
+              {/* 本地失败必须明确说"已停止、没切云端"，否则用户会怀疑偷偷降级。 */}
+              {current.error && localFailureNote(current.executionMode, current.error) && (
+                <p className="note error">{localFailureNote(current.executionMode, current.error)}</p>
+              )}
               <section className="mode-chooser" aria-labelledby="execution-mode-title">
                 <div className="section-intro">
                   <span className="eyebrow">选择诊断方式</span>
@@ -649,6 +674,17 @@ export default function App() {
                       <strong>{item.label}</strong>
                       <span className="mode-description">{item.description}</span>
                       <span className="model-name">{item.model || "模型待配置"}</span>
+                      {item.requires_credentials?.length ? (
+                        <span className="mode-tradeoff">
+                          需要配置：<code>{item.requires_credentials.join(" / ")}</code>
+                        </span>
+                      ) : null}
+                      {item.failure_text && (
+                        <span className="mode-tradeoff">失败时：{item.failure_text}</span>
+                      )}
+                      {item.resource_cost && (
+                        <span className="mode-tradeoff">资源：{item.resource_cost}</span>
+                      )}
                       <span className="mode-selection">{executionMode === item.id ? "已选择 ✓" : "选择此模式 →"}</span>
                     </button>
                   ))}
