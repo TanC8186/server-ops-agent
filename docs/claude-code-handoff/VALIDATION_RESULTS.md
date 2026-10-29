@@ -1073,7 +1073,8 @@ PyMilvus ORM 迁移未做；生成式评测只 12/80 条。
 | 前端测试 | 75 passed（chat 18 / sse 15 / state 21 / view 21） |
 | tsc / oxlint / build | 全过 |
 | 镜像 | `oncall-agent:g8-final` = `sha256:6a7ff2b7…`，10 671 703 570 B |
-| revision 标签 | `63d1a41cd8bec0c17e87c7abfeb86aad40d26dca` = 最终 HEAD `63d1a41` |
+| revision 标签 | `63d1a41cd8bec0c17e87c7abfeb86aad40d26dca` = 构建提交 `63d1a41` |
+| 镜像代码 vs 最终 HEAD | 只差 2 个 `.md`、8 行，无代码文件变化 |
 | Compose | 四个核心服务 healthy；attu 未启动（端口被无关进程占用） |
 | 鉴权 | 无 key 401 / 错 key 401 / 对 key 200 |
 
