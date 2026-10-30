@@ -1,0 +1,2398 @@
+
+<!doctype html>
+<html lang="zh" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="如何排查性能瓶颈参考文档。此外需注意3060、3090、3080Ti、4090、4090D、A4000、A5000、A40、A100、A800、L20、H20、H800等安培架构的卡需要cuda11.1及以上才能使用（TitanXp、1080Ti、2080Ti、P40、V100没有要求），请使用较高版本的框架。">
+      
+      
+      
+        <link rel="canonical" href="https://www.autodl.com/docs/gpu/">
+      
+      
+        <link rel="prev" href="../network_turbo/">
+      
+      
+        <link rel="next" href="../gpu_perf/">
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.4.2, mkdocs-material-9.1.2">
+    
+    
+<title>AutoDL帮助文档</title>
+
+    
+  
+      <link rel="stylesheet" href="../assets/stylesheets/main.7bf56d0a.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.a0c5b2b5.min.css">
+      
+      
+
+    
+  <link rel="stylesheet" href="../assets/stylesheets/main.css" />
+  <script src="js/robot.js"></script>
+
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Ubuntu:300,300i,400,400i,700,700i%7CUbuntu+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Ubuntu";--md-code-font:"Ubuntu Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce((e,_)=>(e<<5)-e+_.charCodeAt(0),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+    
+  </head>
+  
+  
+    
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="" data-md-color-accent="">
+  
+    
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#gpu" class="md-skip">
+          跳转至
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      <header class="md-header" data-md-component="header">
+  <nav
+    class="md-header__inner md-grid"
+    aria-label=""
+  >
+
+    <!-- Link to home -->
+    <a
+      href="https://www.autodl.com"
+      title="AutoDL帮助文档"
+      class="md-header__button md-logo"
+      aria-label="AutoDL帮助文档"
+      data-md-component="logo"
+    >
+      
+  
+  <?xml version="1.0" encoding="UTF-8"?>
+<svg width="120px" height="118px" viewBox="0 0 120 118" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+    <!-- Generator: Sketch 64 (93537) - https://sketch.com -->
+    <title>形状结合</title>
+    <desc>Created with Sketch.</desc>
+    <g id="页面-1" stroke="none" stroke-width="1" fill="none" fill-rule="evenodd">
+        <path d="M90.1338875,37.8466975 C94.1228714,39.339 99.6077243,49.7851176 99.6077243,63.2158401 C99.6077243,76.6465626 101.103593,109.974652 92.6270024,115.943862 C84.1504116,121.913072 70.1889679,113.954125 51.2412943,104.005442 C32.2936206,94.0567585 21.3239148,80.626036 23.8170298,74.656826 C24.8142758,71.672221 27.9722214,72.0038437 33.2908666,75.6516943 C51.5737096,85.9320004 63.0420384,91.2379649 67.6958529,91.5695877 C74.6765748,92.0670219 86.6435266,92.564456 85.6462806,48.2928151 L85.6462806,40.3338684 C85.9786959,37.6808861 87.4745649,36.8518292 90.1338875,37.8466975 Z M69.620773,4.46398124 C71.7539315,6.78107791 69.9321921,9.37572027 64.1555548,12.2479083 C46.2790098,23.216327 36.0672617,30.650456 33.5203106,34.5502956 C29.699884,40.4000549 23.4620852,50.6004714 62.7589486,71.1936574 L69.7366365,75.0522314 C71.9013743,76.6284665 71.9030051,78.3355984 69.7415289,80.1736272 C66.4993147,82.9306704 54.6819899,82.6520152 42.9071415,76.1406717 C31.1322932,69.6293282 1.18801346,54.7767471 0.0642803154,44.4866993 C-1.05945283,34.1966515 12.6868773,25.8733851 30.5950016,14.1641049 C48.503126,2.45482465 65.5961932,-0.605277833 69.620773,4.46398124 Z M107.084889,0.498123689 C116.719737,4.33917664 117.632797,20.3550648 119.588831,41.6264751 C121.544866,62.8978855 116.228524,79.390816 109.852511,80.5559638 C106.800289,81.3471294 105.359136,78.5243532 105.529051,72.0876351 C104.213896,51.1918546 102.428388,38.7068011 100.172526,34.6324747 C96.7887325,28.5209851 90.6892439,18.2376615 54.0143251,43.1840921 L47.3234382,47.5188452 C44.9120963,48.6856406 43.4004203,47.8856272 42.7884102,45.1188049 C41.8703951,40.9685716 47.6649191,30.6901908 58.9557906,23.3752951 C70.2466621,16.0603993 97.4500421,-3.34292926 107.084889,0.498123689 Z" id="形状结合" fill="#FFFFFF"></path>
+    </g>
+</svg>
+
+    </a>
+
+    <!-- Button to open drawer -->
+    <label class="md-header__button md-icon" for="__drawer">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3V6m0 5h18v2H3v-2m0 5h18v2H3v-2Z"/></svg>
+    </label>
+
+    <!-- Header title -->
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            AutoDL帮助文档
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              GPU选型
+            
+          </span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Color palette -->
+    
+
+    <!-- Site language selector -->
+    
+
+    <!-- Button to open search modal -->
+      <label class="md-header__button md-icon" for="__search">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.516 6.516 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5Z"/></svg>
+      </label>
+
+      <!-- Search interface -->
+      <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="搜索" placeholder="搜索" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.516 6.516 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5Z"/></svg>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11h12Z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="查找">
+        
+        <button type="reset" class="md-search__icon md-icon" title="清空当前内容" aria-label="清空当前内容" tabindex="-1">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12 19 6.41Z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            正在初始化搜索引擎
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+    <!-- Repository information -->
+    
+  </nav>
+</header>
+
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+<nav class="md-nav md-nav--primary" aria-label="导航栏" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="AutoDL帮助文档" class="md-nav__button md-logo" aria-label="AutoDL帮助文档" data-md-component="logo">
+      
+  
+  <?xml version="1.0" encoding="UTF-8"?>
+<svg width="120px" height="118px" viewBox="0 0 120 118" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+    <!-- Generator: Sketch 64 (93537) - https://sketch.com -->
+    <title>形状结合</title>
+    <desc>Created with Sketch.</desc>
+    <g id="页面-1" stroke="none" stroke-width="1" fill="none" fill-rule="evenodd">
+        <path d="M90.1338875,37.8466975 C94.1228714,39.339 99.6077243,49.7851176 99.6077243,63.2158401 C99.6077243,76.6465626 101.103593,109.974652 92.6270024,115.943862 C84.1504116,121.913072 70.1889679,113.954125 51.2412943,104.005442 C32.2936206,94.0567585 21.3239148,80.626036 23.8170298,74.656826 C24.8142758,71.672221 27.9722214,72.0038437 33.2908666,75.6516943 C51.5737096,85.9320004 63.0420384,91.2379649 67.6958529,91.5695877 C74.6765748,92.0670219 86.6435266,92.564456 85.6462806,48.2928151 L85.6462806,40.3338684 C85.9786959,37.6808861 87.4745649,36.8518292 90.1338875,37.8466975 Z M69.620773,4.46398124 C71.7539315,6.78107791 69.9321921,9.37572027 64.1555548,12.2479083 C46.2790098,23.216327 36.0672617,30.650456 33.5203106,34.5502956 C29.699884,40.4000549 23.4620852,50.6004714 62.7589486,71.1936574 L69.7366365,75.0522314 C71.9013743,76.6284665 71.9030051,78.3355984 69.7415289,80.1736272 C66.4993147,82.9306704 54.6819899,82.6520152 42.9071415,76.1406717 C31.1322932,69.6293282 1.18801346,54.7767471 0.0642803154,44.4866993 C-1.05945283,34.1966515 12.6868773,25.8733851 30.5950016,14.1641049 C48.503126,2.45482465 65.5961932,-0.605277833 69.620773,4.46398124 Z M107.084889,0.498123689 C116.719737,4.33917664 117.632797,20.3550648 119.588831,41.6264751 C121.544866,62.8978855 116.228524,79.390816 109.852511,80.5559638 C106.800289,81.3471294 105.359136,78.5243532 105.529051,72.0876351 C104.213896,51.1918546 102.428388,38.7068011 100.172526,34.6324747 C96.7887325,28.5209851 90.6892439,18.2376615 54.0143251,43.1840921 L47.3234382,47.5188452 C44.9120963,48.6856406 43.4004203,47.8856272 42.7884102,45.1188049 C41.8703951,40.9685716 47.6649191,30.6901908 58.9557906,23.3752951 C70.2466621,16.0603993 97.4500421,-3.34292926 107.084889,0.498123689 Z" id="形状结合" fill="#FFFFFF"></path>
+    </g>
+</svg>
+
+    </a>
+    AutoDL帮助文档
+  </label>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+      
+
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        简介
+      </a>
+    </li>
+  
+
+    
+      
+      
+      
+
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../quick_start/" class="md-nav__link">
+        快速开始
+      </a>
+    </li>
+  
+
+    
+      
+      
+      
+
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../video/" class="md-nav__link">
+        视频教程
+      </a>
+    </li>
+  
+
+    
+      
+      
+      
+
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../network_turbo/" class="md-nav__link">
+        学术资源加速
+      </a>
+    </li>
+  
+
+    
+      
+      
+      
+
+  
+  
+    
+  
+  
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
+      
+      
+      
+      
+      <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" checked>
+      
+      
+      
+        <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="0">
+          如何选择GPU
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="true">
+        <label class="md-nav__title" for="__nav_5">
+          <span class="md-nav__icon md-icon"></span>
+          如何选择GPU
+        </label>
+        <ul class="md-nav__list" data-md-scrollfix>
+          
+            
+              
+  
+  
+    
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          GPU选型
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        GPU选型
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="目录">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      目录
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#cpu" class="md-nav__link">
+    一. 选择CPU
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#gpu_1" class="md-nav__link">
+    二. 选择GPU
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_1" class="md-nav__link">
+    三. 选择内存
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#gpu_2" class="md-nav__link">
+    附GPU型号简介
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gpu_perf/" class="md-nav__link">
+        性能实测
+      </a>
+    </li>
+  
+
+            
+          
+        </ul>
+      </nav>
+    </li>
+  
+
+    
+      
+      
+      
+
+  
+  
+  
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+      
+      
+      
+      <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6" >
+      
+      
+      
+        <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="0">
+          容器实例
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
+        <label class="md-nav__title" for="__nav_6">
+          <span class="md-nav__icon md-icon"></span>
+          容器实例
+        </label>
+        <ul class="md-nav__list" data-md-scrollfix>
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../env/" class="md-nav__link">
+        概要
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../jupyterlab/" class="md-nav__link">
+        JupyterLab
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ssh/" class="md-nav__link">
+        SSH
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../update_config/" class="md-nav__link">
+        升降配置
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../change_billing_method/" class="md-nav__link">
+        转换计费方式
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../save_image/" class="md-nav__link">
+        保存镜像
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reset_instance/" class="md-nav__link">
+        重置系统
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../migrate_instance/" class="md-nav__link">
+        迁移实例
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../migrate_instance_2/" class="md-nav__link">
+        迁移实例(同地区)
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../daemon/" class="md-nav__link">
+        守护进程(开后台)
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../distributed_training/" class="md-nav__link">
+        多机多卡并行
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gui/" class="md-nav__link">
+        远程桌面
+      </a>
+    </li>
+  
+
+            
+          
+        </ul>
+      </nav>
+    </li>
+  
+
+    
+      
+      
+      
+
+  
+  
+  
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+      
+      
+      
+      <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_7" >
+      
+      
+      
+        <label class="md-nav__link" for="__nav_7" id="__nav_7_label" tabindex="0">
+          容器实例数据
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_7_label" aria-expanded="false">
+        <label class="md-nav__title" for="__nav_7">
+          <span class="md-nav__icon md-icon"></span>
+          容器实例数据
+        </label>
+        <ul class="md-nav__list" data-md-scrollfix>
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../instance_data/" class="md-nav__link">
+        概要
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../netdisk/" class="md-nav__link">
+        公网网盘(强推)
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../scp/" class="md-nav__link">
+        上传数据
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../down/" class="md-nav__link">
+        下载数据
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../local_disk/" class="md-nav__link">
+        本地数据盘
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../public_data/" class="md-nav__link">
+        公开数据
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../fs/" class="md-nav__link">
+        文件存储
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../arc/" class="md-nav__link">
+        压缩/解压
+      </a>
+    </li>
+  
+
+            
+          
+        </ul>
+      </nav>
+    </li>
+  
+
+    
+      
+      
+      
+
+  
+  
+  
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+      
+      
+      
+      <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_8" >
+      
+      
+      
+        <label class="md-nav__link" for="__nav_8" id="__nav_8_label" tabindex="0">
+          容器实例Pro
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_8_label" aria-expanded="false">
+        <label class="md-nav__title" for="__nav_8">
+          <span class="md-nav__icon md-icon"></span>
+          容器实例Pro
+        </label>
+        <ul class="md-nav__list" data-md-scrollfix>
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../instance_pro/" class="md-nav__link">
+        概要
+      </a>
+    </li>
+  
+
+            
+          
+        </ul>
+      </nav>
+    </li>
+  
+
+    
+      
+      
+      
+
+  
+  
+  
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+      
+      
+      
+      <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_9" >
+      
+      
+      
+        <label class="md-nav__link" for="__nav_9" id="__nav_9_label" tabindex="0">
+          容器实例Pro数据
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_9_label" aria-expanded="false">
+        <label class="md-nav__title" for="__nav_9">
+          <span class="md-nav__icon md-icon"></span>
+          容器实例Pro数据
+        </label>
+        <ul class="md-nav__list" data-md-scrollfix>
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../instance_pro_data/" class="md-nav__link">
+        概要
+      </a>
+    </li>
+  
+
+            
+          
+        </ul>
+      </nav>
+    </li>
+  
+
+    
+      
+      
+      
+
+  
+  
+  
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+      
+      
+      
+      <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_10" >
+      
+      
+      
+        <label class="md-nav__link" for="__nav_10" id="__nav_10_label" tabindex="0">
+          配置环境
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_10_label" aria-expanded="false">
+        <label class="md-nav__title" for="__nav_10">
+          <span class="md-nav__icon md-icon"></span>
+          配置环境
+        </label>
+        <ul class="md-nav__list" data-md-scrollfix>
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../base_config/" class="md-nav__link">
+        概要
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../deps/" class="md-nav__link">
+        依赖安装
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../image/" class="md-nav__link">
+        镜像
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../python/" class="md-nav__link">
+        Python3.X
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../cuda/" class="md-nav__link">
+        CUDA/cuDNN
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../miniconda/" class="md-nav__link">
+        Miniconda
+      </a>
+    </li>
+  
+
+            
+          
+        </ul>
+      </nav>
+    </li>
+  
+
+    
+      
+      
+      
+
+  
+  
+  
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+      
+      
+      
+      <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_11" >
+      
+      
+      
+        <label class="md-nav__link" for="__nav_11" id="__nav_11_label" tabindex="0">
+          国产芯片
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_11_label" aria-expanded="false">
+        <label class="md-nav__title" for="__nav_11">
+          <span class="md-nav__icon md-icon"></span>
+          国产芯片
+        </label>
+        <ul class="md-nav__list" data-md-scrollfix>
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../huawei_ascend/" class="md-nav__link">
+        华为昇腾NPU
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../huawei_mindie/" class="md-nav__link">
+        华为MindIE
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../mt_gpu/" class="md-nav__link">
+        摩尔线程GPU
+      </a>
+    </li>
+  
+
+            
+          
+        </ul>
+      </nav>
+    </li>
+  
+
+    
+      
+      
+      
+
+  
+  
+  
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+      
+      
+      
+      <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_12" >
+      
+      
+      
+        <label class="md-nav__link" for="__nav_12" id="__nav_12_label" tabindex="0">
+          最佳实践
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_12_label" aria-expanded="false">
+        <label class="md-nav__title" for="__nav_12">
+          <span class="md-nav__icon md-icon"></span>
+          最佳实践
+        </label>
+        <ul class="md-nav__list" data-md-scrollfix>
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../linux/" class="md-nav__link">
+        Linux基础
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../source/" class="md-nav__link">
+        软件源
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../git/" class="md-nav__link">
+        Github
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../filezilla/" class="md-nav__link">
+        Filezilla
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../xshell/" class="md-nav__link">
+        XShell
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../tensorboard/" class="md-nav__link">
+        TensorBoard
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../vscode/" class="md-nav__link">
+        VSCode
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../pycharm/" class="md-nav__link">
+        PyCharm
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gromacs/" class="md-nav__link">
+        Gromacs
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../visdom/" class="md-nav__link">
+        Visdom
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../katago/" class="md-nav__link">
+        KataGo
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../rstudio/" class="md-nav__link">
+        RStudio
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../opencl/" class="md-nav__link">
+        OpenCL
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../vulkan/" class="md-nav__link">
+        Vulkan
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../huggingface/" class="md-nav__link">
+        HuggingFace
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../mpi/" class="md-nav__link">
+        MPI
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ssh_proxy/" class="md-nav__link">
+        SSH隧道
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../precision/" class="md-nav__link">
+        计算精度
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../port/" class="md-nav__link">
+        开放端口
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../msg/" class="md-nav__link">
+        微信消息
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../perf/" class="md-nav__link">
+        性能篇
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../save_money/" class="md-nav__link">
+        省钱绝招
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../proxy_in_instance/" class="md-nav__link">
+        暴露多个服务
+      </a>
+    </li>
+  
+
+            
+          
+        </ul>
+      </nav>
+    </li>
+  
+
+    
+      
+      
+      
+
+  
+  
+  
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+      
+      
+      
+      <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_13" >
+      
+      
+      
+        <label class="md-nav__link" for="__nav_13" id="__nav_13_label" tabindex="0">
+          企业高级功能
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_13_label" aria-expanded="false">
+        <label class="md-nav__title" for="__nav_13">
+          <span class="md-nav__icon md-icon"></span>
+          企业高级功能
+        </label>
+        <ul class="md-nav__list" data-md-scrollfix>
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../elastic_deploy/" class="md-nav__link">
+        弹性部署
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../elastic_deploy_practice/" class="md-nav__link">
+        弹性部署最佳实践
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../elastic_deploy_update_log/" class="md-nav__link">
+        弹性部署更新日志
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../metric_monitor/" class="md-nav__link">
+        性能指标监控
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../c_user/" class="md-nav__link">
+        子账号
+      </a>
+    </li>
+  
+
+            
+          
+        </ul>
+      </nav>
+    </li>
+  
+
+    
+      
+      
+      
+
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../network/" class="md-nav__link">
+        网络
+      </a>
+    </li>
+  
+
+    
+      
+      
+      
+
+  
+  
+  
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+      
+      
+      
+      <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_15" >
+      
+      
+      
+        <label class="md-nav__link" for="__nav_15" id="__nav_15_label" tabindex="0">
+          AI服务器
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_15_label" aria-expanded="false">
+        <label class="md-nav__title" for="__nav_15">
+          <span class="md-nav__icon md-icon"></span>
+          AI服务器
+        </label>
+        <ul class="md-nav__list" data-md-scrollfix>
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ai_server/" class="md-nav__link">
+        AI服务器
+      </a>
+    </li>
+  
+
+            
+          
+        </ul>
+      </nav>
+    </li>
+  
+
+    
+      
+      
+      
+
+  
+  
+  
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+      
+      
+      
+      <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_16" >
+      
+      
+      
+        <label class="md-nav__link" for="__nav_16" id="__nav_16_label" tabindex="0">
+          常见问题
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_16_label" aria-expanded="false">
+        <label class="md-nav__title" for="__nav_16">
+          <span class="md-nav__icon md-icon"></span>
+          常见问题
+        </label>
+        <ul class="md-nav__list" data-md-scrollfix>
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../qa1/" class="md-nav__link">
+        系统盘空间不足
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../qa2/" class="md-nav__link">
+        JupyterLab打不开
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../qa3/" class="md-nav__link">
+        不能调用GPU
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../qa4/" class="md-nav__link">
+        显存没有释放
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../qa5/" class="md-nav__link">
+        VSCode远程连接失败
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../qa6/" class="md-nav__link">
+        基于SSH的连接异常
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../qa7/" class="md-nav__link">
+        SD作图内存泄露
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../qa/" class="md-nav__link">
+        其他
+      </a>
+    </li>
+  
+
+            
+          
+        </ul>
+      </nav>
+    </li>
+  
+
+    
+      
+      
+      
+
+  
+  
+  
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+      
+      
+      
+      <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_17" >
+      
+      
+      
+        <label class="md-nav__link" for="__nav_17" id="__nav_17_label" tabindex="0">
+          活动
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_17_label" aria-expanded="false">
+        <label class="md-nav__title" for="__nav_17">
+          <span class="md-nav__icon md-icon"></span>
+          活动
+        </label>
+        <ul class="md-nav__list" data-md-scrollfix>
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../coupon/" class="md-nav__link">
+        代金券
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../cp/" class="md-nav__link">
+        优惠券
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../member/" class="md-nav__link">
+        炼丹会员
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../student/" class="md-nav__link">
+        学生认证
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../academic-corporation/" class="md-nav__link">
+        AutoDL高校合作
+      </a>
+    </li>
+  
+
+            
+          
+        </ul>
+      </nav>
+    </li>
+  
+
+    
+      
+      
+      
+
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../price/" class="md-nav__link">
+        充值与计费
+      </a>
+    </li>
+  
+
+    
+      
+      
+      
+
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../invoice/" class="md-nav__link">
+        发票
+      </a>
+    </li>
+  
+
+    
+      
+      
+      
+
+  
+  
+  
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+      
+      
+      
+      <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_20" >
+      
+      
+      
+        <label class="md-nav__link" for="__nav_20" id="__nav_20_label" tabindex="0">
+          API文档
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_20_label" aria-expanded="false">
+        <label class="md-nav__title" for="__nav_20">
+          <span class="md-nav__icon md-icon"></span>
+          API文档
+        </label>
+        <ul class="md-nav__list" data-md-scrollfix>
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../common_api/" class="md-nav__link">
+        API文档
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../instance_pro_api/" class="md-nav__link">
+        容器实例Pro API
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../esd_api_doc/" class="md-nav__link">
+        弹性部署API
+      </a>
+    </li>
+  
+
+            
+          
+        </ul>
+      </nav>
+    </li>
+  
+
+    
+      
+      
+      
+
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../maintenance/" class="md-nav__link">
+        维护与故障
+      </a>
+    </li>
+  
+
+    
+      
+      
+      
+
+  
+  
+  
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+      
+      
+      
+      <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_22" >
+      
+      
+      
+        <label class="md-nav__link" for="__nav_22" id="__nav_22_label" tabindex="0">
+          服务协议
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_22_label" aria-expanded="false">
+        <label class="md-nav__title" for="__nav_22">
+          <span class="md-nav__icon md-icon"></span>
+          服务协议
+        </label>
+        <ul class="md-nav__list" data-md-scrollfix>
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../agreements/" class="md-nav__link">
+        AutoDL服务协议
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../nas_agreements/" class="md-nav__link">
+        网盘服务协议
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../service_agreement/" class="md-nav__link">
+        实例自定义服务补充协议
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../real_name_cert/" class="md-nav__link">
+        实名认证服务协议
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../privacy_policy/" class="md-nav__link">
+        隐私政策
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../anti_mining/" class="md-nav__link">
+        反挖矿协议
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../pay_later_agreements/" class="md-nav__link">
+        高校先用后付使用须知
+      </a>
+    </li>
+  
+
+            
+          
+        </ul>
+      </nav>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="目录">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      目录
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#cpu" class="md-nav__link">
+    一. 选择CPU
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#gpu_1" class="md-nav__link">
+    二. 选择GPU
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_1" class="md-nav__link">
+    三. 选择内存
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#gpu_2" class="md-nav__link">
+    附GPU型号简介
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+<h1 id="gpu">GPU选型<a class="headerlink" href="#gpu" title="Permanent link">&para;</a></h1>
+<blockquote>
+<p>如何排查性能瓶颈参考<a href="../perf/">文档</a>。此外需注意3060、3090、3080Ti、4090、4090D、A4000、A5000、A40、A100、A800、L20、H20、H800等安培架构的卡需要<strong>cuda11.1</strong>及以上才能使用（TitanXp、1080Ti、2080Ti、P40、V100没有要求），请使用较高版本的框架。</p>
+</blockquote>
+<p>AutoDL平台分配GPU、CPU、内存的机制为：按租用的GPU数量成比例分配CPU和内存，算力市场显示的CPU和内存均为每GPU分配的CPU和内存，如果租用两块GPU，那么CPU和内存就x2。此外GPU非共享，每个实例对GPU是独占的。</p>
+<h2 id="cpu">一. 选择CPU<a class="headerlink" href="#cpu" title="Permanent link">&para;</a></h2>
+<p>CPU非常重要！尽管CPU并不直接参与深度学习模型计算，但CPU需要提供大于模型训练吞吐的数据处理能力。比如，一台8卡NVIDIA V100的DGX服务器，训练ResNet-50 ImageNet图像分类的吞吐就达到8000张图像/秒，而扩展到16卡V100的DGX2服务器却没达到2倍的吞吐，说明这台DGX2服务器的CPU已经成为性能瓶颈了。</p>
+<p><img alt="image-20220105174346711" src="../gpu.assets/image-20220105174346711.png" /></p>
+<p>我们通常为每块GPU分配固定数量的CPU逻辑核心。理想情况下，模型计算吞吐随GPU数量线性增长，单GPU的合理CPU逻辑核心数分配可以直接线性扩展到多GPU上。AutoDL平台的算力实例提供了多种CPU分配规格。每块GPU应配备至少4~8核心的CPU，以满足多线程的异步数据读取。分配更多的核心通常不会再有很大的收益，此时的数据读取瓶颈通常源于Python的多进程切换与数据通信开销（如使用PyTorch DataLoader)。那么怎么省钱克服数据读取瓶颈呢，不妨在AutoDL平台试试C++和CUDA编写的<strong>NVIDIA DALI</strong>数据读取加速库吧。在我们的测试中，单核CPU实例的数据读取能力就超过了基于Python的八核心实例，真正做到了为模型训练保驾护航。</p>
+<p>AutoDL机器均为高性能CPU，其中相对来说更高性能的CPU有：</p>
+<ol>
+<li>北京A区 H20-NVLink 用到的 AMD EPYC 9K84 CPU</li>
+<li>北京B区 4090 用到的 Xeon(R) Gold 6430 CPU</li>
+<li>内蒙A区 A100 用到的 AMD EPYC 7763 CPU</li>
+<li>内蒙B区 4090 用到的 Xeon(R) Platinum 8352V、Xeon(R) Platinum 8358P、Xeon(R) Gold 6430 CPU</li>
+<li>重庆A区 4090D 用到的 Xeon(R) Platinum 8474C、Xeon(R) Platinum 8481C CPU</li>
+<li>西北B区 4090和4090D 用到的 AMD EPYC 9654 CPU、AMD EPYC 9754 CPU</li>
+<li>L20专区 L20、H20-NVLink 用到的 Xeon(R) Platinum 8457C CPU</li>
+</ol>
+<blockquote>
+<p>服务器的CPU一般不如桌面CPU的主频高，但是核心数量多。因此您从以前使用桌面CPU切换到服务器CPU上后，需要充分利用多核心的性能，否则无法发挥服务器CPU的性能。如何利用<a href="../perf/">请戳</a></p>
+</blockquote>
+<h2 id="gpu_1">二. 选择GPU<a class="headerlink" href="#gpu_1" title="Permanent link">&para;</a></h2>
+<p>AutoDL平台上提供的GPU型号很多。我们按照GPU架构大致分为五类：</p>
+<ol>
+<li>NVIDIA Pascal架构的GPU，如TitanXp，GTX 10系列等。
+   这类GPU缺乏低精度的硬件加速能力，但却具备中等的单精度算力。由于价格便宜，适合用来练习训练小模型(如Cifar10)或调试模型代码。</li>
+<li>NVIDIA Volta/Turing架构的GPU，如GTX 20系列, Tesla V100等。
+   这类GPU搭载专为低精度(int8/float16)计算加速的TensorCore, 但单精度算力相较于上代提升不大。我们建议在实例上启用深度学习框架的混合精度训练来加速模型计算。
+   相较于单精度训练，混合精度训练通常能够提供2倍以上的训练加速。</li>
+<li>NVIDIA Ampere架构的GPU，如GTX 30系列，Tesla A40/A100等。
+   这类GPU搭载第三代TensorCore。相较于前一代，支持了TensorFloat32格式，可直接加速单精度训练 (PyTorch已默认开启)。但我们仍建议使用超高算力的float16半精度训练模型，可获得比上一代GPU更显著的性能提升。</li>
+<li>寒武纪 MLU 200系列加速卡。
+   暂不支持模型训练。使用该系列加速卡进行模型推理需要量化为int8进行计算。
+   并且需要安装适配寒武纪MLU的深度学习框架。</li>
+<li>华为 Ascend 系列加速卡。
+   支持模型训练及推理。但需安装MindSpore框架进行计算。</li>
+</ol>
+<p>GPU型号的选择并不困难。对于常用的深度学习模型，根据GPU对应精度的算力可大致推算GPU训练模型的性能。AutoDL平台标注并排名了每种型号GPU的算力，方便大家选择适合自己的GPU。</p>
+<p>GPU的数量选择与训练任务有关。一般我们认为模型的一次训练应当在24小时内完成，这样隔天就能训练改进之后的模型。以下是选择多GPU的一些建议：</p>
+<ul>
+<li>1块GPU。适合一些数据集较小的训练任务，如Pascal VOC等。</li>
+<li>2块GPU。同单块GPU，但是你可以一次跑两组参数或者把Batchsize扩大。</li>
+<li>4块GPU。适合一些中等数据集的训练任务，如MS COCO等。</li>
+<li>8块GPU。经典永流传的配置！适合各种训练任务，也非常方便复现论文结果。</li>
+<li>我要更多！用于训练大参数模型、大规模调参或超快地完成模型训练。</li>
+</ul>
+<h2 id="_1">三. 选择内存<a class="headerlink" href="#_1" title="Permanent link">&para;</a></h2>
+<p>内存在充足的情况下一般不影响性能，但是由于AutoDL的实例相比本地电脑对内存的使用有更严格的上限限制（本地电脑内存不足会使用硬盘虚拟内存，影响是速度下降），比如租用的实例分配的内存是64GB，程序在训练时最后将要使用64.1GB，此时超过限制的这一时刻进程会被系统<strong>Kill</strong>导致程序中断，因此如果对内存的容量要求大，请选择分配内存更多的主机或者租用多GPU实例。如果不确定内存的使用，那么可以在实例监控中观察内存使用情况。<img alt="image_20250304112009" src="../gpu.assets/image_20250304112009.png" /></p>
+<h2 id="gpu_2">附GPU型号简介<a class="headerlink" href="#gpu_2" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>型号</th>
+<th>显存</th>
+<th>单精(FP32)</th>
+<th>半精(FP16)</th>
+<th>详细参数</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Tesla P40</td>
+<td>24GB</td>
+<td>11.76 T</td>
+<td>11.76 T</td>
+<td><a href="https://www.techpowerup.com/gpu-specs/tesla-p40.c2878">查看</a></td>
+<td>比较老的Pascal架构GPU，对于cuda11.x之前且对大显存有需求的算法是非常不错的选择</td>
+</tr>
+<tr>
+<td>TITAN Xp</td>
+<td>12GB</td>
+<td>12.15 T</td>
+<td>12.15 T</td>
+<td><a href="https://www.techpowerup.com/gpu-specs/titan-xp.c2948">查看</a></td>
+<td>比较老的Pascal架构GPU，用作入门比较合适</td>
+</tr>
+<tr>
+<td>1080 Ti</td>
+<td>11GB</td>
+<td>11.34 T</td>
+<td>11.34 T</td>
+<td><a href="https://www.techpowerup.com/gpu-specs/geforce-gtx-1080-ti.c2877">查看</a></td>
+<td>和TITANXp同时代的卡，同样适合入门，但是11GB的显存偶尔会比较尴尬</td>
+</tr>
+<tr>
+<td>2080Ti</td>
+<td>11GB</td>
+<td>13.45 T</td>
+<td>53.8 T</td>
+<td><a href="https://www.techpowerup.com/gpu-specs/geforce-rtx-2080-ti.c3305">查看</a></td>
+<td>图灵架构GPU，性能还不错，老一代型号中比较适合做混合精度计算的GPU。性价比高</td>
+</tr>
+<tr>
+<td>V100</td>
+<td>16/32GB</td>
+<td>15.7 T</td>
+<td>125 T</td>
+<td><a href="https://www.techpowerup.com/gpu-specs/tesla-v100s-pcie-32-gb.c3467">查看</a></td>
+<td>老一代专业计算卡皇，半精性能高适合做混合精度计算</td>
+</tr>
+<tr>
+<td>3060</td>
+<td>12GB</td>
+<td>12.74 T</td>
+<td>约24T</td>
+<td><a href="https://www.techpowerup.com/gpu-specs/geforce-rtx-3060.c3682">查看</a></td>
+<td>如果1080Ti的显存正好尴尬了，3060是不错的选择，适合新手。需要使用cuda11.x</td>
+</tr>
+<tr>
+<td>A4000</td>
+<td>16GB</td>
+<td>19.17 T</td>
+<td>约76T</td>
+<td><a href="https://www.techpowerup.com/gpu-specs/rtx-a4000.c3756">查看</a></td>
+<td>显存和算力都比较均衡，适合进阶过程使用。需要使用cuda11.x</td>
+</tr>
+<tr>
+<td>3080Ti</td>
+<td>12GB</td>
+<td>34.10 T</td>
+<td>约70T</td>
+<td><a href="https://www.techpowerup.com/gpu-specs/geforce-rtx-3080-ti.c3735">查看</a></td>
+<td>性能钢炮，如果对显存要求不高则是非常合适的选择。需要使用cuda11.x</td>
+</tr>
+<tr>
+<td>A5000</td>
+<td>24GB</td>
+<td>27.77T</td>
+<td>约117T</td>
+<td><a href="https://www.techpowerup.com/gpu-specs/rtx-a5000.c3748">查看</a></td>
+<td>性能钢炮，如果觉得3080Ti的显存不够用A5000是合适的选择，并且半精算力高适合混合精度。需要使用cuda11.x</td>
+</tr>
+<tr>
+<td>3090</td>
+<td>24GB</td>
+<td>35.58 T</td>
+<td>约71T</td>
+<td><a href="https://www.techpowerup.com/gpu-specs/geforce-rtx-3090.c3622">查看</a></td>
+<td>可以看做3080Ti的扩显存版。性能和显存大小都非常够用，适用性非常强，性价比首选。需要使用cuda11.x</td>
+</tr>
+<tr>
+<td>A40</td>
+<td>48GB</td>
+<td>37.42 T</td>
+<td>149.7 T</td>
+<td><a href="https://www.techpowerup.com/gpu-specs/a40-pcie.c3700">查看</a></td>
+<td>可以看做是3090的扩显存版。算力和3090基本持平，因此根据显存大小进行选择。需要使用cuda11.x</td>
+</tr>
+<tr>
+<td>A100 SXM4</td>
+<td>40/80GB</td>
+<td>19.5 T</td>
+<td>312 T</td>
+<td><a href="https://www.techpowerup.com/gpu-specs/a100-sxm4-80-gb.c3746">查看</a></td>
+<td>新一代专业计算卡皇，除了贵没缺点。显存大，非常适合做半精计算，因为有NVLink加持，多卡并行加速比非常高。需要使用cuda11.x</td>
+</tr>
+<tr>
+<td>4090</td>
+<td>24G</td>
+<td>82.58 T</td>
+<td>165.2 T</td>
+<td><a href="https://www.techpowerup.com/gpu-specs/geforce-rtx-4090.c3889">查看</a></td>
+<td>新一代游戏卡皇，除显存比较小和多机多卡并行效率低的缺点外，性价比非常高</td>
+</tr>
+</tbody>
+</table>
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+  <script>var tabs=__md_get("__tabs");if(Array.isArray(tabs))e:for(var set of document.querySelectorAll(".tabbed-set")){var tab,labels=set.querySelector(".tabbed-labels");for(tab of tabs)for(var label of labels.getElementsByTagName("label"))if(label.innerText.trim()===tab){var input=document.getElementById(label.htmlFor);input.checked=!0;continue e}}</script>
+
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+<!-- 
+  
+    <div class="md-footer-nav">
+      <nav class="md-footer-nav__inner md-grid" aria-label="">
+        
+          <a href="../network_turbo/" class="md-footer-nav__link md-footer-nav__link--prev" rel="prev">
+            <div class="md-footer-nav__button md-icon">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11h12Z"/></svg>
+            </div>
+            <div class="md-footer-nav__title">
+              <div class="md-ellipsis">
+                <span class="md-footer-nav__direction">
+                  上一页
+                </span>
+                学术资源加速
+              </div>
+            </div>
+          </a>
+        
+        
+          <a href="../gpu_perf/" class="md-footer-nav__link md-footer-nav__link--next" rel="next">
+            <div class="md-footer-nav__title">
+              <div class="md-ellipsis">
+                <span class="md-footer-nav__direction">
+                  下一页
+                </span>
+                性能实测
+              </div>
+            </div>
+            <div class="md-footer-nav__button md-icon">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 11v2h12l-5.5 5.5 1.42 1.42L19.84 12l-7.92-7.92L10.5 5.5 16 11H4Z"/></svg>
+            </div>
+          </a>
+        
+      </nav>
+    </div>
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+    </div>
+  </div> 
+-->
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    <script id="__config" type="application/json">{"base": "..", "features": ["navigation.tabs.sticky", "navigation.instant", "content.tabs.link"], "search": "../assets/javascripts/workers/search.208ed371.min.js", "translations": {"clipboard.copied": "\u5df2\u590d\u5236", "clipboard.copy": "\u590d\u5236", "search.result.more.one": "\u5728\u8be5\u9875\u4e0a\u8fd8\u6709 1 \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.more.other": "\u5728\u8be5\u9875\u4e0a\u8fd8\u6709 # \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.none": "\u6ca1\u6709\u627e\u5230\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.one": "\u627e\u5230 1 \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.other": "# \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.placeholder": "\u952e\u5165\u4ee5\u5f00\u59cb\u641c\u7d22", "search.result.term.missing": "\u7f3a\u5c11", "select.version": "\u9009\u62e9\u5f53\u524d\u7248\u672c"}}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.fc8c2696.min.js"></script>
+      
+        <script src="../js/baidu-tongji.js"></script>
+      
+    
+  </body>
+</html>

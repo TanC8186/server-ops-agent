@@ -1038,6 +1038,340 @@
         "document_id": null,
         "active_revision": null
       }
+    },
+    {
+      "id": "AD-01",
+      "title": "容器实例环境说明",
+      "publisher": "AutoDL",
+      "source_url": "https://www.autodl.com/docs/env/",
+      "source_family": "autodl",
+      "os_family": "linux",
+      "version_scope": "AutoDL 帮助文档（持续性文档，无固定版本号）",
+      "topics": [
+        "容器",
+        "系统盘",
+        "数据盘",
+        "环境",
+        "autodl-tmp"
+      ],
+      "ingestion_stage": "core",
+      "sample_question": "实例中的系统盘与数据盘、容器实例是什么、GPU/CPU/内存如何分配",
+      "verification": {
+        "checked_on": "2026-10-30",
+        "status": "pending_fetch",
+        "check_method": "fetch_corpus.py",
+        "content_downloaded": false,
+        "indexed": false
+      },
+      "license": {
+        "identifier": null,
+        "status": "needs_review",
+        "evidence_url": null,
+        "notes": "AutoDL 官方帮助文档，未在页面找到显式许可声明；仅作为平台操作说明引用，不复制原文大段内容。"
+      },
+      "crawl_policy": {
+        "recursive": false,
+        "allow_external": false,
+        "max_pages": 1
+      },
+      "risk_classification": "low",
+      "future_artifacts": []
+    },
+    {
+      "id": "AD-02",
+      "title": "快速开始",
+      "publisher": "AutoDL",
+      "source_url": "https://www.autodl.com/docs/quick_start/",
+      "source_family": "autodl",
+      "os_family": "linux",
+      "version_scope": "AutoDL 帮助文档（持续性文档，无固定版本号）",
+      "topics": [
+        "快速开始",
+        "创建实例",
+        "开机",
+        "关机",
+        "数据保留"
+      ],
+      "ingestion_stage": "core",
+      "sample_question": "创建实例、实例数据保存规则、连续关机 15 天释放",
+      "verification": {
+        "checked_on": "2026-10-30",
+        "status": "pending_fetch",
+        "check_method": "fetch_corpus.py",
+        "content_downloaded": false,
+        "indexed": false
+      },
+      "license": {
+        "identifier": null,
+        "status": "needs_review",
+        "evidence_url": null,
+        "notes": "AutoDL 官方帮助文档，未在页面找到显式许可声明；仅作为平台操作说明引用，不复制原文大段内容。"
+      },
+      "crawl_policy": {
+        "recursive": false,
+        "allow_external": false,
+        "max_pages": 1
+      },
+      "risk_classification": "low",
+      "future_artifacts": []
+    },
+    {
+      "id": "AD-03",
+      "title": "镜像与配置环境",
+      "publisher": "AutoDL",
+      "source_url": "https://www.autodl.com/docs/image/",
+      "source_family": "autodl",
+      "os_family": "linux",
+      "version_scope": "AutoDL 帮助文档（持续性文档，无固定版本号）",
+      "topics": [
+        "镜像",
+        "conda",
+        "CUDA",
+        "环境配置"
+      ],
+      "ingestion_stage": "core",
+      "sample_question": "实例镜像选择与配置环境",
+      "verification": {
+        "checked_on": "2026-10-30",
+        "status": "pending_fetch",
+        "check_method": "fetch_corpus.py",
+        "content_downloaded": false,
+        "indexed": false
+      },
+      "license": {
+        "identifier": null,
+        "status": "needs_review",
+        "evidence_url": null,
+        "notes": "AutoDL 官方帮助文档，未在页面找到显式许可声明；仅作为平台操作说明引用，不复制原文大段内容。"
+      },
+      "crawl_policy": {
+        "recursive": false,
+        "allow_external": false,
+        "max_pages": 1
+      },
+      "risk_classification": "low",
+      "future_artifacts": []
+    },
+    {
+      "id": "AD-04",
+      "title": "实例数据与数据盘",
+      "publisher": "AutoDL",
+      "source_url": "https://www.autodl.com/docs/instance_data/",
+      "source_family": "autodl",
+      "os_family": "linux",
+      "version_scope": "AutoDL 帮助文档（持续性文档，无固定版本号）",
+      "topics": [
+        "实例数据",
+        "数据盘",
+        "autodl-tmp",
+        "持久化"
+      ],
+      "ingestion_stage": "core",
+      "sample_question": "实例数据保留与 /root/autodl-tmp 数据盘使用",
+      "verification": {
+        "checked_on": "2026-10-30",
+        "status": "pending_fetch",
+        "check_method": "fetch_corpus.py",
+        "content_downloaded": false,
+        "indexed": false
+      },
+      "license": {
+        "identifier": null,
+        "status": "needs_review",
+        "evidence_url": null,
+        "notes": "AutoDL 官方帮助文档，未在页面找到显式许可声明；仅作为平台操作说明引用，不复制原文大段内容。"
+      },
+      "crawl_policy": {
+        "recursive": false,
+        "allow_external": false,
+        "max_pages": 1
+      },
+      "risk_classification": "low",
+      "future_artifacts": []
+    },
+    {
+      "id": "AD-05",
+      "title": "GPU 选型",
+      "publisher": "AutoDL",
+      "source_url": "https://api.autodl.com/docs/gpu/",
+      "source_family": "autodl",
+      "os_family": "linux",
+      "version_scope": "AutoDL 帮助文档（持续性文档，无固定版本号）",
+      "topics": [
+        "GPU",
+        "显存",
+        "选型",
+        "性能"
+      ],
+      "ingestion_stage": "core",
+      "sample_question": "如何按显存与算力选择 GPU、常见型号性能对比",
+      "verification": {
+        "checked_on": "2026-10-30",
+        "status": "pending_fetch",
+        "check_method": "fetch_corpus.py",
+        "content_downloaded": false,
+        "indexed": false
+      },
+      "license": {
+        "identifier": null,
+        "status": "needs_review",
+        "evidence_url": null,
+        "notes": "AutoDL 官方帮助文档，未在页面找到显式许可声明；仅作为平台操作说明引用，不复制原文大段内容。"
+      },
+      "crawl_policy": {
+        "recursive": false,
+        "allow_external": false,
+        "max_pages": 1
+      },
+      "risk_classification": "low",
+      "future_artifacts": []
+    },
+    {
+      "id": "AD-06",
+      "title": "上传数据与 SCP",
+      "publisher": "AutoDL",
+      "source_url": "https://www.autodl.com/docs/scp/",
+      "source_family": "autodl",
+      "os_family": "linux",
+      "version_scope": "AutoDL 帮助文档（持续性文档，无固定版本号）",
+      "topics": [
+        "scp",
+        "上传",
+        "下载",
+        "FileZilla",
+        "XShell"
+      ],
+      "ingestion_stage": "core",
+      "sample_question": "公网网盘/JupyterLab/SCP/FileZilla 上传下载数据",
+      "verification": {
+        "checked_on": "2026-10-30",
+        "status": "pending_fetch",
+        "check_method": "fetch_corpus.py",
+        "content_downloaded": false,
+        "indexed": false
+      },
+      "license": {
+        "identifier": null,
+        "status": "needs_review",
+        "evidence_url": null,
+        "notes": "AutoDL 官方帮助文档，未在页面找到显式许可声明；仅作为平台操作说明引用，不复制原文大段内容。"
+      },
+      "crawl_policy": {
+        "recursive": false,
+        "allow_external": false,
+        "max_pages": 1
+      },
+      "risk_classification": "low",
+      "future_artifacts": []
+    },
+    {
+      "id": "AD-07",
+      "title": "常见问题",
+      "publisher": "AutoDL",
+      "source_url": "https://www.autodl.com/docs/qa/",
+      "source_family": "autodl",
+      "os_family": "linux",
+      "version_scope": "AutoDL 帮助文档（持续性文档，无固定版本号）",
+      "topics": [
+        "常见问题",
+        "SSH",
+        "连接",
+        "故障"
+      ],
+      "ingestion_stage": "core",
+      "sample_question": "常见问题与排查，含 SSH 连接类问题",
+      "verification": {
+        "checked_on": "2026-10-30",
+        "status": "pending_fetch",
+        "check_method": "fetch_corpus.py",
+        "content_downloaded": false,
+        "indexed": false
+      },
+      "license": {
+        "identifier": null,
+        "status": "needs_review",
+        "evidence_url": null,
+        "notes": "AutoDL 官方帮助文档，未在页面找到显式许可声明；仅作为平台操作说明引用，不复制原文大段内容。"
+      },
+      "crawl_policy": {
+        "recursive": false,
+        "allow_external": false,
+        "max_pages": 1
+      },
+      "risk_classification": "low",
+      "future_artifacts": []
+    },
+    {
+      "id": "AD-08",
+      "title": "文件存储",
+      "publisher": "AutoDL",
+      "source_url": "https://www.autodl.com/docs/fs/",
+      "source_family": "autodl",
+      "os_family": "linux",
+      "version_scope": "AutoDL 帮助文档（持续性文档，无固定版本号）",
+      "topics": [
+        "文件存储",
+        "网络存储",
+        "共享"
+      ],
+      "ingestion_stage": "core",
+      "sample_question": "文件存储（网络共享盘）与本地数据盘的优劣对比",
+      "verification": {
+        "checked_on": "2026-10-30",
+        "status": "pending_fetch",
+        "check_method": "fetch_corpus.py",
+        "content_downloaded": false,
+        "indexed": false
+      },
+      "license": {
+        "identifier": null,
+        "status": "needs_review",
+        "evidence_url": null,
+        "notes": "AutoDL 官方帮助文档，未在页面找到显式许可声明；仅作为平台操作说明引用，不复制原文大段内容。"
+      },
+      "crawl_policy": {
+        "recursive": false,
+        "allow_external": false,
+        "max_pages": 1
+      },
+      "risk_classification": "low",
+      "future_artifacts": []
+    },
+    {
+      "id": "AD-09",
+      "title": "容器实例 Pro API",
+      "publisher": "AutoDL",
+      "source_url": "https://api.autodl.com/docs/instance_pro_api/",
+      "source_family": "autodl",
+      "os_family": "linux",
+      "version_scope": "AutoDL 帮助文档（持续性文档，无固定版本号）",
+      "topics": [
+        "Pro API",
+        "接口",
+        "实例管理"
+      ],
+      "ingestion_stage": "core",
+      "sample_question": "容器实例 Pro 的 API 字段与用法",
+      "verification": {
+        "checked_on": "2026-10-30",
+        "status": "pending_fetch",
+        "check_method": "fetch_corpus.py",
+        "content_downloaded": false,
+        "indexed": false
+      },
+      "license": {
+        "identifier": null,
+        "status": "needs_review",
+        "evidence_url": null,
+        "notes": "AutoDL 官方帮助文档，未在页面找到显式许可声明；仅作为平台操作说明引用，不复制原文大段内容。"
+      },
+      "crawl_policy": {
+        "recursive": false,
+        "allow_external": false,
+        "max_pages": 1
+      },
+      "risk_classification": "low",
+      "future_artifacts": []
     }
   ],
   "excluded_or_unverified": [

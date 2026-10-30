@@ -1,0 +1,2720 @@
+
+<!doctype html>
+<html lang="zh" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="注意：使用容器实例Pro API需进行个人实名认证或者企业认证">
+      
+      
+      
+        <link rel="canonical" href="https://www.autodl.com/docs/instance_pro_api/">
+      
+      
+        <link rel="prev" href="../common_api/">
+      
+      
+        <link rel="next" href="../esd_api_doc/">
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.4.2, mkdocs-material-9.1.2">
+    
+    
+<title>AutoDL帮助文档</title>
+
+    
+  
+      <link rel="stylesheet" href="../assets/stylesheets/main.7bf56d0a.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.a0c5b2b5.min.css">
+      
+      
+
+    
+  <link rel="stylesheet" href="../assets/stylesheets/main.css" />
+  <script src="js/robot.js"></script>
+
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Ubuntu:300,300i,400,400i,700,700i%7CUbuntu+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Ubuntu";--md-code-font:"Ubuntu Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce((e,_)=>(e<<5)-e+_.charCodeAt(0),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+    
+  </head>
+  
+  
+    
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="" data-md-color-accent="">
+  
+    
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#pro-api" class="md-skip">
+          跳转至
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      <header class="md-header" data-md-component="header">
+  <nav
+    class="md-header__inner md-grid"
+    aria-label=""
+  >
+
+    <!-- Link to home -->
+    <a
+      href="https://www.autodl.com"
+      title="AutoDL帮助文档"
+      class="md-header__button md-logo"
+      aria-label="AutoDL帮助文档"
+      data-md-component="logo"
+    >
+      
+  
+  <?xml version="1.0" encoding="UTF-8"?>
+<svg width="120px" height="118px" viewBox="0 0 120 118" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+    <!-- Generator: Sketch 64 (93537) - https://sketch.com -->
+    <title>形状结合</title>
+    <desc>Created with Sketch.</desc>
+    <g id="页面-1" stroke="none" stroke-width="1" fill="none" fill-rule="evenodd">
+        <path d="M90.1338875,37.8466975 C94.1228714,39.339 99.6077243,49.7851176 99.6077243,63.2158401 C99.6077243,76.6465626 101.103593,109.974652 92.6270024,115.943862 C84.1504116,121.913072 70.1889679,113.954125 51.2412943,104.005442 C32.2936206,94.0567585 21.3239148,80.626036 23.8170298,74.656826 C24.8142758,71.672221 27.9722214,72.0038437 33.2908666,75.6516943 C51.5737096,85.9320004 63.0420384,91.2379649 67.6958529,91.5695877 C74.6765748,92.0670219 86.6435266,92.564456 85.6462806,48.2928151 L85.6462806,40.3338684 C85.9786959,37.6808861 87.4745649,36.8518292 90.1338875,37.8466975 Z M69.620773,4.46398124 C71.7539315,6.78107791 69.9321921,9.37572027 64.1555548,12.2479083 C46.2790098,23.216327 36.0672617,30.650456 33.5203106,34.5502956 C29.699884,40.4000549 23.4620852,50.6004714 62.7589486,71.1936574 L69.7366365,75.0522314 C71.9013743,76.6284665 71.9030051,78.3355984 69.7415289,80.1736272 C66.4993147,82.9306704 54.6819899,82.6520152 42.9071415,76.1406717 C31.1322932,69.6293282 1.18801346,54.7767471 0.0642803154,44.4866993 C-1.05945283,34.1966515 12.6868773,25.8733851 30.5950016,14.1641049 C48.503126,2.45482465 65.5961932,-0.605277833 69.620773,4.46398124 Z M107.084889,0.498123689 C116.719737,4.33917664 117.632797,20.3550648 119.588831,41.6264751 C121.544866,62.8978855 116.228524,79.390816 109.852511,80.5559638 C106.800289,81.3471294 105.359136,78.5243532 105.529051,72.0876351 C104.213896,51.1918546 102.428388,38.7068011 100.172526,34.6324747 C96.7887325,28.5209851 90.6892439,18.2376615 54.0143251,43.1840921 L47.3234382,47.5188452 C44.9120963,48.6856406 43.4004203,47.8856272 42.7884102,45.1188049 C41.8703951,40.9685716 47.6649191,30.6901908 58.9557906,23.3752951 C70.2466621,16.0603993 97.4500421,-3.34292926 107.084889,0.498123689 Z" id="形状结合" fill="#FFFFFF"></path>
+    </g>
+</svg>
+
+    </a>
+
+    <!-- Button to open drawer -->
+    <label class="md-header__button md-icon" for="__drawer">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3V6m0 5h18v2H3v-2m0 5h18v2H3v-2Z"/></svg>
+    </label>
+
+    <!-- Header title -->
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            AutoDL帮助文档
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              容器实例Pro API
+            
+          </span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Color palette -->
+    
+
+    <!-- Site language selector -->
+    
+
+    <!-- Button to open search modal -->
+      <label class="md-header__button md-icon" for="__search">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.516 6.516 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5Z"/></svg>
+      </label>
+
+      <!-- Search interface -->
+      <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="搜索" placeholder="搜索" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.516 6.516 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5Z"/></svg>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11h12Z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="查找">
+        
+        <button type="reset" class="md-search__icon md-icon" title="清空当前内容" aria-label="清空当前内容" tabindex="-1">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12 19 6.41Z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            正在初始化搜索引擎
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+    <!-- Repository information -->
+    
+  </nav>
+</header>
+
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+<nav class="md-nav md-nav--primary" aria-label="导航栏" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="AutoDL帮助文档" class="md-nav__button md-logo" aria-label="AutoDL帮助文档" data-md-component="logo">
+      
+  
+  <?xml version="1.0" encoding="UTF-8"?>
+<svg width="120px" height="118px" viewBox="0 0 120 118" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+    <!-- Generator: Sketch 64 (93537) - https://sketch.com -->
+    <title>形状结合</title>
+    <desc>Created with Sketch.</desc>
+    <g id="页面-1" stroke="none" stroke-width="1" fill="none" fill-rule="evenodd">
+        <path d="M90.1338875,37.8466975 C94.1228714,39.339 99.6077243,49.7851176 99.6077243,63.2158401 C99.6077243,76.6465626 101.103593,109.974652 92.6270024,115.943862 C84.1504116,121.913072 70.1889679,113.954125 51.2412943,104.005442 C32.2936206,94.0567585 21.3239148,80.626036 23.8170298,74.656826 C24.8142758,71.672221 27.9722214,72.0038437 33.2908666,75.6516943 C51.5737096,85.9320004 63.0420384,91.2379649 67.6958529,91.5695877 C74.6765748,92.0670219 86.6435266,92.564456 85.6462806,48.2928151 L85.6462806,40.3338684 C85.9786959,37.6808861 87.4745649,36.8518292 90.1338875,37.8466975 Z M69.620773,4.46398124 C71.7539315,6.78107791 69.9321921,9.37572027 64.1555548,12.2479083 C46.2790098,23.216327 36.0672617,30.650456 33.5203106,34.5502956 C29.699884,40.4000549 23.4620852,50.6004714 62.7589486,71.1936574 L69.7366365,75.0522314 C71.9013743,76.6284665 71.9030051,78.3355984 69.7415289,80.1736272 C66.4993147,82.9306704 54.6819899,82.6520152 42.9071415,76.1406717 C31.1322932,69.6293282 1.18801346,54.7767471 0.0642803154,44.4866993 C-1.05945283,34.1966515 12.6868773,25.8733851 30.5950016,14.1641049 C48.503126,2.45482465 65.5961932,-0.605277833 69.620773,4.46398124 Z M107.084889,0.498123689 C116.719737,4.33917664 117.632797,20.3550648 119.588831,41.6264751 C121.544866,62.8978855 116.228524,79.390816 109.852511,80.5559638 C106.800289,81.3471294 105.359136,78.5243532 105.529051,72.0876351 C104.213896,51.1918546 102.428388,38.7068011 100.172526,34.6324747 C96.7887325,28.5209851 90.6892439,18.2376615 54.0143251,43.1840921 L47.3234382,47.5188452 C44.9120963,48.6856406 43.4004203,47.8856272 42.7884102,45.1188049 C41.8703951,40.9685716 47.6649191,30.6901908 58.9557906,23.3752951 C70.2466621,16.0603993 97.4500421,-3.34292926 107.084889,0.498123689 Z" id="形状结合" fill="#FFFFFF"></path>
+    </g>
+</svg>
+
+    </a>
+    AutoDL帮助文档
+  </label>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+      
+
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        简介
+      </a>
+    </li>
+  
+
+    
+      
+      
+      
+
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../quick_start/" class="md-nav__link">
+        快速开始
+      </a>
+    </li>
+  
+
+    
+      
+      
+      
+
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../video/" class="md-nav__link">
+        视频教程
+      </a>
+    </li>
+  
+
+    
+      
+      
+      
+
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../network_turbo/" class="md-nav__link">
+        学术资源加速
+      </a>
+    </li>
+  
+
+    
+      
+      
+      
+
+  
+  
+  
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+      
+      
+      
+      <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" >
+      
+      
+      
+        <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="0">
+          如何选择GPU
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
+        <label class="md-nav__title" for="__nav_5">
+          <span class="md-nav__icon md-icon"></span>
+          如何选择GPU
+        </label>
+        <ul class="md-nav__list" data-md-scrollfix>
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gpu/" class="md-nav__link">
+        GPU选型
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gpu_perf/" class="md-nav__link">
+        性能实测
+      </a>
+    </li>
+  
+
+            
+          
+        </ul>
+      </nav>
+    </li>
+  
+
+    
+      
+      
+      
+
+  
+  
+  
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+      
+      
+      
+      <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6" >
+      
+      
+      
+        <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="0">
+          容器实例
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
+        <label class="md-nav__title" for="__nav_6">
+          <span class="md-nav__icon md-icon"></span>
+          容器实例
+        </label>
+        <ul class="md-nav__list" data-md-scrollfix>
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../env/" class="md-nav__link">
+        概要
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../jupyterlab/" class="md-nav__link">
+        JupyterLab
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ssh/" class="md-nav__link">
+        SSH
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../update_config/" class="md-nav__link">
+        升降配置
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../change_billing_method/" class="md-nav__link">
+        转换计费方式
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../save_image/" class="md-nav__link">
+        保存镜像
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reset_instance/" class="md-nav__link">
+        重置系统
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../migrate_instance/" class="md-nav__link">
+        迁移实例
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../migrate_instance_2/" class="md-nav__link">
+        迁移实例(同地区)
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../daemon/" class="md-nav__link">
+        守护进程(开后台)
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../distributed_training/" class="md-nav__link">
+        多机多卡并行
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gui/" class="md-nav__link">
+        远程桌面
+      </a>
+    </li>
+  
+
+            
+          
+        </ul>
+      </nav>
+    </li>
+  
+
+    
+      
+      
+      
+
+  
+  
+  
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+      
+      
+      
+      <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_7" >
+      
+      
+      
+        <label class="md-nav__link" for="__nav_7" id="__nav_7_label" tabindex="0">
+          容器实例数据
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_7_label" aria-expanded="false">
+        <label class="md-nav__title" for="__nav_7">
+          <span class="md-nav__icon md-icon"></span>
+          容器实例数据
+        </label>
+        <ul class="md-nav__list" data-md-scrollfix>
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../instance_data/" class="md-nav__link">
+        概要
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../netdisk/" class="md-nav__link">
+        公网网盘(强推)
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../scp/" class="md-nav__link">
+        上传数据
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../down/" class="md-nav__link">
+        下载数据
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../local_disk/" class="md-nav__link">
+        本地数据盘
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../public_data/" class="md-nav__link">
+        公开数据
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../fs/" class="md-nav__link">
+        文件存储
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../arc/" class="md-nav__link">
+        压缩/解压
+      </a>
+    </li>
+  
+
+            
+          
+        </ul>
+      </nav>
+    </li>
+  
+
+    
+      
+      
+      
+
+  
+  
+  
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+      
+      
+      
+      <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_8" >
+      
+      
+      
+        <label class="md-nav__link" for="__nav_8" id="__nav_8_label" tabindex="0">
+          容器实例Pro
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_8_label" aria-expanded="false">
+        <label class="md-nav__title" for="__nav_8">
+          <span class="md-nav__icon md-icon"></span>
+          容器实例Pro
+        </label>
+        <ul class="md-nav__list" data-md-scrollfix>
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../instance_pro/" class="md-nav__link">
+        概要
+      </a>
+    </li>
+  
+
+            
+          
+        </ul>
+      </nav>
+    </li>
+  
+
+    
+      
+      
+      
+
+  
+  
+  
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+      
+      
+      
+      <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_9" >
+      
+      
+      
+        <label class="md-nav__link" for="__nav_9" id="__nav_9_label" tabindex="0">
+          容器实例Pro数据
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_9_label" aria-expanded="false">
+        <label class="md-nav__title" for="__nav_9">
+          <span class="md-nav__icon md-icon"></span>
+          容器实例Pro数据
+        </label>
+        <ul class="md-nav__list" data-md-scrollfix>
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../instance_pro_data/" class="md-nav__link">
+        概要
+      </a>
+    </li>
+  
+
+            
+          
+        </ul>
+      </nav>
+    </li>
+  
+
+    
+      
+      
+      
+
+  
+  
+  
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+      
+      
+      
+      <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_10" >
+      
+      
+      
+        <label class="md-nav__link" for="__nav_10" id="__nav_10_label" tabindex="0">
+          配置环境
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_10_label" aria-expanded="false">
+        <label class="md-nav__title" for="__nav_10">
+          <span class="md-nav__icon md-icon"></span>
+          配置环境
+        </label>
+        <ul class="md-nav__list" data-md-scrollfix>
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../base_config/" class="md-nav__link">
+        概要
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../deps/" class="md-nav__link">
+        依赖安装
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../image/" class="md-nav__link">
+        镜像
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../python/" class="md-nav__link">
+        Python3.X
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../cuda/" class="md-nav__link">
+        CUDA/cuDNN
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../miniconda/" class="md-nav__link">
+        Miniconda
+      </a>
+    </li>
+  
+
+            
+          
+        </ul>
+      </nav>
+    </li>
+  
+
+    
+      
+      
+      
+
+  
+  
+  
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+      
+      
+      
+      <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_11" >
+      
+      
+      
+        <label class="md-nav__link" for="__nav_11" id="__nav_11_label" tabindex="0">
+          国产芯片
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_11_label" aria-expanded="false">
+        <label class="md-nav__title" for="__nav_11">
+          <span class="md-nav__icon md-icon"></span>
+          国产芯片
+        </label>
+        <ul class="md-nav__list" data-md-scrollfix>
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../huawei_ascend/" class="md-nav__link">
+        华为昇腾NPU
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../huawei_mindie/" class="md-nav__link">
+        华为MindIE
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../mt_gpu/" class="md-nav__link">
+        摩尔线程GPU
+      </a>
+    </li>
+  
+
+            
+          
+        </ul>
+      </nav>
+    </li>
+  
+
+    
+      
+      
+      
+
+  
+  
+  
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+      
+      
+      
+      <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_12" >
+      
+      
+      
+        <label class="md-nav__link" for="__nav_12" id="__nav_12_label" tabindex="0">
+          最佳实践
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_12_label" aria-expanded="false">
+        <label class="md-nav__title" for="__nav_12">
+          <span class="md-nav__icon md-icon"></span>
+          最佳实践
+        </label>
+        <ul class="md-nav__list" data-md-scrollfix>
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../linux/" class="md-nav__link">
+        Linux基础
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../source/" class="md-nav__link">
+        软件源
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../git/" class="md-nav__link">
+        Github
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../filezilla/" class="md-nav__link">
+        Filezilla
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../xshell/" class="md-nav__link">
+        XShell
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../tensorboard/" class="md-nav__link">
+        TensorBoard
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../vscode/" class="md-nav__link">
+        VSCode
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../pycharm/" class="md-nav__link">
+        PyCharm
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gromacs/" class="md-nav__link">
+        Gromacs
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../visdom/" class="md-nav__link">
+        Visdom
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../katago/" class="md-nav__link">
+        KataGo
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../rstudio/" class="md-nav__link">
+        RStudio
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../opencl/" class="md-nav__link">
+        OpenCL
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../vulkan/" class="md-nav__link">
+        Vulkan
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../huggingface/" class="md-nav__link">
+        HuggingFace
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../mpi/" class="md-nav__link">
+        MPI
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ssh_proxy/" class="md-nav__link">
+        SSH隧道
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../precision/" class="md-nav__link">
+        计算精度
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../port/" class="md-nav__link">
+        开放端口
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../msg/" class="md-nav__link">
+        微信消息
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../perf/" class="md-nav__link">
+        性能篇
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../save_money/" class="md-nav__link">
+        省钱绝招
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../proxy_in_instance/" class="md-nav__link">
+        暴露多个服务
+      </a>
+    </li>
+  
+
+            
+          
+        </ul>
+      </nav>
+    </li>
+  
+
+    
+      
+      
+      
+
+  
+  
+  
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+      
+      
+      
+      <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_13" >
+      
+      
+      
+        <label class="md-nav__link" for="__nav_13" id="__nav_13_label" tabindex="0">
+          企业高级功能
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_13_label" aria-expanded="false">
+        <label class="md-nav__title" for="__nav_13">
+          <span class="md-nav__icon md-icon"></span>
+          企业高级功能
+        </label>
+        <ul class="md-nav__list" data-md-scrollfix>
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../elastic_deploy/" class="md-nav__link">
+        弹性部署
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../elastic_deploy_practice/" class="md-nav__link">
+        弹性部署最佳实践
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../elastic_deploy_update_log/" class="md-nav__link">
+        弹性部署更新日志
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../metric_monitor/" class="md-nav__link">
+        性能指标监控
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../c_user/" class="md-nav__link">
+        子账号
+      </a>
+    </li>
+  
+
+            
+          
+        </ul>
+      </nav>
+    </li>
+  
+
+    
+      
+      
+      
+
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../network/" class="md-nav__link">
+        网络
+      </a>
+    </li>
+  
+
+    
+      
+      
+      
+
+  
+  
+  
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+      
+      
+      
+      <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_15" >
+      
+      
+      
+        <label class="md-nav__link" for="__nav_15" id="__nav_15_label" tabindex="0">
+          AI服务器
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_15_label" aria-expanded="false">
+        <label class="md-nav__title" for="__nav_15">
+          <span class="md-nav__icon md-icon"></span>
+          AI服务器
+        </label>
+        <ul class="md-nav__list" data-md-scrollfix>
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ai_server/" class="md-nav__link">
+        AI服务器
+      </a>
+    </li>
+  
+
+            
+          
+        </ul>
+      </nav>
+    </li>
+  
+
+    
+      
+      
+      
+
+  
+  
+  
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+      
+      
+      
+      <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_16" >
+      
+      
+      
+        <label class="md-nav__link" for="__nav_16" id="__nav_16_label" tabindex="0">
+          常见问题
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_16_label" aria-expanded="false">
+        <label class="md-nav__title" for="__nav_16">
+          <span class="md-nav__icon md-icon"></span>
+          常见问题
+        </label>
+        <ul class="md-nav__list" data-md-scrollfix>
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../qa1/" class="md-nav__link">
+        系统盘空间不足
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../qa2/" class="md-nav__link">
+        JupyterLab打不开
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../qa3/" class="md-nav__link">
+        不能调用GPU
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../qa4/" class="md-nav__link">
+        显存没有释放
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../qa5/" class="md-nav__link">
+        VSCode远程连接失败
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../qa6/" class="md-nav__link">
+        基于SSH的连接异常
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../qa7/" class="md-nav__link">
+        SD作图内存泄露
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../qa/" class="md-nav__link">
+        其他
+      </a>
+    </li>
+  
+
+            
+          
+        </ul>
+      </nav>
+    </li>
+  
+
+    
+      
+      
+      
+
+  
+  
+  
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+      
+      
+      
+      <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_17" >
+      
+      
+      
+        <label class="md-nav__link" for="__nav_17" id="__nav_17_label" tabindex="0">
+          活动
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_17_label" aria-expanded="false">
+        <label class="md-nav__title" for="__nav_17">
+          <span class="md-nav__icon md-icon"></span>
+          活动
+        </label>
+        <ul class="md-nav__list" data-md-scrollfix>
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../coupon/" class="md-nav__link">
+        代金券
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../cp/" class="md-nav__link">
+        优惠券
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../member/" class="md-nav__link">
+        炼丹会员
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../student/" class="md-nav__link">
+        学生认证
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../academic-corporation/" class="md-nav__link">
+        AutoDL高校合作
+      </a>
+    </li>
+  
+
+            
+          
+        </ul>
+      </nav>
+    </li>
+  
+
+    
+      
+      
+      
+
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../price/" class="md-nav__link">
+        充值与计费
+      </a>
+    </li>
+  
+
+    
+      
+      
+      
+
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../invoice/" class="md-nav__link">
+        发票
+      </a>
+    </li>
+  
+
+    
+      
+      
+      
+
+  
+  
+    
+  
+  
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
+      
+      
+      
+      
+      <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_20" checked>
+      
+      
+      
+        <label class="md-nav__link" for="__nav_20" id="__nav_20_label" tabindex="0">
+          API文档
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_20_label" aria-expanded="true">
+        <label class="md-nav__title" for="__nav_20">
+          <span class="md-nav__icon md-icon"></span>
+          API文档
+        </label>
+        <ul class="md-nav__list" data-md-scrollfix>
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../common_api/" class="md-nav__link">
+        API文档
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+    
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          容器实例Pro API
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        容器实例Pro API
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="目录">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      目录
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#_1" class="md-nav__link">
+    鉴权
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_2" class="md-nav__link">
+    创建实例
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_3" class="md-nav__link">
+    获取实例详情
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_4" class="md-nav__link">
+    获取实例状态
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_5" class="md-nav__link">
+    获取实例列表
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_6" class="md-nav__link">
+    开机实例
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_7" class="md-nav__link">
+    关机实例
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_8" class="md-nav__link">
+    释放实例
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_9" class="md-nav__link">
+    保存镜像
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_10" class="md-nav__link">
+    获取镜像列表
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_11" class="md-nav__link">
+    附录
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../esd_api_doc/" class="md-nav__link">
+        弹性部署API
+      </a>
+    </li>
+  
+
+            
+          
+        </ul>
+      </nav>
+    </li>
+  
+
+    
+      
+      
+      
+
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../maintenance/" class="md-nav__link">
+        维护与故障
+      </a>
+    </li>
+  
+
+    
+      
+      
+      
+
+  
+  
+  
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+      
+      
+      
+      <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_22" >
+      
+      
+      
+        <label class="md-nav__link" for="__nav_22" id="__nav_22_label" tabindex="0">
+          服务协议
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_22_label" aria-expanded="false">
+        <label class="md-nav__title" for="__nav_22">
+          <span class="md-nav__icon md-icon"></span>
+          服务协议
+        </label>
+        <ul class="md-nav__list" data-md-scrollfix>
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../agreements/" class="md-nav__link">
+        AutoDL服务协议
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../nas_agreements/" class="md-nav__link">
+        网盘服务协议
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../service_agreement/" class="md-nav__link">
+        实例自定义服务补充协议
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../real_name_cert/" class="md-nav__link">
+        实名认证服务协议
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../privacy_policy/" class="md-nav__link">
+        隐私政策
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../anti_mining/" class="md-nav__link">
+        反挖矿协议
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../pay_later_agreements/" class="md-nav__link">
+        高校先用后付使用须知
+      </a>
+    </li>
+  
+
+            
+          
+        </ul>
+      </nav>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="目录">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      目录
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#_1" class="md-nav__link">
+    鉴权
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_2" class="md-nav__link">
+    创建实例
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_3" class="md-nav__link">
+    获取实例详情
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_4" class="md-nav__link">
+    获取实例状态
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_5" class="md-nav__link">
+    获取实例列表
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_6" class="md-nav__link">
+    开机实例
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_7" class="md-nav__link">
+    关机实例
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_8" class="md-nav__link">
+    释放实例
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_9" class="md-nav__link">
+    保存镜像
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_10" class="md-nav__link">
+    获取镜像列表
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_11" class="md-nav__link">
+    附录
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+<h1 id="pro-api">容器实例Pro API<a class="headerlink" href="#pro-api" title="Permanent link">&para;</a></h1>
+<blockquote>
+<p>注意：使用容器实例Pro API需进行个人实名认证或者企业认证</p>
+</blockquote>
+<p>API服务端HOST地址为：<code>https://api.autodl.com</code></p>
+<h2 id="_1">鉴权<a class="headerlink" href="#_1" title="Permanent link">&para;</a></h2>
+<p>Token获取位置：请登录 <a href="www.autodl.com">www.AutoDL.com</a> 访问控制台 → 账号 → 设置 → <a href="https://www.autodl.com/console/center/settings/token">开发者Token</a></p>
+<p>使用Token方式：</p>
+<div class="highlight"><pre><span></span><code>headers = {&quot;Authorization&quot;: &quot;填写您的token&quot;}
+</code></pre></div>
+<h2 id="_2">创建实例<a class="headerlink" href="#_2" title="Permanent link">&para;</a></h2>
+<p>POST <code>/api/v1/dev/instance/pro/create</code></p>
+<p>请求Body示例：</p>
+<div class="highlight"><pre><span></span><code><span class="c1">// 默认以按量计费方式创建实例，暂不支持选择其他计费方式创建实例</span>
+<span class="p">{</span>
+<span class="w">    </span><span class="nt">&quot;data_center_list&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;westDC3&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;beijingDC2&quot;</span><span class="p">],</span><span class="w">  </span><span class="c1">// [选填] 默认系统自动选择地区，westDC3：西北区，beijingDC2：北京区</span>
+<span class="w">    </span><span class="nt">&quot;req_gpu_amount&quot;</span><span class="p">:</span><span class="mi">1</span><span class="p">,</span><span class="w">  </span><span class="c1">// [必填] GPU数量, 最小值=1，最大值4</span>
+<span class="w">    </span><span class="nt">&quot;expand_system_disk_by_gb&quot;</span><span class="p">:</span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="c1">// [必填] 系统盘扩容大小 单位:GB, 取值范围: 0-500</span>
+<span class="w">    </span><span class="nt">&quot;gpu_spec_uuid&quot;</span><span class="p">:</span><span class="s2">&quot;pro6000-p&quot;</span><span class="p">,</span><span class="w">  </span><span class="c1">// [必填] 算力规格ID，请参考文末附录中不同GPU型号的规格ID</span>
+<span class="w">    </span><span class="nt">&quot;image_uuid&quot;</span><span class="p">:</span><span class="s2">&quot;image-xxxxxxxxx&quot;</span><span class="p">,</span><span class="w"> </span><span class="c1">// [必填] 镜像的UUID，可打开私有镜像列表查看，或查看附录中的公共镜像的UUID</span>
+<span class="w">    </span><span class="nt">&quot;cuda_v_from&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">113</span><span class="p">,</span><span class="w">  </span><span class="c1">// [必填] 调度时主机驱动支持的cuda版本需要满足您设置的cuda版本下限，113代表cuda&gt;=11.3</span>
+<span class="w">    </span><span class="nt">&quot;instance_name&quot;</span><span class="p">:</span><span class="s2">&quot;API创建的实例&quot;</span><span class="p">,</span><span class="w"> </span><span class="c1">// [选填] 实例备注名</span>
+<span class="w">    </span><span class="nt">&quot;start_command&quot;</span><span class="p">:</span><span class="s2">&quot;sleep 1&quot;</span><span class="w"> </span><span class="c1">// [选填] 实例开机后执行此命令，该命令执行成功与否不影响实例开机运行，不会因命令执行失败而关机</span>
+<span class="p">}</span>
+</code></pre></div>
+<p>返回Body示例：</p>
+<div class="highlight"><pre><span></span><code><span class="p">{</span>
+<span class="w">    </span><span class="nt">&quot;code&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Success&quot;</span><span class="p">,</span>
+<span class="w">    </span><span class="nt">&quot;data&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;pro-76419909953e&quot;</span><span class="p">,</span><span class="w">  </span><span class="c1">// 创建出的实例ID</span>
+<span class="w">    </span><span class="nt">&quot;msg&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;&quot;</span><span class="p">,</span>
+<span class="w">    </span><span class="nt">&quot;request_id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;983edb8c8c8553db1115d51fb2758ae8&quot;</span>
+<span class="p">}</span>
+</code></pre></div>
+<h2 id="_3">获取实例详情<a class="headerlink" href="#_3" title="Permanent link">&para;</a></h2>
+<p>GET <code>/api/v1/dev/instance/pro/snapshot</code></p>
+<p>请求Body示例：</p>
+<div class="highlight"><pre><span></span><code><span class="p">{</span>
+<span class="w">    </span><span class="nt">&quot;instance_uuid&quot;</span><span class="p">:</span><span class="s2">&quot;pro-76576c61fdf1&quot;</span><span class="w">  </span><span class="c1">// [必填] 实例ID</span>
+<span class="p">}</span>
+</code></pre></div>
+<p>返回Body示例：</p>
+<div class="highlight"><pre><span></span><code><span class="p">{</span>
+<span class="w">    </span><span class="nt">&quot;code&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Success&quot;</span><span class="p">,</span>
+<span class="w">    </span><span class="nt">&quot;data&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="nt">&quot;region_sign&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;bj-B1&quot;</span><span class="p">,</span>
+<span class="w">        </span><span class="nt">&quot;payg_price&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">1970</span><span class="p">,</span><span class="w">  </span><span class="c1">// 折扣后的按量计费价格</span>
+<span class="w">        </span><span class="nt">&quot;origin_pay_price&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">3030</span><span class="p">,</span><span class="w">  </span><span class="c1">// 折扣前的按量计费价格</span>
+<span class="w">        </span><span class="nt">&quot;snapshot_gpu_alias_name&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;NVIDIA RTX PRO 6000&quot;</span><span class="p">,</span>
+<span class="w">        </span><span class="nt">&quot;chip_corp&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;nvidia&quot;</span><span class="p">,</span>
+<span class="w">        </span><span class="nt">&quot;cpu_arch&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;x86&quot;</span><span class="p">,</span>
+<span class="w">        </span><span class="nt">&quot;usage_info&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="nt">&quot;container_id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;autodl-pro-76576c61fdf1&quot;</span><span class="p">,</span>
+<span class="w">            </span><span class="nt">&quot;valid_at&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;2025-12-15T18:35:52.137127391+08:00&quot;</span><span class="p">,</span>
+<span class="w">            </span><span class="nt">&quot;cpu_usage_percent&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">3.34</span><span class="p">,</span>
+<span class="w">            </span><span class="nt">&quot;mem_usage_percent&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">1.26</span><span class="p">,</span>
+<span class="w">            </span><span class="nt">&quot;mem_usage&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">270528512</span><span class="p">,</span>
+<span class="w">            </span><span class="nt">&quot;mem_limit&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">21474836480</span><span class="p">,</span>
+<span class="w">            </span><span class="nt">&quot;root_fs_used_size&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">54435840</span><span class="p">,</span>
+<span class="w">            </span><span class="nt">&quot;root_fs_total_size&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">31526391808</span><span class="p">,</span>
+<span class="w">            </span><span class="nt">&quot;data_disk_total_size&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span>
+<span class="w">            </span><span class="nt">&quot;data_disk_used_size&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span>
+<span class="w">            </span><span class="nt">&quot;storage_fs_usage&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;&quot;</span><span class="p">,</span>
+<span class="w">            </span><span class="nt">&quot;pull_image_progress&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span>
+<span class="w">            </span><span class="nt">&quot;download_image_progress&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span>
+<span class="w">            </span><span class="nt">&quot;download_oss_file_progress&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span>
+<span class="w">            </span><span class="nt">&quot;sys_fs_last_block_size&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span>
+<span class="w">            </span><span class="nt">&quot;is_new&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span>
+<span class="w">            </span><span class="nt">&quot;valid&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span>
+<span class="w">        </span><span class="p">},</span>
+<span class="w">        </span><span class="nt">&quot;expand_system_disk_size&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">32212254720</span><span class="p">,</span>
+<span class="w">        </span><span class="nt">&quot;system_init_disk_size&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">32212254720</span><span class="p">,</span>
+<span class="w">        </span><span class="nt">&quot;ssh_command&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;ssh -p 34222 root@connect.xxx.autodl.com&quot;</span><span class="p">,</span>
+<span class="w">        </span><span class="nt">&quot;proxy_host&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;connect.xxx.autodl.com&quot;</span><span class="p">,</span><span class="w">  </span><span class="c1">// ssh地址</span>
+<span class="w">        </span><span class="nt">&quot;root_password&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;jbeOXgTWUxq+&quot;</span><span class="p">,</span><span class="w">  </span><span class="c1">// ssh密码</span>
+<span class="w">        </span><span class="nt">&quot;ssh_port&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">34222</span><span class="p">,</span><span class="w">  </span><span class="c1">// ssh 端口</span>
+<span class="w">        </span><span class="nt">&quot;jupyter_token&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;xxx&quot;</span><span class="p">,</span><span class="w">  </span><span class="c1">// jupyterlab token</span>
+<span class="w">        </span><span class="nt">&quot;jupyter_domain&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;a1-765793a1f226.xxx.autodl.com:8443&quot;</span><span class="p">,</span><span class="w"> </span><span class="c1">// jupyterlab的访问地址</span>
+<span class="w">        </span><span class="nt">&quot;service_6006_domain&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;u1-h1tr7dnhvxyvm4uacvq9.xxx.autodl.com:8443&quot;</span><span class="p">,</span><span class="w"> </span><span class="c1">// 6006端口服务对应的访问地址</span>
+<span class="w">        </span><span class="nt">&quot;service_6006_port_protocol&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;http&quot;</span><span class="p">,</span>
+<span class="w">        </span><span class="nt">&quot;service_6008_domain&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;uu1-yufv2v0fcxtvr5lv4j80.xxx.autodl.com:8443&quot;</span><span class="p">,</span><span class="w">  </span><span class="c1">// 6008端口服务对应的访问地址</span>
+<span class="w">        </span><span class="nt">&quot;service_6008_port_protocol&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;http&quot;</span>
+<span class="w">    </span><span class="p">},</span>
+<span class="w">    </span><span class="nt">&quot;msg&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;&quot;</span><span class="p">,</span>
+<span class="w">    </span><span class="nt">&quot;request_id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;b717410bb575336654fcc2ad79c72675&quot;</span>
+<span class="p">}</span>
+</code></pre></div>
+<h2 id="_4">获取实例状态<a class="headerlink" href="#_4" title="Permanent link">&para;</a></h2>
+<p>GET <code>/api/v1/dev/instance/pro/status</code></p>
+<p>请求Body示例：</p>
+<div class="highlight"><pre><span></span><code><span class="p">{</span>
+<span class="w">    </span><span class="nt">&quot;instance_uuid&quot;</span><span class="p">:</span><span class="s2">&quot;pro-76576c61fdf1&quot;</span><span class="w">  </span><span class="c1">// [必填] 实例ID</span>
+<span class="p">}</span>
+</code></pre></div>
+<p>返回Body示例：</p>
+<div class="highlight"><pre><span></span><code><span class="p">{</span>
+<span class="w">    </span><span class="nt">&quot;code&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Success&quot;</span><span class="p">,</span>
+<span class="w">    </span><span class="nt">&quot;data&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;running&quot;</span><span class="p">,</span><span class="w">  </span><span class="c1">// 实例状态</span>
+<span class="w">    </span><span class="nt">&quot;msg&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;&quot;</span><span class="p">,</span>
+<span class="w">    </span><span class="nt">&quot;request_id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;2159c05b9b675c731c2334b88d6be8aa&quot;</span>
+<span class="p">}</span>
+</code></pre></div>
+<h2 id="_5">获取实例列表<a class="headerlink" href="#_5" title="Permanent link">&para;</a></h2>
+<p>POST <code>/api/v1/dev/instance/pro/list</code></p>
+<p>请求Body示例：</p>
+<div class="highlight"><pre><span></span><code><span class="p">{</span>
+<span class="w">    </span><span class="nt">&quot;page_index&quot;</span><span class="p">:</span><span class="mi">1</span><span class="p">,</span>
+<span class="w">    </span><span class="nt">&quot;page_size&quot;</span><span class="p">:</span><span class="mi">1</span>
+<span class="p">}</span>
+</code></pre></div>
+<p>返回Body示例：</p>
+<div class="highlight"><pre><span></span><code><span class="p">{</span>
+<span class="w">    </span><span class="nt">&quot;code&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Success&quot;</span><span class="p">,</span>
+<span class="w">    </span><span class="nt">&quot;data&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="nt">&quot;list&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<span class="w">            </span><span class="p">{</span>
+<span class="w">                </span><span class="nt">&quot;created_at&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;2025-12-15T17:30:54+08:00&quot;</span><span class="p">,</span>
+<span class="w">                </span><span class="nt">&quot;uuid&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;pro-76576c61fdf1&quot;</span><span class="p">,</span>
+<span class="w">                </span><span class="nt">&quot;machine_id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;4d67438b4f&quot;</span><span class="p">,</span>
+<span class="w">                </span><span class="nt">&quot;machine_alias&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;&quot;</span><span class="p">,</span>
+<span class="w">                </span><span class="nt">&quot;region_sign&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;neimeng-C&quot;</span><span class="p">,</span>
+<span class="w">                </span><span class="nt">&quot;region_name&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;内蒙C区&quot;</span><span class="p">,</span>
+<span class="w">                </span><span class="nt">&quot;status&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;running&quot;</span><span class="p">,</span>
+<span class="w">                </span><span class="nt">&quot;sub_status&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;&quot;</span><span class="p">,</span>
+<span class="w">                </span><span class="nt">&quot;status_at&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;2025-12-15T17:31:05+08:00&quot;</span><span class="p">,</span>
+<span class="w">                </span><span class="nt">&quot;start_mode&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;gpu&quot;</span><span class="p">,</span><span class="w">    </span><span class="c1">// 有卡模式：gpu</span>
+<span class="w">                </span><span class="nt">&quot;charge_type&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;payg&quot;</span><span class="p">,</span><span class="w">  </span><span class="c1">// 计费方式</span>
+<span class="w">                </span><span class="nt">&quot;req_gpu_amount&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w">  </span><span class="c1">// GPU数量</span>
+<span class="w">                </span><span class="nt">&quot;expired_at&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                    </span><span class="nt">&quot;Time&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;0001-01-01T00:00:00Z&quot;</span><span class="p">,</span>
+<span class="w">                    </span><span class="nt">&quot;Valid&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span>
+<span class="w">                </span><span class="p">},</span>
+<span class="w">                </span><span class="nt">&quot;started_at&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                    </span><span class="nt">&quot;Time&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;2025-12-15T17:31:05+08:00&quot;</span><span class="p">,</span>
+<span class="w">                    </span><span class="nt">&quot;Valid&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span>
+<span class="w">                </span><span class="p">},</span>
+<span class="w">                </span><span class="nt">&quot;stopped_at&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                    </span><span class="nt">&quot;Time&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;0001-01-01T00:00:00Z&quot;</span><span class="p">,</span>
+<span class="w">                    </span><span class="nt">&quot;Valid&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span>
+<span class="w">                </span><span class="p">},</span>
+<span class="w">                </span><span class="nt">&quot;name&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;zqAPI创建&quot;</span><span class="p">,</span>
+<span class="w">                </span><span class="nt">&quot;timed_shutdown_at&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                    </span><span class="nt">&quot;Time&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;0001-01-01T00:00:00Z&quot;</span><span class="p">,</span>
+<span class="w">                    </span><span class="nt">&quot;Valid&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span>
+<span class="w">                </span><span class="p">},</span>
+<span class="w">                </span><span class="nt">&quot;gpu_spec_uuid&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;pro6000-p&quot;</span><span class="w">  </span><span class="c1">// 算力规格ID</span>
+<span class="w">            </span><span class="p">}</span>
+<span class="w">        </span><span class="p">],</span>
+<span class="w">        </span><span class="nt">&quot;page_index&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="c1">// 第几页</span>
+<span class="w">        </span><span class="nt">&quot;page_size&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w">  </span><span class="c1">// 每页记录数量</span>
+<span class="w">        </span><span class="nt">&quot;offset&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span>
+<span class="w">        </span><span class="nt">&quot;max_page&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">22</span><span class="p">,</span><span class="w">  </span><span class="c1">// 总页数</span>
+<span class="w">        </span><span class="nt">&quot;result_total&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">22</span><span class="p">,</span><span class="w">  </span><span class="c1">// 总记录数</span>
+<span class="w">        </span><span class="nt">&quot;page&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">1</span>
+<span class="w">    </span><span class="p">},</span>
+<span class="w">    </span><span class="nt">&quot;msg&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;&quot;</span><span class="p">,</span>
+<span class="w">    </span><span class="nt">&quot;request_id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;c53a6dc29de7c65ff2798dac12d8fe78&quot;</span>
+<span class="p">}</span>
+</code></pre></div>
+<h2 id="_6">开机实例<a class="headerlink" href="#_6" title="Permanent link">&para;</a></h2>
+<p>POST <code>/api/v1/dev/instance/pro/power_on</code></p>
+<p>请求Body示例：</p>
+<div class="highlight"><pre><span></span><code><span class="p">{</span>
+<span class="w">    </span><span class="nt">&quot;instance_uuid&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;pro-759127a8714f&quot;</span><span class="p">,</span><span class="w"> </span><span class="c1">// [必填] 实例ID</span>
+<span class="w">    </span><span class="nt">&quot;payload&quot;</span><span class="p">:</span><span class="s2">&quot;gpu&quot;</span><span class="p">,</span><span class="w"> </span><span class="c1">// [必填] gpu：有卡开机, 暂不支持API以无卡模式开机</span>
+<span class="w">    </span><span class="nt">&quot;start_command&quot;</span><span class="p">:</span><span class="s2">&quot;sleep 1&quot;</span><span class="w"> </span><span class="c1">// [选填] 实例开机后执行此命令，该命令执行成功与否不影响实例开机运行，不会因命令执行失败而关机。会覆盖创建时设置的命令</span>
+<span class="p">}</span>
+</code></pre></div>
+<p>返回Body示例：</p>
+<div class="highlight"><pre><span></span><code><span class="p">{</span>
+<span class="w">    </span><span class="nt">&quot;code&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Success&quot;</span><span class="p">,</span>
+<span class="w">    </span><span class="nt">&quot;data&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">null</span><span class="p">,</span>
+<span class="w">    </span><span class="nt">&quot;msg&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;&quot;</span><span class="p">,</span>
+<span class="w">    </span><span class="nt">&quot;request_id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;2a8504ac55fece996ace6deeb98e7fe5&quot;</span>
+<span class="p">}</span>
+</code></pre></div>
+<h2 id="_7">关机实例<a class="headerlink" href="#_7" title="Permanent link">&para;</a></h2>
+<p>POST <code>/api/v1/dev/instance/pro/power_off</code></p>
+<p>请求Body示例：</p>
+<div class="highlight"><pre><span></span><code><span class="p">{</span>
+<span class="w">    </span><span class="nt">&quot;instance_uuid&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;pro-759127a8714f&quot;</span><span class="w"> </span><span class="c1">// [必填] 实例ID</span>
+<span class="p">}</span>
+</code></pre></div>
+<p>返回Body示例：</p>
+<div class="highlight"><pre><span></span><code><span class="p">{</span>
+<span class="w">    </span><span class="nt">&quot;code&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Success&quot;</span><span class="p">,</span>
+<span class="w">    </span><span class="nt">&quot;data&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">null</span><span class="p">,</span>
+<span class="w">    </span><span class="nt">&quot;msg&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;&quot;</span><span class="p">,</span>
+<span class="w">    </span><span class="nt">&quot;request_id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;20114f6ef29ab403cc421489bb6e5539&quot;</span>
+<span class="p">}</span>
+</code></pre></div>
+<h2 id="_8">释放实例<a class="headerlink" href="#_8" title="Permanent link">&para;</a></h2>
+<p>在释放实例前请先关机实例，否则可能无法释放</p>
+<p>POST <code>/api/v1/dev/instance/pro/release</code></p>
+<p>请求Body示例：</p>
+<div class="highlight"><pre><span></span><code><span class="p">{</span>
+<span class="w">    </span><span class="nt">&quot;instance_uuid&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;pro-759127a8714f&quot;</span><span class="w"> </span><span class="c1">// [必填] 实例ID</span>
+<span class="p">}</span>
+</code></pre></div>
+<p>返回Body示例：</p>
+<div class="highlight"><pre><span></span><code><span class="p">{</span>
+<span class="w">    </span><span class="nt">&quot;code&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Success&quot;</span><span class="p">,</span>
+<span class="w">    </span><span class="nt">&quot;data&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">null</span><span class="p">,</span>
+<span class="w">    </span><span class="nt">&quot;msg&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;&quot;</span><span class="p">,</span>
+<span class="w">    </span><span class="nt">&quot;request_id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;20114f6ef29ab403cc421489bb6e5539&quot;</span>
+<span class="p">}</span>
+</code></pre></div>
+<h2 id="_9">保存镜像<a class="headerlink" href="#_9" title="Permanent link">&para;</a></h2>
+<p>POST <code>/api/v1/dev/instance/pro/image/save</code></p>
+<p>请求Body示例：</p>
+<div class="highlight"><pre><span></span><code><span class="p">{</span>
+<span class="w">  </span><span class="nt">&quot;instance_uuid&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;pro-774405aceb43&quot;</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">&quot;image_name&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;设置保存镜像名称&quot;</span>
+<span class="p">}</span>
+</code></pre></div>
+<p>返回Body示例：</p>
+<div class="highlight"><pre><span></span><code><span class="p">{</span>
+<span class="w">  </span><span class="nt">&quot;code&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Success&quot;</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">&quot;data&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nt">&quot;image_uuid&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;image-3d0217ce85&quot;</span><span class="w">   </span><span class="c1">// 镜像的ID，可用获取镜像列表的API确认保存状态</span>
+<span class="w">  </span><span class="p">},</span>
+<span class="w">  </span><span class="nt">&quot;msg&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;&quot;</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">&quot;request_id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;d7dd10a728942e46c9c09283079aba37&quot;</span>
+<span class="p">}</span>
+</code></pre></div>
+<h2 id="_10">获取镜像列表<a class="headerlink" href="#_10" title="Permanent link">&para;</a></h2>
+<p>POST <code>/api/v1/dev/instance/pro/image/private/list</code></p>
+<p>请求Body示例：</p>
+<div class="highlight"><pre><span></span><code><span class="p">{</span>
+<span class="w">  </span><span class="nt">&quot;page_index&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">&quot;page_size&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">10</span>
+<span class="p">}</span>
+</code></pre></div>
+<p>返回Body示例：</p>
+<div class="highlight"><pre><span></span><code><span class="p">{</span>
+<span class="w">  </span><span class="nt">&quot;code&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Success&quot;</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">&quot;data&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nt">&quot;list&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<span class="w">      </span><span class="p">{</span>
+<span class="w">        </span><span class="nt">&quot;image_uuid&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;image-xxx&quot;</span><span class="p">,</span>
+<span class="w">        </span><span class="nt">&quot;name&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;***&quot;</span><span class="p">,</span>
+<span class="w">        </span><span class="nt">&quot;status&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;finished&quot;</span><span class="p">,</span>
+<span class="w">        </span><span class="nt">&quot;image_size&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">56125440</span><span class="p">,</span>
+<span class="w">        </span><span class="nt">&quot;create_at&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;2026-04-13T17:20:11+08:00&quot;</span>
+<span class="w">      </span><span class="p">}</span>
+<span class="w">    </span><span class="p">],</span>
+<span class="w">    </span><span class="nt">&quot;page_index&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span>
+<span class="w">    </span><span class="nt">&quot;page_size&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">5</span><span class="p">,</span>
+<span class="w">    </span><span class="nt">&quot;offset&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span>
+<span class="w">    </span><span class="nt">&quot;max_page&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">24</span><span class="p">,</span>
+<span class="w">    </span><span class="nt">&quot;result_total&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">118</span><span class="p">,</span>
+<span class="w">    </span><span class="nt">&quot;page&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">1</span>
+<span class="w">  </span><span class="p">},</span>
+<span class="w">  </span><span class="nt">&quot;msg&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;&quot;</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">&quot;request_id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;***&quot;</span>
+<span class="p">}</span>
+</code></pre></div>
+<h2 id="_11">附录<a class="headerlink" href="#_11" title="Permanent link">&para;</a></h2>
+<p>1.GPU型号和算力规格ID对应表</p>
+<table>
+<thead>
+<tr>
+<th>前台网页显示GPU型号</th>
+<th>前台网页显示的规格名称</th>
+<th>API中使用的算力规格ID</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>H800-80G</td>
+<td>通用型</td>
+<td>h800</td>
+</tr>
+<tr>
+<td>4090-48G</td>
+<td>通用型</td>
+<td>v-48g</td>
+</tr>
+<tr>
+<td>PRO6000-96G</td>
+<td>性能型</td>
+<td>pro6000-p</td>
+</tr>
+<tr>
+<td>4080(S)-32G</td>
+<td>性能型</td>
+<td>v-32g-p</td>
+</tr>
+<tr>
+<td>3090-48G</td>
+<td>通用型</td>
+<td>v-48g-350w</td>
+</tr>
+<tr>
+<td>5090-32G</td>
+<td>性能型</td>
+<td>5090-p</td>
+</tr>
+<tr>
+<td>4090D</td>
+<td>通用型</td>
+<td>4090D</td>
+</tr>
+</tbody>
+</table>
+<p>2.公共基础镜像UUID</p>
+<table>
+<thead>
+<tr>
+<th>镜像UUID</th>
+<th>框架</th>
+<th>镜像</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>base-image-12be412037</td>
+<td>PyTorch</td>
+<td>cuda11.1-cudnn8-devel-ubuntu18.04-py38-torch1.9.0</td>
+</tr>
+<tr>
+<td>base-image-u9r24vthlk</td>
+<td>PyTorch</td>
+<td>cuda11.3-cudnn8-devel-ubuntu20.04-py38-torch1.10.0</td>
+</tr>
+<tr>
+<td>base-image-l374uiucui</td>
+<td>PyTorch</td>
+<td>cuda11.3-cudnn8-devel-ubuntu20.04-py38-torch1.11.0</td>
+</tr>
+<tr>
+<td>base-image-l2t43iu6uk</td>
+<td>PyTorch</td>
+<td>cuda11.8-cudnn8-devel-ubuntu20.04-py38-torch2.0.0</td>
+</tr>
+<tr>
+<td>base-image-0gxqmciyth</td>
+<td>TensorFlow</td>
+<td>cuda11.2-cudnn8-devel-ubuntu18.04-py38-tf2.5.0</td>
+</tr>
+<tr>
+<td>base-image-uxeklgirir</td>
+<td>TensorFlow</td>
+<td>cuda11.2-cudnn8-devel-ubuntu20.04-py38-tf2.9.0</td>
+</tr>
+<tr>
+<td>base-image-4bpg0tt88l</td>
+<td>TensorFlow</td>
+<td>cuda11.4-py38-tf1.15.5</td>
+</tr>
+<tr>
+<td>base-image-mbr2n4urrc</td>
+<td>Miniconda</td>
+<td>cuda11.6-cudnn8-devel-ubuntu20.04-py38</td>
+</tr>
+<tr>
+<td>base-image-qkkhitpik5</td>
+<td>Miniconda</td>
+<td>cuda10.2-cudnn7-devel-ubuntu18.04-py38</td>
+</tr>
+<tr>
+<td>base-image-h041hn36yt</td>
+<td>Miniconda</td>
+<td>cuda11.1-cudnn8-devel-ubuntu18.04-py38</td>
+</tr>
+<tr>
+<td>base-image-7bn8iqhkb5</td>
+<td>Miniconda</td>
+<td>cudagl11.3-cudnn8-devel-ubuntu20.04-py38</td>
+</tr>
+<tr>
+<td>base-image-k0vep6kyq8</td>
+<td>Miniconda</td>
+<td>cuda9.0-cudnn7-devel-ubuntu16.04-py36</td>
+</tr>
+<tr>
+<td>base-image-l2843iu23k</td>
+<td>TensorRT</td>
+<td>cuda11.8-cudnn8-devel-ubuntu20.04-py38-trt8.5.1</td>
+</tr>
+<tr>
+<td>base-image-l2t43iu6uk</td>
+<td>TensorRT</td>
+<td>cuda11.8-cudnn8-devel-ubuntu20.04-py38-torch2.0.0</td>
+</tr>
+<tr>
+<td>...</td>
+<td>...</td>
+<td>更多新上线的镜像请联系客服</td>
+</tr>
+</tbody>
+</table>
+<p>**</p>
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+  <script>var tabs=__md_get("__tabs");if(Array.isArray(tabs))e:for(var set of document.querySelectorAll(".tabbed-set")){var tab,labels=set.querySelector(".tabbed-labels");for(tab of tabs)for(var label of labels.getElementsByTagName("label"))if(label.innerText.trim()===tab){var input=document.getElementById(label.htmlFor);input.checked=!0;continue e}}</script>
+
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+<!-- 
+  
+    <div class="md-footer-nav">
+      <nav class="md-footer-nav__inner md-grid" aria-label="">
+        
+          <a href="../common_api/" class="md-footer-nav__link md-footer-nav__link--prev" rel="prev">
+            <div class="md-footer-nav__button md-icon">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11h12Z"/></svg>
+            </div>
+            <div class="md-footer-nav__title">
+              <div class="md-ellipsis">
+                <span class="md-footer-nav__direction">
+                  上一页
+                </span>
+                API文档
+              </div>
+            </div>
+          </a>
+        
+        
+          <a href="../esd_api_doc/" class="md-footer-nav__link md-footer-nav__link--next" rel="next">
+            <div class="md-footer-nav__title">
+              <div class="md-ellipsis">
+                <span class="md-footer-nav__direction">
+                  下一页
+                </span>
+                弹性部署API
+              </div>
+            </div>
+            <div class="md-footer-nav__button md-icon">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 11v2h12l-5.5 5.5 1.42 1.42L19.84 12l-7.92-7.92L10.5 5.5 16 11H4Z"/></svg>
+            </div>
+          </a>
+        
+      </nav>
+    </div>
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+    </div>
+  </div> 
+-->
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    <script id="__config" type="application/json">{"base": "..", "features": ["navigation.tabs.sticky", "navigation.instant", "content.tabs.link"], "search": "../assets/javascripts/workers/search.208ed371.min.js", "translations": {"clipboard.copied": "\u5df2\u590d\u5236", "clipboard.copy": "\u590d\u5236", "search.result.more.one": "\u5728\u8be5\u9875\u4e0a\u8fd8\u6709 1 \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.more.other": "\u5728\u8be5\u9875\u4e0a\u8fd8\u6709 # \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.none": "\u6ca1\u6709\u627e\u5230\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.one": "\u627e\u5230 1 \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.other": "# \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.placeholder": "\u952e\u5165\u4ee5\u5f00\u59cb\u641c\u7d22", "search.result.term.missing": "\u7f3a\u5c11", "select.version": "\u9009\u62e9\u5f53\u524d\u7248\u672c"}}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.fc8c2696.min.js"></script>
+      
+        <script src="../js/baidu-tongji.js"></script>
+      
+    
+  </body>
+</html>

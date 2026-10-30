@@ -154,6 +154,16 @@ METADATA_TEXT_FIELDS = (
     "product",
     "product_version",
     "license_id",
+    # G8 追加：任务书 §3.3 要求文档/chunk 能标注"这条知识适用于哪类目标"与
+    # "它是手册还是观测"。没有这两个字段时，AutoDL 手册和任何其它来源在检索里
+    # 无法区分，`target_kind=ssh` 过滤也就无从实现。
+    #
+    # target_kind：知识面向的采集方式（ssh / cloud）。**不是**当前实例的类型，
+    # 而是"这份文档在讲哪种部署形态的操作"。
+    # source_kind：知识来源性质（manual / ticket / runbook / observed）。
+    # 手册类永远是 manual —— 它解释怎么做，不证明当前实例现在是什么状态。
+    "target_kind",
+    "source_kind",
 )
 
 #: 允许出现在 ``acl_principals`` 里的 principal_id 形状：与 ``app.core.principal``
@@ -595,6 +605,12 @@ class KnowledgeStore:
                     "embedding_descriptor_hash": "",
                     "os_family": meta.get("os_family", ""),
                     "product": meta.get("product", ""),
+                    # target_kind / source_kind 必须一起落盘：前者让
+                    # "检索 SSH 目标时只看 SSH 相关文档"成为可过滤条件，
+                    # 后者区分"手册"与"本次观测"。只加进 METADATA_TEXT_FIELDS
+                    # 是不够的——不在这里写进文档记录，snapshot 里永远是 None。
+                    "target_kind": meta.get("target_kind", ""),
+                    "source_kind": meta.get("source_kind", "") or source_kind,
                     "product_version": meta.get("product_version", ""),
                     "license_id": meta.get("license_id", ""),
                     "valid_from": meta.get("valid_from", ""),
@@ -608,6 +624,8 @@ class KnowledgeStore:
                 # （见 docstring：否则同名上传可以把别人的私有文档开放给自己）。
                 doc.setdefault("valid_from", "")
                 doc.setdefault("valid_until", "")
+                doc.setdefault("target_kind", "")
+                doc.setdefault("source_kind", "")
                 doc.setdefault("acl_principals", [])
                 doc["updated_at"] = _now()
             revision_record = doc["revisions"].get(revision)
@@ -1249,7 +1267,13 @@ class KnowledgeStore:
                 for job in self._data["jobs"].values():
                     if job.get("document_id") != document_id:
                         continue
-                    if job.get("status") in _ACTIVE_JOB_STATUSES:
+                    # 文档删了，它的**所有**作业都必须失效，不能只取消活跃的。
+                    # 实测踩到：delete 只把 running 改成 cancelled，ready 的作业
+                    # 原地保留；之后重新导入同一文件时 submit_document 会命中
+                    # _find_job_locked 里那条 ready 作业并直接返回，文档记录
+                    # 永远不重建 —— 结果是 Milvus 有行、store 里 0 篇文档。
+                    if (job.get("status") in _ACTIVE_JOB_STATUSES
+                            or job.get("status") in {"ready", "failed"}):
                         job["status"] = "cancelled"
                         job["finished_at"] = _now()
                         job["error"] = {
@@ -1284,6 +1308,68 @@ class KnowledgeStore:
                           if self._pending_revision_locked(doc))
         return {"active": active, "pending": pending}
 
+    def filtered_revisions(
+        self,
+        *,
+        os_family: Any = None,
+        product: Any = None,
+        product_version: Any = None,
+        at_date: Any = None,
+        target_kind: Any = None,
+    ) -> dict[str, str]:
+        """只按**元数据**过滤的 ``document_id -> active revision``。
+
+        与 :meth:`visible_documents` 的区别：这里不做 ACL/owner 判定，因为调用方
+        没有 principal —— 典型场景是脚本、评测和"按产品/目标类型检索"的内部调用。
+
+        为什么需要它：以前 ``VectorStoreRetriever`` 只在 ``principal_id`` 非空时
+        才应用 filters，于是**没有 principal 时过滤被静默绕过**。实测：
+        ``filters=RetrievalFilters(target_kind="cloud")`` 仍然返回 autodl 的 ssh
+        文档，`target_kind` 过滤等于不存在。给了过滤条件就必须生效，这是
+        "不要静默退化成不过滤"的直接要求。
+        """
+        day = normalize_date(at_date, field="at_date") or datetime.now().strftime("%Y-%m-%d")
+        os_value = str(os_family or "").strip()
+        product_value = str(product or "").strip()
+        version_value = str(product_version or "").strip()
+        kind_value = str(target_kind or "").strip()
+
+        with self._lock:
+            snapshots = []
+            for document_id, doc in self._data["documents"].items():
+                active = str(doc.get("active_revision") or "")
+                record = (doc.get("revisions") or {}).get(active) or {}
+                snapshots.append({
+                    "document_id": document_id,
+                    "active": active,
+                    "revision_status": record.get("status"),
+                    "valid_from": doc.get("valid_from", ""),
+                    "valid_until": doc.get("valid_until", ""),
+                    "os_family": doc.get("os_family", ""),
+                    "product": doc.get("product", ""),
+                    "product_version": doc.get("product_version", ""),
+                    "target_kind": doc.get("target_kind", ""),
+                })
+
+        result: dict[str, str] = {}
+        for item in snapshots:
+            if not item["active"] or item["revision_status"] != "active":
+                continue
+            if not _valid_on(item, day):
+                continue
+            if not _filter_matches(item["os_family"], os_value):
+                continue
+            if not _filter_matches(item["product"], product_value):
+                continue
+            if not _filter_matches(
+                item["product_version"], version_value, allow_prefix=True
+            ):
+                continue
+            if not _filter_matches(item.get("target_kind", ""), kind_value):
+                continue
+            result[item["document_id"]] = item["active"]
+        return result
+
     def active_revisions(self) -> dict[str, str]:
         """``document_id -> 当前 active revision`` 的一致快照（A01）。
 
@@ -1315,6 +1401,7 @@ class KnowledgeStore:
         product: Any = None,
         product_version: Any = None,
         at_date: Any = None,
+        target_kind: Any = None,
     ) -> dict[str, str]:
         """``document_id -> active revision``：此刻对 ``principal_id`` 可检索的文档。
 
@@ -1337,6 +1424,7 @@ class KnowledgeStore:
         os_value = str(os_family or "").strip()
         product_value = str(product or "").strip()
         version_value = str(product_version or "").strip()
+        kind_value = str(target_kind or "").strip()
         mode = _tenant_mode()
 
         with self._lock:
@@ -1356,6 +1444,7 @@ class KnowledgeStore:
                     "os_family": doc.get("os_family", ""),
                     "product": doc.get("product", ""),
                     "product_version": doc.get("product_version", ""),
+                    "target_kind": doc.get("target_kind", ""),
                 })
 
         visible: dict[str, str] = {}
@@ -1380,6 +1469,8 @@ class KnowledgeStore:
             if not _filter_matches(
                 item["product_version"], version_value, allow_prefix=True
             ):
+                continue
+            if not _filter_matches(item.get("target_kind", ""), kind_value):
                 continue
             visible[document_id] = active
         return visible
@@ -1719,6 +1810,7 @@ def visible_documents(
     product: Any = None,
     product_version: Any = None,
     at_date: Any = None,
+    target_kind: Any = None,
 ) -> dict[str, str]:
     """检索侧入口：委托 ``current_store().visible_documents``。
 
@@ -1732,6 +1824,7 @@ def visible_documents(
         product=product,
         product_version=product_version,
         at_date=at_date,
+        target_kind=target_kind,
     )
 
 

@@ -29,6 +29,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 import re
 import sys
 from datetime import datetime, timezone
@@ -41,7 +42,13 @@ SOURCES = ROOT / "docs" / "claude-code-handoff" / "knowledge_sources.json"
 MANIFEST_DIR = KNOWLEDGE / "manifests"
 
 #: 低于该正文字符数视为提取失败（页脚/登录墙/目录页）。
-MIN_BODY_CHARS = 400
+#: 正文少于这个字数就判 ``needs_review``（怀疑抓到了空壳或只剩导航）。
+#:
+#: 原值 400 会把真实但简短的官方页面误判：AutoDL `docs/image/` 的正文
+#: 去空白后 388 字，内容是完整的"镜像保存/加载/更换/共享"说明，却被拦下。
+#: 这条规则的本意是**拦截空壳**（JS 渲染页往往只剩几十字导航），不是要求
+#: 每页都写成长文。200 足以区分"空壳"与"短而完整"。
+MIN_BODY_CHARS = 200
 
 #: 整块丢弃的标签（导航/脚本/样式等）。
 DROP_TAGS = {
@@ -239,8 +246,27 @@ def load_sources() -> dict[str, dict]:
     return {item["id"]: item for item in data.get("sources", [])}
 
 
-def load_manifest() -> dict:
-    path = MANIFEST_DIR / "import-2026-10-26.json"
+def load_manifest(manifest_path: Path | None = None) -> dict:
+    """读取本次要规范化的 import manifest。
+
+    以前这里硬编码 ``import-2026-10-26.json``：fetch_corpus 写的是
+    ``import-<UTC 日期>.json``，于是新抓的快照**永远读不到**，normalize 只会
+    反复处理那份旧清单（抓取看起来成功、语料却不变）。
+
+    现在的顺序：显式传入 > 环境变量 ``AIOPS_CORPUS_MANIFEST`` > 目录里最新的
+    ``import-*.json``。找不到时返回空清单，由调用方决定是否报错。
+    """
+    if manifest_path is not None:
+        path = Path(manifest_path)
+    else:
+        override = os.environ.get("AIOPS_CORPUS_MANIFEST", "").strip()
+        if override:
+            path = Path(override)
+        else:
+            candidates = sorted(MANIFEST_DIR.glob("import-*.json"))
+            if not candidates:
+                return {"entries": []}
+            path = candidates[-1]  # 文件名带 ISO 日期，字典序即时间序
     return json.loads(path.read_text(encoding="utf-8")) if path.is_file() else {"entries": []}
 
 

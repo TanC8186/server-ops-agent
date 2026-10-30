@@ -423,6 +423,14 @@ def _active_revision_map() -> dict[str, str]:
     return knowledge_store.active_revisions()
 
 
+def _filters_are_specified(filters: RetrievalFilters) -> bool:
+    """调用方是否明确给了任一过滤条件。"""
+    return any((
+        filters.os_family, filters.product, filters.product_version,
+        filters.at_date, filters.target_kind,
+    ))
+
+
 def _visible_map(principal_id: str, filters: RetrievalFilters) -> dict[str, str]:
     """按 principal + 过滤条件读取可见文档（G5）。
 
@@ -438,6 +446,7 @@ def _visible_map(principal_id: str, filters: RetrievalFilters) -> dict[str, str]
         product=filters.product,
         product_version=filters.product_version,
         at_date=filters.at_date,
+        target_kind=filters.target_kind,
     )
 
 
@@ -507,6 +516,11 @@ class RetrievalFilters:
     product: str = ""
     product_version: str = ""
     at_date: str = ""
+    #: 知识面向的采集方式（ssh / cloud）。空 = 不按此维度过滤。
+    #:
+    #: 任务书 §3.4 要求"检索 AutoDL 目标时默认只返回 AutoDL/Linux 相关文档"。
+    #: 这个字段让该过滤成为显式、可核验的条件，而不是靠调用方自己拼 product。
+    target_kind: str = ""
 
     def normalized(self) -> RetrievalFilters:
         """去空白；日期只做格式校验（合法性由存储层统一判断并抛 ``InvalidFilter``）。"""
@@ -515,6 +529,7 @@ class RetrievalFilters:
             product=str(self.product or "").strip(),
             product_version=str(self.product_version or "").strip(),
             at_date=str(self.at_date or "").strip(),
+            target_kind=str(self.target_kind or "").strip(),
         )
 
 
@@ -557,6 +572,22 @@ class VectorStoreRetriever:
             return dict(self._active_revisions())
         if self._principal_id:
             return _visible_map(self._principal_id, self._filters)
+        # 没有 principal，但调用方明确给了过滤条件：必须照样过滤。
+        #
+        # 以前这里无条件走 _active_revision_map()（只按 active revision），
+        # 于是 product / target_kind 这类过滤在无 principal 时被**静默绕过**。
+        # 实测：filters=RetrievalFilters(target_kind="cloud") 依然返回 autodl 的
+        # ssh 文档——等于过滤功能不存在。给了条件就必须生效，"不要静默退化"。
+        if _filters_are_specified(self._filters):
+            from app.services import knowledge_store
+
+            return knowledge_store.current_store().filtered_revisions(
+                os_family=self._filters.os_family,
+                product=self._filters.product,
+                product_version=self._filters.product_version,
+                at_date=self._filters.at_date,
+                target_kind=self._filters.target_kind,
+            )
         return dict(_active_revision_map())
 
     def search(self, query: str, k: int) -> list[RetrievedChunk]:

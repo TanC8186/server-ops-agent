@@ -55,6 +55,10 @@ ALLOWED_HOSTS = frozenset({
     "prometheus.io",
     "learn.microsoft.com",
     "www.postgresql.org",
+    # AutoDL 官方文档（G8 追加）。注意 api.autodl.com 是**文档站**的另一个主机名，
+    # 不是可调用 API 端点——抓取器只读 GET 页面，不会发任何 API 请求。
+    "www.autodl.com",
+    "api.autodl.com",
 })
 #: 拒绝入库的内容类型（登录墙/错误页）。
 REJECT_CONTENT = ("text/plain", "application/json", "text/xml")
