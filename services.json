@@ -1,5 +1,5 @@
 {
-  "_comment": "服务清单（G8 本轮实测目标）。当前唯一目标是 AutoDL 上的算力服务器，经 SSH 只读采集的 Linux 容器。instance_id 用主机名而不是云实例 ID —— 这台机器不是腾讯云实例，填一个 ins-* 只会是伪造值；autodl 主机名才是可核验的真实标识。region 记可用区。ssh_host 必须与 SSH_HOST 指向同一台机器：Target.ssh_in_scope 靠它判断“SSH 证据能否支撑本次目标的结论”，留空会让 SSH 证据只算作独立主机。切回腾讯云请恢复 services.json.backup_g8。",
+  "_comment": "服务清单（2026-10-30）。当前唯一目标是 AutoDL 上的算力服务器，经 SSH 只读采集。instance_id 用主机名而不是云实例 ID —— 这台机器不是腾讯云实例，填 ins-*/lhins-* 只会是伪造值。ssh_host 必须与 .env 的 SSH_HOST 指向同一台机器：Target.ssh_in_scope 靠它判断“SSH 证据能否支撑本次目标的结论”。product 决定专用模型路由（autodl -> qwen15-autodl-ssh-v1）。**本文件不含任何 key/密码/token。** 切回腾讯云请恢复 services.json.backup_g8。",
   "services": [
     {
       "service_name": "autodl-ssh",
@@ -7,7 +7,9 @@
       "region": "seetacloud-sha1",
       "status": "active",
       "type": "ssh",
-      "ssh_host": "connect.sha1.seetacloud.com"
+      "product": "autodl",
+      "ssh_host": "connect.sha1.seetacloud.com",
+      "ssh_port": 12792
     }
   ]
 }

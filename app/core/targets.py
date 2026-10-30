@@ -48,6 +48,16 @@ class Target:
     #: ``query_cpu_metrics`` 这种名字就把"CPU 慢"判给腾讯云监控 API，而目标机器
     #: 根本没有腾讯云监控。运行时必须知道采集方式才能给出正确的工具目录。
     kind: str = "cloud"
+    #: 目标所属产品（如 ``autodl``）。空 = 未标注。
+    #:
+    #: 任务书 §4.1 要求按 ``product`` 路由专用模型。只有 ``kind=ssh`` 时无法区分
+    #: "AutoDL 的 SSH 主机"与"其它 SSH 主机"，会把 AutoDL adapter 用在别的目标上。
+    product: str = ""
+    #: SSH 端口。空 = 用全局 ``SSH_PORT``。
+    #:
+    #: 以前端口只存在于全局 env，目录里写不了"这台机器走 12792"，目标与全局配置
+    #: 分裂时没有任何校验。
+    ssh_port: int = 0
 
     @property
     def ssh_in_scope(self) -> bool:
@@ -120,6 +130,19 @@ class TargetResolution:
         }
 
 
+def _coerce_port(value: Any) -> int:
+    """把目录里的 ssh_port 规范成合法端口；非法/缺省一律回到 0（用全局配置）。
+
+    不在这里猜测或纠正端口：写错了就该退回全局默认并让人看见，而不是
+    悄悄连到另一个端口上。
+    """
+    try:
+        port = int(value)
+    except (TypeError, ValueError):
+        return 0
+    return port if 0 < port < 65536 else 0
+
+
 def _coerce_entry(row: Any) -> Target | None:
     if not isinstance(row, Mapping):
         return None
@@ -141,6 +164,8 @@ def _coerce_entry(row: Any) -> Target | None:
         # ssh 条目必须有 ssh_host，否则"只读 SSH"无从落地；缺了就当云目标，
         # 让它在工具目录里拿不到 SSH 专属工具，而不是静默返回空证据。
         kind="ssh" if (kind == "ssh" and ssh_host) else "cloud",
+        product=str(row.get("product") or "").strip().lower(),
+        ssh_port=_coerce_port(row.get("ssh_port")),
     )
 
 

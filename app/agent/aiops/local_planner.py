@@ -178,8 +178,7 @@ def _user_turn(model_name: str, service: str, symptom: str, target_kind: str) ->
     """构造 user turn。
 
     AutoDL adapter 的训练数据用固定六行格式（平台/采集方式/目标/目标角色/
-    告警文本/请只输出 JSON）。运行时如果还用旧的 ``服务: x
-告警文本: y``，
+    告警文本/请只输出 JSON）。运行时如果还用旧的 ``服务: x / 告警文本: y``，
     模型看到的就是训练时没见过的输入形状——与工具目录少参数签名一样是 skew。
     通用模型保持历史两行格式，不改变它的行为。
     """
@@ -214,8 +213,15 @@ async def try_local_plan(
     # 按目标类型选模型：只有 ssh 目标且配置了专用模型时才换，其余一律用通用模型。
     # 这不是"又一个兜底"——两个模型共用同一个 base_url，只是 served-model-name 不同。
     model_name = config.local_llm_model
-    if target_kind == "ssh" and config.local_llm_model_ssh.strip():
-        model_name = config.local_llm_model_ssh.strip()
+    ssh_model = config.local_llm_model_ssh.strip()
+    if target_kind == "ssh" and ssh_model:
+        model_name = ssh_model
+    elif target_kind == "ssh" and not ssh_model:
+        # 配置了 SSH 目标却没配专用模型：这条信息必须让用户看见，不能默默
+        # 用通用模型跑完再让人以为"AutoDL 专用 adapter 已生效"。
+        trace_event(run_id, "local_model_ssh_unconfigured",
+                    note="target 是 SSH 主机但 LOCAL_LLM_MODEL_SSH 未配置，"
+                         "本次使用通用模型；AutoDL 专用 adapter 未生效")
     trace_event(run_id, "local_model_route", target_kind=target_kind or "cloud",
                 model=model_name)
     messages = [
