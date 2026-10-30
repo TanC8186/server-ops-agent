@@ -126,6 +126,7 @@ AD-01..09，`eval/rag/dev.jsonl` 里 11 道可答题的 `expected_source_ids`
 | 项 | 结果 |
 |---|---|
 | 后端测试 | **937 passed, 1 skipped** |
+| 偶发失败（已记录） | `test_server_env_isolation::test_full_suite_ordering_regression_passes_in_one_process` 在一次全量运行中失败 1 次；单独跑通过、随后两次全量均通过。原因：该测试会嵌套起一个 pytest 子进程跑 `test_p0_upload_index.py`（连真实 Milvus），全量并发时连接竞争导致子进程非零退出。**是既有测试的资源竞争，与本轮改动无关，但如实记录。** |
 | ruff (F821/F811/F841) | All checks passed |
 | 新增测试 | `test_autodl_corpus_metadata.py`(6) / `test_corpus_pipeline.py`(7) |
 | 空测试检查 | 已验证：移除 `target_kind` 落盘 → 失败；改回 `paths[-1]` → 失败 |
