@@ -141,11 +141,31 @@ async def test_empty_completion_is_failure(local_setup, monkeypatch):
     assert events[-1]["type"] == "error"
 
 
-@pytest.mark.parametrize("payload", ["/; echo injected", "$(id)", "", "C:/'"])
+@pytest.mark.parametrize("payload", ["/; echo injected", "$(id)", "C:/'"])
 def test_disk_tool_rejects_injection_at_entry(monkeypatch, payload):
+    """注入型路径必须在执行前被拒绝（空串不在其中，见下一条）。
+
+    空串从本用例移出：它不再是"非法路径"，而是"未指定路径"的语义
+    （按平台取默认值）。原来的默认值是硬编码 "C:/"，在 Linux 上必然失败，
+    所以空串必须能落到 "/" 而不是报错。空串的注入风险为零。
+    """
     from servers import ssh_server
 
     monkeypatch.setattr(ssh_server, "SERVER_TYPE", "linux")
     monkeypatch.setattr(ssh_server, "_exec_readonly", lambda _: pytest.fail("must not execute"))
     result = ssh_server.check_disk_usage(payload)
     assert result.get("error")
+
+
+@pytest.mark.parametrize("server_type,expected", [("linux", "/"), ("windows", "C:/")])
+def test_disk_tool_empty_path_uses_platform_default(monkeypatch, server_type, expected):
+    """未给路径时按平台取默认值，而不是用硬编码的 C:/ 在 Linux 上报错。"""
+    from servers import ssh_server
+
+    monkeypatch.setattr(ssh_server, "SERVER_TYPE", server_type)
+    monkeypatch.setattr(
+        ssh_server, "_exec_readonly",
+        lambda cmds: {cmds[0]: "Filesystem Size Used Avail Use% Mounted on /dev/x 1G 1G 0 100% /"},
+    )
+    result = ssh_server.check_disk_usage("")
+    assert result.get("path") == expected, f"{server_type} 默认路径应为 {expected}，实际 {result.get('path')}"

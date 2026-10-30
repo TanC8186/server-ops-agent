@@ -226,13 +226,30 @@ def get_system_info() -> Dict[str, Any]:
             "disks": results.get(cmds[3], ""),
         }
     else:
+        # cgroup v2 限制必须优先读，不能只看 free/nproc。
+        #
+        # 实测（AutoDL 容器）：free -h 报 1.0Ti 总内存、nproc 报 1 但 /proc/cpuinfo
+        # 有 128 个核——这些都是**宿主机**视角；容器真实配额在 cgroup 里：
+        #   /sys/fs/cgroup/memory.max = 2147483648（2 GiB）
+        #   /sys/fs/cgroup/cpu.max    = 50000 100000（0.5 核）
+        # 只看 free 会把 2 GiB 说成 1 TiB（高估 512 倍），是任务书 §5.1/5.2 明令
+        # 禁止的口径错误。
         cmds = [
             "uname -a",
             "cat /proc/cpuinfo | grep 'model name' | head -1",
             "free -h",
             "df -h",
+            "cat /sys/fs/cgroup/memory.max 2>/dev/null || echo n/a",
+            "cat /sys/fs/cgroup/memory.current 2>/dev/null || echo n/a",
+            "cat /sys/fs/cgroup/cpu.max 2>/dev/null || echo n/a",
+            "grep -E 'nr_throttled|throttled_usec' /sys/fs/cgroup/cpu.stat 2>/dev/null || echo n/a",
+            "nproc",
+            "df -h /root/autodl-tmp 2>/dev/null || echo n/a",
         ]
         results = _exec_readonly(cmds)
+        mem_max = results.get(cmds[4], "").strip()
+        mem_cur = results.get(cmds[5], "").strip()
+        cpu_max = results.get(cmds[6], "").strip()
         return {
             "server_type": "linux",
             "host": SSH_HOST,
@@ -240,6 +257,20 @@ def get_system_info() -> Dict[str, Any]:
             "cpu": results.get(cmds[1], ""),
             "memory": results.get(cmds[2], ""),
             "disk": results.get(cmds[3], ""),
+            # 容器真实配额：free 是宿主机视角，cgroup 才是本实例可用量。
+            "cgroup": {
+                "memory_max_bytes": mem_max,
+                "memory_current_bytes": mem_cur,
+                "cpu_max": cpu_max,
+                "cpu_throttled": results.get(cmds[7], "").strip(),
+                "nproc": results.get(cmds[8], "").strip(),
+                "note": "free 反映宿主机；容器真实上限以 cgroup 为准",
+            },
+            # 数据盘单独给出：它通常不挂在 / 下，df -h 顶层看不到。
+            "data_disk": results.get(cmds[9], "").strip(),
+            "source": "ssh",
+            "ok": True,
+            "status": "ok",
         }
 
 
@@ -380,14 +411,6 @@ def search_system_logs(
                 "error": f"日志文件不存在: {log_path}（该主机未使用传统 syslog）",
             }
         entries = [{"message": line} for line in raw.split('\n') if line.strip()]
-        if level:
-            level = _safe_token(level, "level")
-            cmd = f"grep -i {shlex.quote(level)} {log_file} | tail -n {count}"
-        if keyword:
-            cmd = f"grep -i {shlex.quote(keyword)} {log_file} | tail -n {count}"
-        results = _exec_readonly([cmd])
-        raw = results.get(cmd, "")
-        entries = [{"message": line} for line in raw.split('\n') if line.strip()]
 
     return {
         "server_type": SERVER_TYPE,
@@ -400,15 +423,22 @@ def search_system_logs(
 
 @mcp.tool()
 @log_tool_call
-def check_disk_usage(path: str = "C:/") -> Dict[str, Any]:
+def check_disk_usage(path: str = "") -> Dict[str, Any]:
     """检查远程服务器磁盘使用情况（只读）。
 
     Args:
-        path: 要检查的路径，默认 C:/
+        path: 要检查的路径；留空时按平台取默认值（Windows=C:/、Linux=/）
 
     Returns:
         Dict: 磁盘使用信息
     """
+    # 默认路径按平台选。
+    #
+    # 原默认值是硬编码的 "C:/"，在 Linux 目标上无参调用必然失败（实测返回
+    # "磁盘路径必须是无 shell 元字符的绝对路径"）。规划模型按 schema 默认值
+    # 调用时拿到的就是这条错误 —— 磁盘维度等于不可用。
+    if not str(path or "").strip():
+        path = "C:/" if SERVER_TYPE == "windows" else "/"
     if SERVER_TYPE == "windows":
         if not re.fullmatch(r"[A-Za-z]:[/\\]?", path):
             raise ValueError("磁盘路径必须是盘符，例如 C:/")
@@ -449,6 +479,31 @@ def read_log_file(file_path: str, lines: int = 50) -> Dict[str, Any]:
         return {"error": str(exc), "allowed_paths": list(_ALLOWED_LOG_ROOTS)}
     lines = _safe_count(lines, "lines", maximum=5000)
 
+    # 先确认文件存在，再读。
+    #
+    # 旧实现直接 tail，而 ``_exec_readonly`` 会把空 stdout 替换成字符串
+    # ``"(empty)"``，于是**不存在的文件**也返回一段"内容"，且 classify_payload
+    # 把它判成 ok。实测：read_log_file("/var/log/syslog") 在 AutoDL 容器上返回
+    # ok=true、content="(empty)" —— 伪造了一次实时观测。这与任务书 §5.6 直接冲突。
+    sentinel = "__ONCALL_NOFILE__"
+    if SERVER_TYPE == "windows":
+        escaped = safe_path.replace("'", "''")
+        exists = f"if exist \"{escaped}\" (echo OK) else (echo {sentinel})"
+        cmd = f"{exists}"
+    else:
+        cmd = f"test -f {shlex.quote(safe_path)} && echo OK || echo {sentinel}"
+    probe = _exec_readonly([cmd]).get(cmd, "").strip()
+    if sentinel in probe:
+        return {
+            "server_type": SERVER_TYPE,
+            "file_path": safe_path,
+            "lines_requested": lines,
+            "ok": False,
+            "status": "unavailable",
+            "source": "ssh",
+            "error": f"文件不存在: {safe_path}",
+        }
+
     if SERVER_TYPE == "windows":
         # safe_path 已拒绝引号/分号等字符，此处再做 PowerShell 单引号转义。
         escaped = safe_path.replace("'", "''")
@@ -461,6 +516,9 @@ def read_log_file(file_path: str, lines: int = 50) -> Dict[str, Any]:
         "server_type": SERVER_TYPE,
         "file_path": safe_path,
         "lines_requested": lines,
+        "ok": True,
+        "status": "ok",
+        "source": "ssh",
         "content": content,
     }
 
