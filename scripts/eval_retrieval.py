@@ -40,13 +40,33 @@ RESULT_DIR = EVAL_DIR / "results"
 DEFAULT_THRESHOLD: float | None = None
 
 
-def load_normalized(limit_docs: int = 0) -> list[dict]:
-    paths = sorted(MANIFEST_DIR.glob("normalized-*.json"))
+def load_normalized(limit_docs: int = 0, explicit_manifest: str = "") -> list[dict]:
+    """加载全部 normalized manifest 的并集。
+
+    以前只读 ``paths[-1]``（最新那个）。G8 追加 AutoDL 语料后，最新 manifest
+    只含 AD-01..AD-09，于是 ``eval/rag/dev.jsonl`` 里 11 道可答题的
+    ``expected_source_ids``（SD/LK/RH/DK/WS）**全部不在语料里**，
+    hit@k 恒为 0 —— 评测照常跑完、照常写出结果，但什么都没测到。
+
+    改为按 id 合并所有 manifest：追加新语料不应该让旧基线失效。
+    ``--manifest`` 仍可显式指定单一文件。
+    """
+    if explicit_manifest:
+        paths = [Path(explicit_manifest)]
+    else:
+        paths = sorted(MANIFEST_DIR.glob("normalized-*.json"))
     if not paths:
         raise SystemExit("缺少 knowledge/manifests/normalized-*.json；先运行 "
                          "scripts/normalize_corpus.py")
-    entries = json.loads(paths[-1].read_text(encoding="utf-8")).get("entries", [])
-    entries = [item for item in entries if item.get("status") == "normalized"]
+    merged: dict[str, dict] = {}
+    for path in paths:
+        for item in json.loads(path.read_text(encoding="utf-8")).get("entries", []):
+            if item.get("status") != "normalized":
+                continue
+            doc_id = str(item.get("id") or "")
+            if doc_id:
+                merged[doc_id] = item
+    entries = list(merged.values())
     return entries[:limit_docs] if limit_docs else entries
 
 
