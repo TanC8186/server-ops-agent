@@ -356,3 +356,82 @@
 - **危害**：验收证据无法证明"这次用的是哪把钥匙"，密钥轮换也无法验证生效。
 - **怎么解**：显式 `allow_agent=False, look_for_keys=False`。
 - **教训**：凡是"用指定凭据连远端"的地方，都要显式关掉这类自动回退。
+
+## G. Docker 空间与构建纪律（本轮教训）
+
+### G1. 把"镜像 label == HEAD"当成每次提交后的门槛
+
+- **现象**：为了满足这个条件反复 `--no-cache` 全量重建，6 次产出约 180 GB。
+- **正确做法**：只在**真正需要验收镜像**时建一次；代码提交不必都出镜像。
+  文档提交必然让 HEAD 前移，label 与 HEAD 不可能同时相等——应记录
+  "label == 构建提交" + `git diff <构建提交> HEAD` 只含文档，而不是无限重建。
+
+### G2. 中间层从不清理
+
+每次 `--no-cache` 会产生 10.7 GB 最终镜像 + 20.7 GB `COPY . .` 中间层。
+只在最后清一次 → 中间层堆到 24 个 dangling。
+**规范**：每次构建后立即 `docker image prune -f`。
+
+### G3. 动手前没查 Docker 数据盘在哪
+
+`docker_data.vhdx` 在 C 盘。这条约束（"只在 E 盘操作"）我早就有，但没落到
+Docker 上。**规范**：涉及大量构建前先看 `docker system df` 和 vhdx 路径。
+
+### G4. vhdx 虚占空间不需要管理员权限就能回收（我判断错过一次）
+
+- **错误判断**：试了 `wsl --manage docker-desktop --set-sparse **true**` 被拒
+  （提示需要 `--allow-unsafe`），就下结论"必须 diskpart + 管理员"。
+- **正确做法**：
+  ```powershell
+  wsl --manage docker-desktop --set-sparse false     # 转动态扩展
+  Stop-Process -Name 'Docker Desktop','com.docker.backend' -Force
+  wsl --shutdown
+  ```
+  关掉 WSL 后系统自动归还虚占区块：C 盘 37 GB → **226 GB**，vhdx 276 → 87 GB。
+- **教训**：`--set-sparse true` 失败不代表这条路走不通，反方向的 `false` 才是
+  我要的效果（把固定大小盘转回动态扩展）。
+
+### G5. 构建 OOM（exit 137）
+
+主机只有 15.8 GB 内存，`uv sync` 下载大量 CUDA 包时 Docker VM 被 OOM 杀掉。
+不是 Dockerfile 问题，原样重试即可（第二次成功）。
+**不要**为此改 Dockerfile 或加临时变体。
+
+### G6. 构建期间改代码 → 构建产物过期
+
+我在构建启动后又改了几个文件，那次构建的 HEAD 已被后续提交超越。
+**规范**：按任务书 §2.2，代码、配置、测试、文档**全部定稿后**才构建一次。
+本轮实际执行：累积 4 个提交后只建了 1 次最终镜像。
+
+## H. 语料/RAG 相关
+
+### H1. 追加语料会让旧评测基线静默失效
+
+- **现象**：新增 AutoDL 的 `normalized-2026-10-30.json` 后，
+  `eval_retrieval.load_normalized()` 只读 `paths[-1]`，语料只剩 AD-01..09，
+  `eval/rag/dev.jsonl` 的 11 道可答题 `expected_source_ids` 全部缺失，
+  **hit@k 恒为 0**，评测照常跑完照常出结果。
+- **修**：按 id 合并全部 `normalized-*.json`。
+- **教训**：凡是"取最新一个"的加载逻辑，在有多个语料来源时都是定时炸弹。
+
+### H2. 元数据字段加进白名单 ≠ 会落盘
+
+`METADATA_TEXT_FIELDS` 加了 `target_kind`，但文档记录构造处没写这个键，
+snapshot 里永远是 None。**加字段要同时改三处**：白名单、记录构造、setdefault。
+
+### H3. 过滤条件被 principal 门控 → 无 principal 时静默失效
+
+`_visible()` 只在 `principal_id` 非空时应用 filters。实测
+`target_kind=cloud` 返回了 autodl 的 ssh 文档——过滤功能等于不存在。
+**教训**：给条件就必须生效；"没有身份"不是"不过滤"的理由。
+
+### H4. 删除文档没清作业 → 重新导入变成空转
+
+`delete_document` 只取消 running 的作业，`ready` 的原地保留。重导时
+`submit_document` 命中 `_find_job_locked` 直接返回，文档记录永不重建。
+实测出现 **Milvus 有 992 行、store.json 0 篇文档**。
+
+### H5. 两套 store 并存
+
+本机 `data/knowledge/store.json` 与容器命名卷 `oncall-data` 是两份独立数据。
+在本机入库，容器看不到。**验收必须在容器内做**，或明确同步策略。
