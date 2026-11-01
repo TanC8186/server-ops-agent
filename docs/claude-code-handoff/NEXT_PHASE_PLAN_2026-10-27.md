@@ -96,9 +96,9 @@ docker compose logs --no-color --tail=200 app
 4. 将 trace、job、active revision、pending cleanup 的状态指标接入 /health 或 metrics，避免只写日志。
 5. 把 Pydantic 弃用 warning、Ruff 配置迁移 warning 和 Node 实验性 strip-types 测试方式纳入依赖升级计划。
 
-## 阶段 G4：求职项目呈现
+## 阶段 G4：项目呈现
 
-README 和简历只写可追溯结果：
+README 和对外文档只写可追溯结果：
 
 - 已完成：双模式、本地严格离线路径、在线多智能体图、工具/目标/证据约束、版本化 RAG job、引用与状态协议。
 - 已测但非真实依赖：621 个后端测试、53 个前端逻辑测试、离线 RAG dev baseline。

@@ -91,7 +91,7 @@ seconds=34.5  status=completed  quality=sufficient  gaps=12  report_chars=1999
 `SSH_TOOLS` 目标范围标注、`configured_ssh_endpoint` 不进观测、
 命令超时与 `deadline` 下传的单元测试（`test_ssh_safety.py`、`test_runtime_target_binding.py`）。
 
-## 7. 可写进简历 / 不可写
+## 7. 可对外声称 / 不可声称
 
 **可以写**：
 - 真实 LLM（非 mock）跑通 Supervisor→metrics/logs→Reviewer 全链路，产出结构化报告，

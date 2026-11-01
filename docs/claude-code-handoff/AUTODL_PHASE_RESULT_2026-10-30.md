@@ -148,7 +148,7 @@ target_kind=ssh   -> 3 hits（AutoDL 文档）
 target_kind=cloud -> 0 hits
 ```
 
-## 7. 不能放进简历的结论
+## 7. 不得作为结论的主张
 
 - ✗ "已完成本地 adapter 与 cloud_multi 的 AutoDL 同题对比" —— 未执行。
 - ✗ "AutoDL adapter 提升准确率" —— 旧的 16 条评测 **16/16 输出泄漏**，

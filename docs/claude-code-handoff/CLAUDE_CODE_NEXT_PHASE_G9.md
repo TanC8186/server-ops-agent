@@ -1,4 +1,4 @@
-# G9 下一阶段任务书：最终发布冻结、凭据轮换与简历交付
+# G9 下一阶段任务书：最终发布冻结、凭据轮换与文档交付
 
 日期：2026-10-29  
 基线分支：g6-permissions-chat-consistency  
@@ -7,7 +7,7 @@ G8 代码提交：35c7bfa
 G8 构建提交：63d1a41  
 G8 镜像：sha256:6a7ff2b7f04f…
 
-本轮不再堆叠功能，目标是完成最终发布候选版本：凭据轮换、镜像严格对应 release commit、云端工具依赖边界确认、README/简历/面试演示材料闭环。
+本轮不再堆叠功能，目标是完成最终发布候选版本：凭据轮换、镜像严格对应 release commit、云端工具依赖边界确认、README 与演示材料闭环。
 
 ## 一、执行方式
 
@@ -24,7 +24,7 @@ G8 镜像：sha256:6a7ff2b7f04f…
 | release_freeze | release commit、Dockerfile、revision、digest、Compose | G9_RELEASE_FREEZE.md |
 | credential_rotation | key 轮换、日志/TEMP/Git/镜像扫描 | G9_SECRET_STATUS.md |
 | cloud_account | CLS/QCE/SSH 账户状态 | G9_CLOUD_DEPENDENCY.md |
-| resume_packaging | README、简历、面试演示 | G9_RESUME_PACKAGE.md |
+| release_docs | README、演示材料 | G9_RESUME_PACKAGE.md |
 | legacy_boundary | 遗留 RAG、单 key、多副本边界 | G9_BOUNDARY_REVIEW.md |
 
 审查阶段允许并行；共享文件只能由一个 integration Agent 修改。主 Agent 统一解决冲突并执行最终验收。
@@ -33,7 +33,7 @@ G8 镜像：sha256:6a7ff2b7f04f…
 
 1. 不重复实现 G8 已完成的私钥排除、schema echo、Compose 镜像选择和 gold 工具修复。
 2. 不新增通用防御层、统一兜底框架、无业务目标的重试/清洗逻辑或新的权限抽象。
-3. 不新增独立开发取样流程；模式对比、账户依赖确认和面试演示必须使用固定题集或实际用户流程。
+3. 不新增独立开发取样流程；模式对比、账户依赖确认和演示必须使用固定题集或实际用户流程。
 4. 不把配置存在写成服务连通，不把 app liveness 写成所有能力 ready。
 5. 不把凭据、临时 key、私钥、代理地址或环境变量值写入报告、截图、JSON、镜像 label 或 Git。
 6. SSH、真实 TCP 断线、CUDA torch、PyMilvus、GitHub CI、Linux flock、IME/读屏器、多副本和真实多用户，除非本轮真实完成，否则继续标记未验证。
@@ -118,7 +118,7 @@ cloud_account Agent 只读确认：
 2. 不删除失败行、不修改 gold；
 3. 保留计划召回/F1、延迟、token、拒答边界；
 4. 工具成功率单列为账户依赖，不用于比较模型优劣；
-5. 简历只写计划层、延迟和 token 对比。
+5. 对外只写计划层、延迟和 token 对比。
 
 禁止写本地模型准确率、多智能体准确率、本地全面优于云端、4-bit 无损或真实工具全部成功。
 
@@ -132,9 +132,9 @@ cloud_account Agent 只读确认：
 6. 没有明确新假设时不重新训练。
 7. 0.5B、CUDA torch、fp16 vs 4-bit 继续独立记录，不混入发布结论。
 
-## 七、P1：简历和面试材料
+## 七、P1：对外材料
 
-README、简历和演示必须统一口径。
+README 和演示必须统一口径。
 
 可以写：
 
@@ -157,7 +157,7 @@ README、简历和演示必须统一口径。
 - 工具成功率代表模型能力；
 - 4-bit 相比 fp16 无损。
 
-面试演示顺序：
+演示顺序：
 
 1. 首页选择 local 或 cloud_multi；
 2. 展示模型来源、凭据需求、失败行为和资源代价；
@@ -181,7 +181,7 @@ README、简历和演示必须统一口径。
 - local/cloud 指标及分母；
 - 900/75 回归；
 - 未验证边界；
-- 可写入简历的事实和禁止表述。
+- 可对外引用的事实和禁止表述。
 
 保留 G1–G8 历史结果，不覆盖历史数字。
 
@@ -198,7 +198,7 @@ README、简历和演示必须统一口径。
 ### P1
 
 - 18 条模式对比保留原始数据，账户错误与模型指标分开；
-- README、状态表、G9 结果和简历口径一致；
+- README、状态表、G9 结果与对外口径一致；
 - 本地失败行为、云端多智能体阶段和 RAG 引用演示可复现；
 - 工作区 clean，临时资源清理完成。
 

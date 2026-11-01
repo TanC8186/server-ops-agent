@@ -896,7 +896,7 @@ node --experimental-strip-types --test src/sse.test.ts src/state.test.ts src/vie
 7. **多副本部署下的 trace 并发**：进程内锁，跨进程无互斥（子代理已如实标注）。
 8. **费用**：网关无单价，未估算。
 
-## V11.5 简历可写 / 不可写
+## V11.5 可对外陈述 / 不可声称
 
 **可写**（都有可复跑证据）：
 

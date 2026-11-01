@@ -204,7 +204,7 @@ AutoDL 网关在并发握手时返回明文 ``Exceeded MaxStartups``，paramiko 
 | ruff (F821/F811/F841) | All checks passed |
 | 新增测试 | ssh live 判定 1 条；日志缺失 2 条；prompt skew 1 条；SSH 工具范围 13 条（上轮） |
 
-## 7. 未完成 / 不能写进简历的结论
+## 7. 未完成 / 不得作为结论的主张
 
 **未完成（UNVERIFIED）：**
 
@@ -219,7 +219,7 @@ AutoDL 网关在并发握手时返回明文 ``Exceeded MaxStartups``，paramiko 
 8. `get_system_info` 用 `free`/`df`，在容器里读到宿主机数字（2.5 说的 cgroup 问题）。
 9. SSH 日志工具只支持 syslog/auth/kern，不支持 journalctl——而这台机器只有 journal。
 
-**不能写进简历：**
+**不得作为结论：**
 
 - 不能说"AutoDL adapter Tool F1 0.766 提升了工具选择准确率"——常数基线 0.800 就赢它。
 - 不能说"在 16 条 held-out 上验证"——16/16 输出与训练集逐字相同。

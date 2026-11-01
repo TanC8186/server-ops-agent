@@ -66,7 +66,7 @@ G5 已完成的真实 Milvus、真实 LLM、浏览器闭环、镜像瘦身、跨
 2. G5 浏览器续读证据是“客户端截断、服务端已落盘后按 seq 回放”，不要写成真实 TCP 断线时后端仍持续执行。若要声称断线恢复，必须验证真实中断路径；否则保留当前准确表述。
 3. 校准 profile 读取时核对题集 sha256、语料 manifest、embedding descriptor 与当前 store；不一致直接停止，避免换 collection 后静默复用旧阈值。这是数据一致性检查，不是通用防御层。
 4. 评测产物仍保留检索 Recall、门控权衡、引用支持、judge、确定性要点覆盖、拒答/误答各自分母；不要合成“问答准确率”。如需展示本地 QLoRA 与 cloud_multi，使用同一小批任务比较工具成功率、延迟、token/显存和拒答边界，不新增 smoke 名称。
-5. 把现有 `eval/rag/README.md`、`scripts/eval_generation.py` 中面向开发取样的“冒烟”措辞改成“抽样生成评测”；相应产物 kind 使用 `generation_eval_llm_sampled`。历史证据文件名可以保留以维持 provenance，但新报告和简历不再使用该称呼。
+5. 把现有 `eval/rag/README.md`、`scripts/eval_generation.py` 中面向开发取样的“冒烟”措辞改成“抽样生成评测”；相应产物 kind 使用 `generation_eval_llm_sampled`。历史证据文件名可以保留以维持 provenance，但新报告不再使用该称呼。
 6. `VectorStoreRetriever` 对带 `expr` 的调用不要捕获所有 `TypeError` 后无条件去掉过滤；只在适配器明确不支持该参数时走兼容分支，真实查询错误应保持失败状态，避免静默降低候选范围。
 
 ## P2：明确记录而不是扩大范围
@@ -79,4 +79,4 @@ G5 已完成的真实 Milvus、真实 LLM、浏览器闭环、镜像瘦身、跨
 
 - 上述 P0/P1 直接验收场景全部通过；现有 G5 结果不回退。
 - 后端、前端既有回归命令通过；报告只写本轮实际执行的场景和分母。
-- 工作区不再以“未提交 40 个业务文件 + 多个临时产物”的状态作为最终简历快照。
+- 工作区不再以“未提交 40 个业务文件 + 多个临时产物”的状态作为最终发布快照。

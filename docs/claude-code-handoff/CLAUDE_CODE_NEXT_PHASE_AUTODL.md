@@ -39,7 +39,7 @@
 | local_adapter | QLoRA adapter 训练、量化和端侧服务 | AUTODL_ADAPTER_REPORT.md |
 | rag_integration | RAG metadata、检索过滤、RAG-assisted planning 方案 | AUTODL_RAG_REPORT.md |
 | benchmark | baseline/filtered/RAG/local/cloud 对照评测 | AUTODL_BENCHMARK_REPORT.md |
-| security_docs | key、密码、日志、README 和简历口径 | AUTODL_SECURITY_RESUME.md |
+| security_docs | key、密码、日志、README 和对外口径 | AUTODL_SECURITY_CLAIMS_AUDIT.md |
 
 主 Agent 的职责：
 

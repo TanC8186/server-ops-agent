@@ -158,7 +158,7 @@ v9 的结果：改写后 severity 0.989 → 0.865（schema/关键工具/category
 - 在 trace 里记录 `planner_backend=local|cloud`、升级原因
 - 用 `scripts/run_eval.py` 对比：本地处理率、P95 延迟、tokens/task、任务成功率
 
-## 简历写法（数字全部来自 `training/RESULTS.md`，可复现）
+## 关键结果摘要（数字全部来自 `training/RESULTS.md`，可复现）
 
 > - 构建 719 条 AIOps 分诊/工具规划数据集：6 类故障 × 4 种表述，教师模型生成 + Pydantic/工具注册表双重校验，
 >   按模板分组切分避免泄漏；用确定性规则替代教师标签消除噪声，并加单测锁住"标签与规则一致"。
@@ -178,7 +178,7 @@ v9 的结果：改写后 severity 0.989 → 0.865（schema/关键工具/category
 ## 诚实边界
 
 - 1.5B 不负责开放式根因分析；它只做分诊和 typed plan。
-- 训练数据是合成的，必须在 README/简历里标注；不要包装成真实工单。
+- 训练数据是合成的，必须在 README 与对外表述里标注；不要包装成真实工单。
 - 不要用"准确率提升 30%"这种没有基线的数字；所有指标都要能指向 `eval_lora.py` / `eval_server.py` 的输出。
 - **severity 不能单看总分**：`memory-2`（OOM 边界 92% vs 95%）所有后端都在 0.52–0.59，
   `cpu-3`（"低峰 + 没有用户请求超时"）train/val 里没有同类样本，规则把否定句读成了正面影响。

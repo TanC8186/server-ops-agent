@@ -129,3 +129,14 @@ web/dist/
 .tmp*/
 
 tmp/
+
+# 求职材料：简历、面试准备、投递记录一律不入库
+简历*
+resume*
+Resume*
+Resume.docx
+CV.pdf
+cover_letter*
+求职*
+面试*
+portfolio/

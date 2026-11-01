@@ -17,7 +17,7 @@
 | `rag_ingestion` | 文档切分、metadata、Milvus revision、引用返回 | `AUTODL_RAG_REPORT.md` |
 | `adapter_runtime` | AutoDL adapter/merged 模型接线、端侧推理启动 | `AUTODL_ADAPTER_RUNTIME_REPORT.md` |
 | `live_benchmark` | 本地与 cloud_multi 同题真实对比 | `AUTODL_LIVE_BENCHMARK_REPORT.md` |
-| `security_resume` | 凭据、日志、README、简历口径审查 | `AUTODL_SECURITY_RESUME_REPORT.md` |
+| `security_claims` | 凭据、日志、README、对外口径审查 | `AUTODL_SECURITY_CLAIMS_AUDIT.md` |
 
 执行顺序：
 
@@ -310,7 +310,7 @@ cloud_multi -> 在线多智能体编排
 7. 前端关键路径截图或浏览器记录；
 8. 后端、前端、构建和相关回归结果；
 9. 未完成项及其原因；
-10. 不能写入简历的结论。
+10. 不得作为结论的主张。
 
 结果状态使用以下口径：
 
@@ -342,7 +342,7 @@ cloud_multi -> 在线多智能体编排
 - `AUTODL_RAG_REPORT.md`
 - `AUTODL_ADAPTER_RUNTIME_REPORT.md`
 - `AUTODL_LIVE_BENCHMARK_REPORT.md`
-- `AUTODL_SECURITY_RESUME_REPORT.md`
+- `AUTODL_SECURITY_CLAIMS_AUDIT.md`
 - 一个总验收报告，例如 `AUTODL_PHASE_RESULT_YYYY-MM-DD.md`
 - 可重跑的抓取、规范化、入库和评测命令
 - RAG raw/normalized/notices/manifest 产物

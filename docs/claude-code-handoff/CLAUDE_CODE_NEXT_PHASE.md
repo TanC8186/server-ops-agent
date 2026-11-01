@@ -19,4 +19,4 @@
 6. 补 purge_expired_traces() 的实际调度、并发追加保护、principal/资源权限、知识片段与观测关联和有界多轮上下文。
 7. 同步 IMPLEMENTATION_STATUS.md 与 VALIDATION_RESULTS.md：日期、commit、621/53 测试数字、Docker build 网络失败和真实依赖结果必须一致；删除“已验证”但没有真实证据的措辞。
 
-所有新增测试优先保持真实 application service/runtime/store，只有 SDK、网络和 Milvus I/O 使用替身。默认不连接生产，不执行修改命令，不打印 .env、密钥或真实日志。每一阶段留下命令、构建 hash、环境版本、原始结果和失败分母，最后再决定简历中可以写哪些指标。
+所有新增测试优先保持真实 application service/runtime/store，只有 SDK、网络和 Milvus I/O 使用替身。默认不连接生产，不执行修改命令，不打印 .env、密钥或真实日志。每一阶段留下命令、构建 hash、环境版本、原始结果和失败分母，最后再决定对外可以引用哪些指标。

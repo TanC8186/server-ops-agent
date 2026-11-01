@@ -1,11 +1,11 @@
-# G8 下一阶段任务书：双模式基准、最终发布与简历证据闭环
+# G8 下一阶段任务书：双模式基准、最终发布与证据闭环
 
 日期：2026-10-29  
 基线分支：\`g6-permissions-chat-consistency\`  
 当前 HEAD：\`69f4bf5\`  
 上一阶段：G7（上传归属一致性、评测快照边界、镜像 provenance）
 
-本轮目标：把项目从“功能和权限基本完成”推进到“可以作为企业软件开发/AI 应用工程岗位简历项目展示”的最终版本。重点补齐本地 QLoRA Planner 与在线 cloud_multi 的同题对比、最终镜像可追溯性、凭据清理、运行文档和简历证据。
+本轮目标：把项目从“功能和权限基本完成”推进到可公开发布的最终版本。重点补齐本地 QLoRA Planner 与在线 cloud_multi 的同题对比、最终镜像可追溯性、凭据清理、运行文档和证据归档。
 
 ## 一、执行方式：主 Agent 编排，子 Agent 并行，统一集成
 
@@ -24,7 +24,7 @@
 | \`mode_benchmark\` | 本地 QLoRA 与 cloud_multi 同题对比、延迟/资源/token/工具结果 | \`G8_MODE_BENCHMARK.md\` 与结构化 JSON 结果 |
 | \`local_model_quality\` | QLoRA 数据覆盖、工具名不一致、端侧模型计划质量和失败边界 | \`G8_LOCAL_MODEL_REVIEW.md\`，必要时提出最小训练数据修正 |
 | \`rag_legacy_acl\` | 旧 LangChain 知识工具路径、principal 传播、单进程/多进程边界 | \`G8_RAG_LEGACY_REVIEW.md\` |
-| \`frontend_resume\` | 首页模式选择、状态文案、错误路径、截图、README 简历证据 | \`G8_FRONTEND_REVIEW.md\` 与截图清单 |
+| \`frontend_review\` | 首页模式选择、状态文案、错误路径、截图、README 证据归档 | \`G8_FRONTEND_REVIEW.md\` 与截图清单 |
 
 主 Agent 负责：
 
@@ -43,13 +43,13 @@ Phase A  并行审查
   ├─ mode_benchmark
   ├─ local_model_quality
   ├─ rag_legacy_acl
-  └─ frontend_resume
+  └─ frontend_review
 
 Phase B  并行准备
   ├─ release_provenance：准备最终构建流程
   ├─ mode_benchmark：准备固定题集和结果 schema
   ├─ local_model_quality：准备端侧运行配置和数据修正建议
-  └─ frontend_resume：准备最终截图和简历表述
+  └─ frontend_review：准备最终截图与对外表述
 
 Phase C  集成修改
   └─ 单一 integration Agent 按依赖顺序修改代码、脚本和文档
@@ -59,7 +59,7 @@ Phase D  真实直接验收
   ├─ 本地/云端同题运行
   ├─ 标准 Dockerfile 构建
   ├─ Compose + 鉴权 + RAG readiness
-  └─ 工作区、敏感文件、提交身份和简历口径审计
+  └─ 工作区、敏感文件、提交身份和对外口径审计
 \`\`\`
 
 不要让多个 Agent 同时编辑 \`README.md\`、\`Dockerfile\`、\`G8_RESULTS\` 或同一测试文件。审查阶段可以并行，写入阶段必须有唯一 owner。
@@ -203,9 +203,9 @@ docker build --no-cache \`
 4. 明确单 API key 的真实限制：当前 principal 隔离是测试和资源归属验证，不是完整账号、组织和角色体系。
 5. 明确聊天事件、会话历史和 JSON 文件存储只适合单 app 进程；除非明确要支持多副本，否则不引入 Redis/数据库迁移。
 
-## 八、P1：前端求职展示和用户体验收尾
+## 八、P1：前端展示和用户体验收尾
 
-由 \`frontend_resume\` 子 Agent 负责，重点是可见行为，不增加复杂 UI。
+由 \`frontend_review\` 子 Agent 负责，重点是可见行为，不增加复杂 UI。
 
 1. 首页模式选择必须清楚显示：本地端侧模型与在线多智能体各自的模型来源、是否需要云凭证、失败时行为和资源代价。
 2. 运行中显示当前模式、模型名、目标服务、目标实例/地域、RAG 状态和证据来源。
@@ -226,7 +226,7 @@ docker build --no-cache \`
    - 凭据轮换状态；
    - 未验证边界。
 2. 更新 \`README.md\`、\`IMPLEMENTATION_STATUS.md\`、\`VALIDATION_RESULTS.md\`，不要覆盖历史 V1–V14 证据。
-3. 生成最终简历项目描述，分成“已验证事实”和“明确限制”两组。
+3. 生成最终对外说明，分成“已验证事实”和“明确限制”两组。
 4. 当前 G7 分支完成 G8 后形成独立提交，不要把临时评测结果和敏感日志加入 Git。
 5. 最终再决定是否合并到 \`master\`；合并前检查主分支没有旧代码覆盖 G6/G7/G8。
 

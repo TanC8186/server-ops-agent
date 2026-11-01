@@ -35,7 +35,7 @@
 | `autodl_runtime_metrics` | cgroup 指标、磁盘路径、journal 日志能力、工具结果口径 | `AUTODL_RUNTIME_REPORT.md` |
 | `autodl_benchmark` | 固定题集、本地 adapter、cloud_multi、真实 SSH 同题对比 | `AUTODL_LIVE_BENCHMARK_REPORT.md` |
 | `docker_space_guard` | 镜像归属、构建策略、清理记录、镜像 digest | `DOCKER_SPACE_REPORT.md` |
-| `security_resume` | 凭据、日志、截图、README 和简历表述审查 | `AUTODL_SECURITY_RESUME_REPORT.md` |
+| `security_claims` | 凭据、日志、截图、README 和对外表述审查 | `AUTODL_SECURITY_CLAIMS_AUDIT.md` |
 
 共享代码文件只能由 integration Agent 最终修改。子 Agent 先提交报告、补丁或可复现命令，避免同时编辑同一文件。
 
@@ -312,8 +312,8 @@ docs/claude-code-handoff/AUTODL_TARGET_REPORT.md
 docs/claude-code-handoff/AUTODL_RUNTIME_REPORT.md
 docs/claude-code-handoff/AUTODL_LIVE_BENCHMARK_REPORT.md
 docs/claude-code-handoff/DOCKER_SPACE_REPORT.md
-docs/claude-code-handoff/AUTODL_SECURITY_RESUME_REPORT.md
+docs/claude-code-handoff/AUTODL_SECURITY_CLAIMS_AUDIT.md
 docs/claude-code-handoff/AUTODL_PHASE_RESULT_YYYY-MM-DD.md
 ```
 
-最终总报告必须明确写出：已完成、未完成、证据路径、复现命令、Docker 清理前后空间，以及哪些结论不能放进简历。
+最终总报告必须明确写出：已完成、未完成、证据路径、复现命令、Docker 清理前后空间，以及哪些结论不得作为对外主张。
