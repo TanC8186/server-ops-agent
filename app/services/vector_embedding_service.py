@@ -180,6 +180,7 @@ def _load_local_embeddings(model_name: str, *, local_only: bool = True) -> Embed
 
     return HuggingFaceEmbeddings(
         model_name=model_name,
+        cache_folder=config.hf_cache_dir or None,
         model_kwargs={"device": "cpu", "local_files_only": local_only},
         encode_kwargs={"normalize_embeddings": True},
     )

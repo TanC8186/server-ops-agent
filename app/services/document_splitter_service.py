@@ -47,7 +47,9 @@ def _tokenizer() -> Callable[[str], int] | None:
         from transformers import AutoTokenizer
 
         tokenizer = AutoTokenizer.from_pretrained(
-            config.embedding_model, local_files_only=True
+            config.embedding_model,
+            cache_dir=config.hf_cache_dir or None,
+            local_files_only=True,
         )
     except Exception as exc:  # noqa: BLE001 - 离线缓存缺失时退化为字符估算
         logger.warning(f"embedding tokenizer 不可用，改用保守字符估算: {exc}")

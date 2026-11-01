@@ -137,6 +137,9 @@ class Settings(BaseSettings):
     embedding_api_key: str = Field(default="", repr=False)
     embedding_model: str = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
     embedding_base_url: str = "https://dashscope.aliyuncs.com/compatible-mode/v1"
+    # 本地模型缓存目录（HF hub 布局）。留空则跟随 HuggingFace 默认（~/.cache/huggingface）。
+    # 设成项目内绝对路径后，模型不再依赖用户目录，C 盘清理不会让检索失效。
+    hf_cache_dir: str = ""
 
     # 向后兼容旧字段名 (DASHSCOPE_* 环境变量仍可用)
     @property
